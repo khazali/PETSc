@@ -177,9 +177,9 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
     q = Ncell * user->particles_cell;
     ierr = DMSwarmSetLocalSizes(*sw, q, 0);CHKERRQ(ierr);
     ierr = MPI_Allreduce(&q,&cell,1,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-    /* should there be some sort of normalizing factor? */
-    user->factor = 1; // (user->domain_hi[0]-user->domain_lo[0])*(user->domain_hi[1]-user->domain_lo[1])/(double)cell;
-    PetscPrintf(PetscObjectComm((PetscObject) dm),"CreateParticles: particles/cell=%D, N=%D, number local particels=%D, number global=%D, weight factor %g\n",user->particles_cell,N,q,cell,user->factor);
+    /* ad hoc normalization that seems to provide a good fit for sin(x) */
+    user->factor = 4/(double)user->particles_cell;
+    PetscPrintf(PetscObjectComm((PetscObject) dm),"CreateParticles: particles/cell=%D, P=%D, N=%D, number local particels=%D, number global=%D, weight factor %g\n",user->particles_cell,N,user->nbrVerEdge-1,q,cell,user->factor);
   }
   ierr = DMSetFromOptions(*sw);CHKERRQ(ierr);
 
@@ -230,7 +230,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   KSP              ksp;
   Mat              mass;
   Vec              u, rhs, uproj, uexact;
-  PetscReal        error,norm,normerr;
+  PetscReal        error,normerr,norm;
   PetscErrorCode   ierr;
   PetscScalar      none = -1.0;
   PetscFunctionBeginUser;
@@ -260,16 +260,16 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = PetscObjectSetName((PetscObject) uproj, "Projection");CHKERRQ(ierr);
   ierr = PetscObjectViewFromOptions((PetscObject)uproj, NULL, "-vec_view");CHKERRQ(ierr);
   ierr = DMComputeL2Diff(dm, 0.0, funcs, (void**)ctxs, uproj, &error);CHKERRQ(ierr);
-  ierr = VecNorm(uproj, NORM_2, &norm);CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(dm, &uexact);CHKERRQ(ierr);
   ierr = DMProjectFunction(dm, 0.0, funcs, (void**)ctxs, INSERT_ALL_VALUES, uexact);CHKERRQ(ierr);
+  ierr = VecNorm(uexact, NORM_2, &norm);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) uexact, "exact");CHKERRQ(ierr);
   ierr = PetscObjectViewFromOptions((PetscObject)uexact, NULL, "-vec_view");CHKERRQ(ierr);
   ierr = VecAYPX(uexact,none,uproj);CHKERRQ(ierr); /* uexact = error function */
   ierr = PetscObjectSetName((PetscObject) uexact, "error");CHKERRQ(ierr);
   ierr = PetscObjectViewFromOptions((PetscObject)uexact, NULL, "-vec_view");CHKERRQ(ierr);
   ierr = VecNorm(uexact, NORM_2, &normerr);CHKERRQ(ierr);
-  ierr = PetscPrintf(PETSC_COMM_WORLD, "Projected L2 Relative error = %g, relative discrete error = %g\n", (double) error/norm, (double) normerr/norm);CHKERRQ(ierr);
+  ierr = PetscPrintf(PETSC_COMM_WORLD, "Projected L2 error = %g, relative discrete error = %g\n", (double) error, (double) normerr/norm);CHKERRQ(ierr);
 
   ierr = MatDestroy(&mass);CHKERRQ(ierr);
   ierr = DMRestoreGlobalVector(dm, &rhs);CHKERRQ(ierr);
