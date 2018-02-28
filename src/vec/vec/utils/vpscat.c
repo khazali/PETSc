@@ -422,6 +422,19 @@ PetscErrorCode VecScatterCopy_PtoP(VecScatter in,VecScatter out)
     ierr = PetscMalloc2(size,&out_from->counts,size,&out_from->displs);CHKERRQ(ierr);
     ierr = PetscMemcpy(out_from->counts,in_from->counts,size*sizeof(PetscMPIInt));CHKERRQ(ierr);
     ierr = PetscMemcpy(out_from->displs,in_from->displs,size*sizeof(PetscMPIInt));CHKERRQ(ierr);
+
+#if defined(PETSC_HAVE_MPI_ALLTOALLW)  && !defined(PETSC_USE_64BIT_INDICES)
+    if (in_to->use_alltoallw) {
+      /* It is not worth the trouble to implement alltoallw-context copying because 1) alltoallv/w
+         is non-scalable and no one uses it; 2) indexed MPI data types created by
+         MPI_Type_create_indexed_block for alltoallw are not easy to handle. If we duplicate those
+         data types here, then in VecScatterRemap() we have to rebuild them since indices are changed
+         and the old data types become invalid. So the best approach is to leave it and inform the user.
+       */
+      out_to->use_alltoallw = out_from->use_alltoallw = PETSC_FALSE;
+      ierr = PetscInfo(out,"Copying a vecscatter context of type -vecscatter_alltoall -vecscatter_nopack is not implemented and we will copy it without -vecscatter_nopack\n");CHKERRQ(ierr);
+    }
+#endif
 #if defined(PETSC_HAVE_MPI_WIN_CREATE)
   } else if (in_to->use_window) {
     PetscMPIInt winsize;
