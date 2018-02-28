@@ -422,6 +422,23 @@ PetscErrorCode VecScatterCopy_PtoP(VecScatter in,VecScatter out)
     ierr = PetscMalloc2(size,&out_from->counts,size,&out_from->displs);CHKERRQ(ierr);
     ierr = PetscMemcpy(out_from->counts,in_from->counts,size*sizeof(PetscMPIInt));CHKERRQ(ierr);
     ierr = PetscMemcpy(out_from->displs,in_from->displs,size*sizeof(PetscMPIInt));CHKERRQ(ierr);
+#if defined(PETSC_HAVE_MPI_WIN_CREATE)
+  } else if (in_to->use_window) {
+    PetscMPIInt winsize;
+    MPI_Comm comm = PetscObjectComm((PetscObject)out);
+
+    out_to->use_window = out_from->use_window = PETSC_TRUE;
+
+    winsize = (out_to->n ? out_to->starts[out_to->n] : 0)*bs*sizeof(PetscScalar);
+    ierr = MPI_Win_create(out_to->values ? out_to->values : MPI_BOTTOM,winsize,sizeof(PetscScalar),MPI_INFO_NULL,comm,&out_to->window);CHKERRQ(ierr);
+    ierr = PetscMalloc1(out_to->n,&out_to->winstarts);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->winstarts,in_to->winstarts,out_to->n*sizeof(PetscInt));CHKERRQ(ierr);
+
+    winsize = (out_from->n ? out_from->starts[out_from->n] : 0)*bs*sizeof(PetscScalar);
+    ierr = MPI_Win_create(out_from->values ? out_from->values : MPI_BOTTOM,winsize,sizeof(PetscScalar),MPI_INFO_NULL,comm,&out_from->window);CHKERRQ(ierr);
+    ierr = PetscMalloc1(out_from->n,&out_from->winstarts);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->winstarts,in_from->winstarts,out_from->n*sizeof(PetscInt));CHKERRQ(ierr);
+ #endif
   } else {
     /* set up the request arrays for use with isend_init() and irecv_init() */
     PetscMPIInt tag;
