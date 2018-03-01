@@ -361,15 +361,50 @@ PetscErrorCode VecScatterCopy_PtoP(VecScatter in,VecScatter out)
   out->ops->destroy = in->ops->destroy;
   out->ops->view    = in->ops->view;
 
-  /* allocate entire send scatter context */
   ierr = PetscNewLog(out,&out_to);CHKERRQ(ierr);
   ierr = PetscNewLog(out,&out_from);CHKERRQ(ierr);
 
-  ny                = in_to->starts[in_to->n];
-  out_to->n         = in_to->n;
-  out_to->type      = in_to->type;
-  out_to->sendfirst = in_to->sendfirst;
-  out_to->bs        = bs;
+  out->todata   = (void*)out_to;
+  out->fromdata = (void*)out_from;
+
+  /* copy the local scatter (on-processor) part of the context */
+  out_to->local.n                      = in_to->local.n;
+  out_to->local.nonmatching_computed   = PETSC_FALSE;
+  out_to->local.n_nonmatching          = 0;
+  out_to->local.slots_nonmatching      = 0;
+
+  out_from->local.n                    = in_from->local.n;
+  out_from->local.nonmatching_computed = PETSC_FALSE;
+  out_from->local.n_nonmatching        = 0;
+  out_from->local.slots_nonmatching    = 0;
+
+  if (in_to->local.n) {
+    ierr = PetscMalloc1(in_to->local.n,&out_to->local.vslots);CHKERRQ(ierr);
+    ierr = PetscMalloc1(in_from->local.n,&out_from->local.vslots);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->local.vslots,in_to->local.vslots,in_to->local.n*sizeof(PetscInt));CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->local.vslots,in_from->local.vslots,in_from->local.n*sizeof(PetscInt));CHKERRQ(ierr);
+  }
+
+  if (in_to->local.made_of_copies) {
+    PetscInt n_copies = in_to->local.n_copies;
+    out_to->local.made_of_copies   = PETSC_TRUE;
+    out_from->local.made_of_copies = PETSC_TRUE;
+    out_to->local.n_copies         = n_copies;
+    out_from->local.n_copies       = n_copies;
+    ierr = PetscMalloc2(n_copies,&out_to->local.copy_starts,n_copies,&out_to->local.copy_lengths);CHKERRQ(ierr);
+    ierr = PetscMalloc2(n_copies,&out_from->local.copy_starts,n_copies,&out_from->local.copy_lengths);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->local.copy_starts,in_to->local.copy_starts,n_copies*sizeof(PetscInt));CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->local.copy_lengths,in_to->local.copy_lengths,n_copies*sizeof(PetscInt));CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->local.copy_starts,in_from->local.copy_starts,n_copies*sizeof(PetscInt));CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->local.copy_lengths,in_from->local.copy_lengths,n_copies*sizeof(PetscInt));CHKERRQ(ierr);
+  }
+
+  /* copy the remote scatter (off-processor) part of the context */
+  ny                  = in_to->starts[in_to->n];
+  out_to->n           = in_to->n;
+  out_to->type        = in_to->type;
+  out_to->sendfirst   = in_to->sendfirst;
+  out_to->bs          = bs;
 
   ierr = PetscMalloc1(out_to->n,&out_to->requests);CHKERRQ(ierr);
   ierr = PetscMalloc4(bs*ny,&out_to->values,ny,&out_to->indices,out_to->n+1,&out_to->starts,out_to->n,&out_to->procs);CHKERRQ(ierr);
@@ -378,22 +413,6 @@ PetscErrorCode VecScatterCopy_PtoP(VecScatter in,VecScatter out)
   ierr = PetscMemcpy(out_to->starts,in_to->starts,(out_to->n+1)*sizeof(PetscInt));CHKERRQ(ierr);
   ierr = PetscMemcpy(out_to->procs,in_to->procs,(out_to->n)*sizeof(PetscMPIInt));CHKERRQ(ierr);
 
-  out->todata                        = (void*)out_to;
-  out_to->local.n                    = in_to->local.n;
-  out_to->local.nonmatching_computed = PETSC_FALSE;
-  out_to->local.n_nonmatching        = 0;
-  out_to->local.slots_nonmatching    = 0;
-  if (in_to->local.n) {
-    ierr = PetscMalloc1(in_to->local.n,&out_to->local.vslots);CHKERRQ(ierr);
-    ierr = PetscMalloc1(in_from->local.n,&out_from->local.vslots);CHKERRQ(ierr);
-    ierr = PetscMemcpy(out_to->local.vslots,in_to->local.vslots,in_to->local.n*sizeof(PetscInt));CHKERRQ(ierr);
-    ierr = PetscMemcpy(out_from->local.vslots,in_from->local.vslots,in_from->local.n*sizeof(PetscInt));CHKERRQ(ierr);
-  } else {
-    out_to->local.vslots   = 0;
-    out_from->local.vslots = 0;
-  }
-
-  /* allocate entire receive context */
   out_from->type      = in_from->type;
   ny                  = in_from->starts[in_from->n];
   out_from->n         = in_from->n;
@@ -405,12 +424,6 @@ PetscErrorCode VecScatterCopy_PtoP(VecScatter in,VecScatter out)
   ierr = PetscMemcpy(out_from->indices,in_from->indices,ny*sizeof(PetscInt));CHKERRQ(ierr);
   ierr = PetscMemcpy(out_from->starts,in_from->starts,(out_from->n+1)*sizeof(PetscInt));CHKERRQ(ierr);
   ierr = PetscMemcpy(out_from->procs,in_from->procs,(out_from->n)*sizeof(PetscMPIInt));CHKERRQ(ierr);
-
-  out->fromdata                        = (void*)out_from;
-  out_from->local.n                    = in_from->local.n;
-  out_from->local.nonmatching_computed = PETSC_FALSE;
-  out_from->local.n_nonmatching        = 0;
-  out_from->local.slots_nonmatching    = 0;
 
   if (in_to->use_alltoallv) {
     out_to->use_alltoallv = out_from->use_alltoallv = PETSC_TRUE;
