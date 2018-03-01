@@ -339,6 +339,7 @@ PetscErrorCode TaoComputeSeparableObjective(Tao tao, Vec X, Vec F)
   PetscValidHeaderSpecific(F,VEC_CLASSID,3);
   PetscCheckSameComm(tao,1,X,2);
   PetscCheckSameComm(tao,1,F,3);
+  ierr = VecLockPush(X);CHKERRQ(ierr);
   if (tao->ops->computeseparableobjective) {
     ierr = PetscLogEventBegin(Tao_ObjectiveEval,tao,X,NULL,NULL);CHKERRQ(ierr);
     PetscStackPush("Tao user separable objective evaluation routine");
@@ -348,6 +349,7 @@ PetscErrorCode TaoComputeSeparableObjective(Tao tao, Vec X, Vec F)
     tao->nfuncs++;
   } else SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"TaoSetSeparableObjectiveRoutine() has not been called");
   ierr = PetscInfo(tao,"TAO separable function evaluation.\n");CHKERRQ(ierr);
+  ierr = VecLockPop(X);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
