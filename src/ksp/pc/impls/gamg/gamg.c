@@ -438,7 +438,7 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
       Mat          B,dA,dB;
 
      if (!pc->setupcalled) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"PCSetUp() has not been called yet");
-      if (pc_gamg->Nlevels > 1) {
+      if (pc_gamg->Nlevels > 1 && !pc_gamg->use_sell) {
         /* currently only handle case where mat and pmat are the same on coarser levels */
         ierr = KSPGetOperators(mglevels[pc_gamg->Nlevels-1]->smoothd,&dA,&dB);CHKERRQ(ierr);
         /* (re)set to get dirty flag */
@@ -456,6 +456,41 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
             ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_REUSE_MATRIX,1.0,&B);CHKERRQ(ierr);
           }
           ierr = KSPSetOperators(mglevels[level]->smoothd,B,B);CHKERRQ(ierr);
+          dB   = B;
+        }
+      } else if (pc_gamg->Nlevels > 1 && pc_gamg->use_sell) {
+        Mat B_sell; /* Holds the matrix in SELL format; B is in AIJ. */
+        Mat dA_sell, dB_sell;
+
+        /* currently only handle case where mat and pmat are the same on coarser levels */
+        ierr = KSPGetOperators(mglevels[pc_gamg->Nlevels-1]->smoothd,&dA_sell,&dB_sell);CHKERRQ(ierr);
+        /* (re)set to get dirty flag */
+        ierr = KSPSetOperators(mglevels[pc_gamg->Nlevels-1]->smoothd,dA_sell,dB_sell);CHKERRQ(ierr);
+        dB = mglevels[pc_gamg->Nlevels-1]->A;
+
+        if (pc_gamg->setup_count == 2) {
+          ierr = MatConvert(mglevels[pc_gamg->Nlevels-1]->A,MATSELL,MAT_INITIAL_MATRIX,&mglevels[pc_gamg->Nlevels-1]->A_alt);CHKERRQ(ierr);
+          ierr = KSPSetOperators(mglevels[pc_gamg->Nlevels-1]->smoothd,mglevels[pc_gamg->Nlevels-1]->A_alt,mglevels[pc_gamg->Nlevels-1]->A_alt);CHKERRQ(ierr);
+          /* WARNING! Assuming that mat and pmat are the same above! Should we support otherwise for use_sell? */
+        }
+
+        for (level=pc_gamg->Nlevels-2; level>=0; level--) {
+          ierr = KSPGetOperators(mglevels[level]->smoothd,NULL,&B_sell);CHKERRQ(ierr);
+          B = mglevels[level]->A;
+          /* the first time through the matrix structure has changed from repartitioning */
+          if (pc_gamg->setup_count==2) {
+            ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_INITIAL_MATRIX,1.0,&B);CHKERRQ(ierr);
+            ierr = MatDestroy(&mglevels[level]->A);CHKERRQ(ierr);
+            if (level > 0) ierr = MatConvert(B,MATSELL,MAT_INITIAL_MATRIX,&B_sell);CHKERRQ(ierr);
+          } else {
+            ierr = KSPGetOperators(mglevels[level]->smoothd,NULL,&B_sell);CHKERRQ(ierr);
+            ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_REUSE_MATRIX,1.0,&B);CHKERRQ(ierr);
+            if (level > 0) {ierr = MatConvert(B,MATSELL,MAT_REUSE_MATRIX,&B_sell);CHKERRQ(ierr);}
+          }
+          if (level > 0) {ierr = KSPSetOperators(mglevels[level]->smoothd,B_sell,B_sell);CHKERRQ(ierr);}
+          else {ierr = KSPSetOperators(mglevels[level]->smoothd,B,B); CHKERRQ(ierr);}
+          mglevels[level]->A = B;
+          mglevels[level]->A_alt = B_sell;
           dB   = B;
         }
       }
@@ -1204,6 +1239,7 @@ PetscErrorCode PCSetFromOptions_GAMG(PetscOptionItems *PetscOptionsObject,PC pc)
     ierr = PetscOptionsBool("-pc_gamg_reuse_interpolation","Reuse prolongation operator","PCGAMGReuseInterpolation",pc_gamg->reuse_prol,&pc_gamg->reuse_prol,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsBool("-pc_gamg_asm_use_agg","Use aggregation aggregates for ASM smoother","PCGAMGASMSetUseAggs",pc_gamg->use_aggs_in_asm,&pc_gamg->use_aggs_in_asm,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsBool("-pc_gamg_use_parallel_coarse_grid_solver","Use parallel coarse grid solver (otherwise put last grid on one process)","PCGAMGSetUseParallelCoarseGridSolve",pc_gamg->use_parallel_coarse_grid_solver,&pc_gamg->use_parallel_coarse_grid_solver,NULL);CHKERRQ(ierr);
+    ierr = PetscOptionsBool("-pc_gamg_use_sell","Use MATSELL for smoother KSPs","PCGAMGSetUseSELL",pc_gamg->use_sell,&pc_gamg->use_sell,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsInt("-pc_gamg_process_eq_limit","Limit (goal) on number of equations per process on coarse grids","PCGAMGSetProcEqLim",pc_gamg->min_eq_proc,&pc_gamg->min_eq_proc,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsInt("-pc_gamg_coarse_eq_limit","Limit on number of equations for the coarse grid","PCGAMGSetCoarseEqLim",pc_gamg->coarse_eq_limit,&pc_gamg->coarse_eq_limit,NULL);CHKERRQ(ierr);
     ierr = PetscOptionsReal("-pc_gamg_threshold_scale","Scaling of threshold for each level not specified","PCGAMGSetThresholdScale",pc_gamg->threshold_scale,&pc_gamg->threshold_scale,NULL);CHKERRQ(ierr);

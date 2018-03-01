@@ -21,6 +21,7 @@ typedef struct {
   PetscErrorCode (*residual)(Mat,Vec,Vec,Vec);
 
   Mat           A;                             /* matrix used in forming residual*/
+  Mat           A_alt;                         /* copy of matrix A in alternative format; only used in some special cases */
   KSP           smoothd;                       /* pre smoother */
   KSP           smoothu;                       /* post smoother */
   Mat           interpolate;

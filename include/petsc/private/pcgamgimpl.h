@@ -25,6 +25,7 @@ typedef struct gamg_TAG {
   PetscBool reuse_prol;
   PetscBool use_aggs_in_asm;
   PetscBool use_parallel_coarse_grid_solver;
+  PetscBool use_sell; /* Use MATSELL in the KSP objects for the smoothers. */
   PetscInt  min_eq_proc;
   PetscInt  coarse_eq_limit;
   PetscReal threshold_scale;
