@@ -227,6 +227,8 @@ typedef struct {
   PetscInt       n_copies;             /* number of copies */
   PetscInt       *copy_starts;         /* i-th copy starts at copy_starts[i] */
   PetscInt       *copy_lengths;        /* with length copy_lengths[i] */
+  PetscBool      same_copy_starts;     /* to's copy_starts[] values are the same as from's in vecscatter.
+                                          The flag is used to quickly test if we are doing a self-to-self copy */
 } VecScatter_Seq_General;
 
 typedef struct {

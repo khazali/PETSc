@@ -152,8 +152,8 @@ PetscErrorCode PETSCMAP1(VecScatterBegin)(VecScatter ctx,Vec xin,Vec yin,InsertM
   /* take care of local scatters */
   if (to->local.n) {
     if (to->local.made_of_copies && addv == INSERT_VALUES) {
-      /* do copy only when xv and yv are not totally overlapped */
-      if (!(yv == xv && to->local.n_copies == 1 && from->local.copy_starts[0] == to->local.copy_starts[0])) {
+      /* do copy when it is not a self-to-self copy */
+      if (!(yv == xv && to->local.same_copy_starts)) {
         for (i=0; i<to->local.n_copies; i++) {
           /* Do we need to take care of overlaps? We could but overlaps sound more like a bug than a requirement,
              so I just leave it and let PetscMemcpy detect this bug.
