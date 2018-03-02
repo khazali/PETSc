@@ -174,7 +174,7 @@ PetscErrorCode VecScatterLocalOptimize_Private(VecScatter scatter,VecScatter_Seq
     made of copies. The scatter routines call PetscMemcpy() instead.
 
 */
-PetscErrorCode VecScatterLocalOptimizeCopy_Private(VecScatter scatter,VecScatter_Seq_General *to,VecScatter_Seq_General *from,PetscInt bs)
+PetscErrorCode VecScatterLocalOptimizeCopy(VecScatter scatter,VecScatter_Seq_General *to,VecScatter_Seq_General *from,PetscInt bs)
 {
   PetscInt       n = to->n,i,*to_slots = to->vslots,*from_slots = from->vslots;
   PetscInt       j,n_copies;
@@ -2540,7 +2540,7 @@ PetscErrorCode VecScatterCreateCommon_PtoS(VecScatter_MPI_General *from,VecScatt
   ctx->ops->view = VecScatterView_MPI;
   /* Check if the local scatter is made of copies; important special case */
   if (to->local.n) {
-    ierr = VecScatterLocalOptimizeCopy_Private(ctx,&to->local,&from->local,bs);CHKERRQ(ierr);
+    ierr = VecScatterLocalOptimizeCopy(ctx,&to->local,&from->local,bs);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
