@@ -139,10 +139,10 @@ int main(int argc,char **argv)
   appctx.param.Ey    = 6;  /* number of elements */
   appctx.param.Lx    = 4.0;  /* length of the domain */
   appctx.param.Ly    = 4.0;  /* length of the domain */
-  appctx.param.mu   = 0.001; /* diffusion coefficient */
-  appctx.initial_dt = 3e-3;
+  appctx.param.mu   = 0.005; /* diffusion coefficient */
+  appctx.initial_dt = 5e-3;
   appctx.param.steps = PETSC_MAX_INT;
-  appctx.param.Tend  = 3.0;
+  appctx.param.Tend  = 2.0;
   appctx.ncoeff      = 2;
 
   ierr = PetscOptionsGetInt(NULL,NULL,"-N",&appctx.param.N,NULL);CHKERRQ(ierr);
@@ -315,12 +315,10 @@ int main(int argc,char **argv)
   //ierr = TSSetRHSJacobian(appctx.ts,H_shell,H_shell,TSComputeRHSJacobianConstant,&appctx);CHKERRQ(ierr);
   ierr = TSSetRHSJacobian(appctx.ts,H_shell,H_shell,RHSJacobian,&appctx);CHKERRQ(ierr);
   ierr = TSSetRHSFunction(appctx.ts,NULL,RHSFunction,&appctx);CHKERRQ(ierr);
-  ierr = InitialConditions(appctx.dat.ic,&appctx);CHKERRQ(ierr);
+  
 
-  ierr = VecCopy(appctx.dat.ic,appctx.dat.obj);CHKERRQ(ierr);
-  ierr = InitialConditions(appctx.dat.obj,&appctx);CHKERRQ(ierr);
-  //ierr = TSSetMaxTime(appctx.ts,appctx.param.Tend);CHKERRQ(ierr);
-  ierr = TSSolve(appctx.ts,appctx.dat.obj);CHKERRQ(ierr);
+  //ierr = ComputeObjective(0.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
+  //ierr = TSSolve(appctx.ts,appctx.dat.obj);CHKERRQ(ierr);
   
 /*
 
@@ -378,8 +376,8 @@ int main(int argc,char **argv)
     ierr = PetscViewerPopFormat(viewfile);
     printf("test i %d length %d\n",its, appctx.param.lenx*appctx.param.leny);
     } 
+exit(1);
 */
-
   //ierr = VecDuplicate(appctx.dat.ic,&uu);CHKERRQ(ierr);
   //ierr = VecCopy(appctx.dat.ic,uu);CHKERRQ(ierr);
   //MatView(H_shell,0);
@@ -403,11 +401,11 @@ int main(int argc,char **argv)
   ierr = TSSetSaveTrajectory(appctx.ts);CHKERRQ(ierr);
 
   /* Set Objective and Initial conditions for the problem and compute Objective function (evolution of true_solution to final time */
+
   ierr = ComputeSolutionCoefficients(&appctx);CHKERRQ(ierr);
   ierr = InitialConditions(appctx.dat.ic,&appctx);CHKERRQ(ierr);
-  VecScale(appctx.dat.ic,1.1);
   ierr = TrueSolution(appctx.dat.true_solution,&appctx);CHKERRQ(ierr);
-  //ierr = ComputeObjective(0.8,appctx.dat.obj,&appctx);CHKERRQ(ierr);
+  ierr = ComputeObjective(3.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
 
   /* Create TAO solver and set desired solution method  */
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
@@ -498,11 +496,17 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   for (i=0; i<appctx->param.lenx; i++) 
     {for (j=0; j<appctx->param.leny; j++) 
       {
-      //s[j][i].u=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y));
-      //s[j][i].v=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(2.*PETSC_PI*coors[j][i].x)+PetscCosScalar(2.*PETSC_PI*coors[j][i].y));
-       pp=(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y);
-      s[j][i].u=PetscExpScalar(- 2.0*pp*pp)/10.0;
-      s[j][i].v=0.0;//PetscExpScalar(-appctx->param.mu*tt - 12.0*(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y));
+      //s[j][i].u=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y))*2.0;
+      //s[j][i].v=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(2.*PETSC_PI*coors[j][i].x)+PetscCosScalar(2.*PETSC_PI*coors[j][i].y))*2.0;
+      
+      s[j][i].u=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(0.5*PETSC_PI*coors[j][i].x)+PetscSinScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
+      s[j][i].v=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(0.5*PETSC_PI*coors[j][i].x)+PetscCosScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
+      
+      //pp=(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y);
+      //s[j][i].u=PetscExpScalar(- 7.0*pp)/5.0;
+      //s[j][i].v=0.0;//PetscExpScalar(-appctx->param.mu*tt - 12.0*(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y));
+
+
       //s[j][i].u=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(2*PETSC_PI*));
       //s[j][i].v=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(2*PETSC_PI*(coors[j][i].x-0.5*PETSC_PI)));
       //s[j][i].u=PetscMax(0.0,PetscSinReal(PetscSqrtReal(PETSC_PI*coors[j][i].x*coors[j][i].x+PETSC_PI*coors[j][i].y*coors[j][i].y)))+1.0;
@@ -574,6 +578,7 @@ PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
   DM                cda;
   Vec               global;
   DMDACoor2d        **coors;
+  PetscScalar       pp;
 
 
   ierr = DMDAVecGetArray(appctx->da,obj,&s);CHKERRQ(ierr);
@@ -589,9 +594,12 @@ PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
       //s[j][i].v=PetscExpScalar(-appctx->param.mu*t)*(PetscSinScalar(2.*PETSC_PI*coors[j][i].x)+PetscCosScalar(2.*PETSC_PI*coors[j][i].y));
       //s[j][i].u=PetscExpScalar(-appctx->param.mu*t - 10.0*(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y));
       //s[j][i].v=PetscExpScalar(-appctx->param.mu*t - 12.0*(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y));
-      s[j][i].u=PetscExpScalar(- 6.0*(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y));
-      s[j][i].v=0.0;
+      //pp=(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y);
+      //s[j][i].u=PetscExpScalar(- 2.0*pp*pp)/5.0;
+      //s[j][i].v=0.0;
 
+      s[j][i].u=PetscExpScalar(-appctx->param.mu*t)*(PetscCosScalar(0.5*PETSC_PI*coors[j][i].x)+PetscSinScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
+      s[j][i].v=PetscExpScalar(-appctx->param.mu*t)*(PetscSinScalar(0.5*PETSC_PI*coors[j][i].x)+PetscCosScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
       //s[j][i].u=PetscExpScalar(-appctx->param.mu*t)*(PetscSinScalar(2*PETSC_PI*coors[j][i].x));
       //s[j][i].v=PetscExpScalar(-appctx->param.mu*t)*(PetscCosScalar(2*PETSC_PI*(coors[j][i].x-0.5*PETSC_PI)));
       } 
@@ -802,7 +810,7 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
  
   ierr = VecPointwiseDivide(globalout,globalout,appctx->SEMop.mass);CHKERRQ(ierr);
 
-  /*
+  
   DMGetCoordinateDM(appctx->da,&cda);
   DMGetCoordinates(appctx->da,&global);
   DMDAVecGetArray(cda,global,&coors);
@@ -819,18 +827,24 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
       //               appctx->param.mu*PetscSinScalar(2.*PETSC_PI*coors[jx][ix].y));
       //ff[jx][ix].v=PetscExpScalar(-appctx->param.mu*tt)*((appctx->param.mu*(-1.0 + 4*PETSC_PI*PETSC_PI)+2.*PETSC_PI*ul[jx][ix].v)*
       //              PetscCosScalar(2.*PETSC_PI*coors[jx][ix].y)-(appctx->param.mu +2.*PETSC_PI*ul[jx][ix].u)*PetscSinScalar(2.*PETSC_PI*coors[jx][ix].x));
-             xpy=(coors[jx][ix].x*coors[jx][ix].x+coors[jx][ix].y*coors[jx][ix].y);
-             tempu=PetscExpScalar(-appctx->param.mu*tt - 10.0*xpy);
-             tempv=PetscExpScalar(-appctx->param.mu*tt - 12.0*xpy);
+      //       xpy=(coors[jx][ix].x*coors[jx][ix].x+coors[jx][ix].y*coors[jx][ix].y);
+      //       tempu=PetscExpScalar(-appctx->param.mu*tt - 10.0*xpy);
+      //       tempv=PetscExpScalar(-appctx->param.mu*tt - 12.0*xpy);
 
-      ff[jx][ix].u=PetscExpScalar(-appctx->param.mu*tt - 10.0*xpy)*(appctx->param.mu*(19.0 - 400.0*coors[jx][ix].x*coors[jx][ix].x) - 20.0*(tempu*coors[jx][ix].x + tempv*coors[jx][ix].y));
-      ff[jx][ix].v=PetscExpScalar(-appctx->param.mu*tt - 12.0*xpy)*(-20.0*PetscExpScalar(2.0*xpy)*(tempu*coors[jx][ix].x + tempv*coors[jx][ix].y) + appctx->param.mu* (23.0 - 576.0*coors[jx][ix].y*coors[jx][ix].y));
+      //ff[jx][ix].u=PetscExpScalar(-appctx->param.mu*tt - 10.0*xpy)*(appctx->param.mu*(19.0 - 400.0*coors[jx][ix].x*coors[jx][ix].x) - 20.0*(tempu*coors[jx][ix].x + tempv*coors[jx][ix].y));
+      //ff[jx][ix].v=PetscExpScalar(-appctx->param.mu*tt - 12.0*xpy)*(-20.0*PetscExpScalar(2.0*xpy)*(tempu*coors[jx][ix].x + tempv*coors[jx][ix].y) + appctx->param.mu* (23.0 - 576.0*coors[jx][ix].y*coors[jx][ix].y));
+
+        xpy=0.25*PETSC_PI*PETSC_PI;
+        tempu=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].x)+PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].y))/10.0;
+        tempv=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].x)+PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].y))/10.0;
+ff[jx][ix].u=PetscExpScalar(-appctx->param.mu*tt) *((-0.1 + 0.1*xpy)*appctx->param.mu*PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].x) + 0.1* 0.5*PETSC_PI*tempv* PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].y) * 0.1*0.5*PETSC_PI*tempu*PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].x) - 0.1*appctx->param.mu*PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].y));
+ff[jx][ix].v=PetscExpScalar(-appctx->param.mu*tt)* (((-0.1 + 0.1*xpy)*appctx->param.mu + 0.1*0.5*PETSC_PI*tempv)*PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].y) + (-0.1* appctx->param.mu- 0.1*0.5*PETSC_PI*tempu)*PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].x));
       } 
      }
   ierr = DMDAVecRestoreArray(appctx->da,forcing,&ff);CHKERRQ(ierr);
   VecAXPY(globalout,1.0,forcing);
 
-*/
+
 
   ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
@@ -1222,13 +1236,14 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   ierr = PetscGLLElementAdvectionCreate(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
 
   VecDuplicate(in,&incopy);
+  VecCopy(in,incopy);
   ierr = VecPointwiseDivide(incopy,in,appctx->SEMop.mass);CHKERRQ(ierr);
   
   /* unwrap local vector for the input solution */
   DMCreateLocalVector(appctx->da,&uloc);
 
-  DMGlobalToLocalBegin(appctx->da,in,INSERT_VALUES,uloc);
-  DMGlobalToLocalEnd(appctx->da,in,INSERT_VALUES,uloc);
+  DMGlobalToLocalBegin(appctx->da,incopy,INSERT_VALUES,uloc);
+  DMGlobalToLocalEnd(appctx->da,incopy,INSERT_VALUES,uloc);
 
   DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
 
@@ -1482,7 +1497,8 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,out);
 
   VecScale(out, -1.0);
-  
+  //ierr = VecPointwiseDivide(out,out,appctx->SEMop.mass);CHKERRQ(ierr);
+
 
   ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
