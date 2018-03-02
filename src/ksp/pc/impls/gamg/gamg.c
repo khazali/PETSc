@@ -481,7 +481,8 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
           if (pc_gamg->setup_count==2) {
             ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_INITIAL_MATRIX,1.0,&B);CHKERRQ(ierr);
             ierr = MatDestroy(&mglevels[level]->A);CHKERRQ(ierr);
-            if (level > 0) ierr = MatConvert(B,MATSELL,MAT_INITIAL_MATRIX,&B_sell);CHKERRQ(ierr);
+            if (level > 0) {ierr = MatConvert(B,MATSELL,MAT_INITIAL_MATRIX,&B_sell);CHKERRQ(ierr);}
+            mglevels[level]->A = B;
           } else {
             ierr = KSPGetOperators(mglevels[level]->smoothd,NULL,&B_sell);CHKERRQ(ierr);
             ierr = MatPtAP(dB,mglevels[level+1]->interpolate,MAT_REUSE_MATRIX,1.0,&B);CHKERRQ(ierr);
@@ -489,8 +490,7 @@ PetscErrorCode PCSetUp_GAMG(PC pc)
           }
           if (level > 0) {ierr = KSPSetOperators(mglevels[level]->smoothd,B_sell,B_sell);CHKERRQ(ierr);}
           else {ierr = KSPSetOperators(mglevels[level]->smoothd,B,B); CHKERRQ(ierr);}
-          mglevels[level]->A = B;
-          mglevels[level]->A_alt = B_sell;
+          // mglevels[level]->A_alt = B_sell;
           dB   = B;
         }
       }
