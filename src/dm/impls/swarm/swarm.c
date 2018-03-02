@@ -201,6 +201,12 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   ierr = PetscLayoutDestroy(&rLayout);CHKERRQ(ierr);
   ierr = PetscCalloc2(locRows,&dnz,locRows,&onz);CHKERRQ(ierr);
   ierr = PetscHashJKCreate(&ht);CHKERRQ(ierr);
+
+PetscMPIInt rank;
+MPI_Comm_rank(PetscObjectComm((PetscObject)dmf),&rank);
+PetscPrintf(PETSC_COMM_SELF,"******* [%D]DMSwarmComputeMassMatrix_Private cStart %D, cEnd %D locRows=%D rStart=%D\n",rank,cStart,cEnd,locRows,rStart);
+
+
   for (field = 0; field < Nf; ++field) {
     PetscObject      obj;
     PetscInt         i;
@@ -222,6 +228,7 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
 
         for (i = 0; i < numFIndices; ++i) {
           key.j = findices[i];
+PetscPrintf(PETSC_COMM_SELF, "\t\t[%D] %D,%D) rStart=%D, key.j=%D, idx=%D/%D\n",rank,cell,i,rStart,key.j,key.j-rStart,locRows);
           if (key.j >= 0) {
             /* Get indices for coarse elements */
             for (c = 0; c < numCIndices; ++c) {
@@ -229,6 +236,7 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
               if (key.k < 0) continue;
               ierr = PetscHashJKPut(ht, key, &missing, &iter);CHKERRQ(ierr);
               if (missing) {
+PetscPrintf(PETSC_COMM_SELF, "\t\t\t\t[%D] add nnz at %D,%D\n",rank,key.j,key.k);
                 ierr = PetscHashJKSet(ht, iter, 1);CHKERRQ(ierr);
                 if ((size == 1) || ((key.k >= rStart) && (key.k < rEnd))) ++dnz[key.j-rStart];
                 else                                                      ++onz[key.j-rStart];
@@ -241,6 +249,9 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
       ierr = DMPlexRestoreClosureIndices(dmf, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
     }
   }
+
+PetscPrintf(PETSC_COMM_SELF,"******* [%D]DMSwarmComputeMassMatrix_Private dnz[0]=%D, onz[0]=%D\n",rank,dnz[0],onz[0]);
+
   ierr = PetscHashJKDestroy(&ht);CHKERRQ(ierr);
   ierr = MatXAIJSetPreallocation(mass, 1, dnz, onz, NULL, NULL);CHKERRQ(ierr);
   ierr = MatSetOption(mass, MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
