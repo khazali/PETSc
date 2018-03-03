@@ -889,6 +889,7 @@ PetscErrorCode VecCreate_Seq_Private(Vec v,const PetscScalar array[])
   ierr = PetscObjectComposeFunction((PetscObject)v,"PetscMatlabEnginePut_C",VecMatlabEnginePut_Default);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)v,"PetscMatlabEngineGet_C",VecMatlabEngineGet_Default);CHKERRQ(ierr);
 #endif
+  ierr = VecViewRegister(v,PETSCVIEWERDRAW,-1,VecView_Seq_Draw);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

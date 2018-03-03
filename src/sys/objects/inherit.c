@@ -95,6 +95,7 @@ PetscErrorCode  PetscHeaderDestroy_Private(PetscObject h)
 
   PetscFunctionBegin;
   PetscValidHeader(h,1);
+  ierr = PetscFunctionListDestroy(&h->viewlist);CHKERRQ(ierr);
   ierr = PetscLogObjectDestroy(h);CHKERRQ(ierr);
   ierr = PetscComposedQuantitiesDestroy(h);CHKERRQ(ierr);
   if (PetscMemoryCollectMaximumUsage) {

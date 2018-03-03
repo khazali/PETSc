@@ -547,6 +547,9 @@ PetscErrorCode  VecView(Vec vec,PetscViewer viewer)
   PetscBool         iascii;
   PetscViewerFormat format;
   PetscMPIInt       size;
+  PetscErrorCode    (*func)(Vec,PetscViewer);
+  char              typeformat[128];
+  const char        *vtype;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(vec,VEC_CLASSID,1);
@@ -556,6 +559,31 @@ PetscErrorCode  VecView(Vec vec,PetscViewer viewer)
   }
   PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,2);
   ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
+
+  /* new system for handling multi-dispatch viewers */
+  ierr = PetscObjectGetType((PetscObject)viewer,&vtype);CHKERRQ(ierr);
+  ierr = PetscStrncpy(typeformat,vtype,sizeof(typeformat));CHKERRQ(ierr);
+  ierr = PetscStrncat(typeformat,PetscViewerFormats[format],sizeof(typeformat));CHKERRQ(ierr);
+  ierr = PetscFunctionListFind(((PetscObject)vec)->viewlist,typeformat,&func);CHKERRQ(ierr);
+  if (func) {
+    ierr = PetscLogEventBegin(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
+    ierr = VecLockPush(vec);CHKERRQ(ierr);
+    ierr = (*func)(vec,viewer);CHKERRQ(ierr);
+    ierr = VecLockPop(vec);CHKERRQ(ierr);
+    ierr = PetscLogEventEnd(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+  } else {
+    ierr = PetscFunctionListFind(((PetscObject)vec)->viewlist,vtype,&func);CHKERRQ(ierr);
+    if (func) {
+      ierr = PetscLogEventBegin(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
+      ierr = VecLockPush(vec);CHKERRQ(ierr);
+      ierr = (*func)(vec,viewer);CHKERRQ(ierr);
+      ierr = VecLockPop(vec);CHKERRQ(ierr);
+      ierr = PetscLogEventEnd(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
+      PetscFunctionReturn(0);
+    }
+  }
+
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject)vec),&size);CHKERRQ(ierr);
   if (size == 1 && format == PETSC_VIEWER_LOAD_BALANCE) PetscFunctionReturn(0);
 
@@ -589,6 +617,36 @@ PetscErrorCode  VecView(Vec vec,PetscViewer viewer)
   ierr = PetscLogEventEnd(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+/*@C
+   VecViewRegister - Register code for a viewing a particular vector type with a particular viewer type and optional viewer format
+
+   Not Collective
+
+   Input Parameters:
++  x - the vector
+.  viewer - the viewer type
++  format - a viewer format, or NULL for any format
+
+   Level: developer
+
+.seealso: VecView()
+@*/
+PetscErrorCode  VecViewRegister(Vec x,PetscViewerType type,PetscViewerFormat format,PetscErrorCode (*func)(Vec,PetscViewer))
+{
+  PetscErrorCode ierr;
+  char           typeformat[128];
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(x,VEC_CLASSID,1);
+  ierr = PetscStrncpy(typeformat,type,sizeof(typeformat));CHKERRQ(ierr);
+  if ((int) format > -1) {
+    ierr = PetscStrncat(typeformat,PetscViewerFormats[format],sizeof(typeformat));CHKERRQ(ierr);
+  }
+  ierr = PetscFunctionListAdd(&((PetscObject)x)->viewlist,typeformat,(void (*)(void))func);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 
 #if defined(PETSC_USE_DEBUG)
 #include <../src/sys/totalview/tv_data_display.h>
