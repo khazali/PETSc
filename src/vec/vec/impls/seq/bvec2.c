@@ -618,7 +618,7 @@ PetscErrorCode VecView_Seq_Matlab(Vec vec,PetscViewer viewer)
 PETSC_EXTERN PetscErrorCode VecView_Seq(Vec xin,PetscViewer viewer)
 {
   PetscErrorCode ierr;
-  PetscBool      isdraw,iascii,issocket,isbinary;
+  PetscBool      isdraw,iascii,isbinary;
 #if defined(PETSC_HAVE_MATHEMATICA)
   PetscBool      ismathematica;
 #endif
@@ -633,7 +633,6 @@ PETSC_EXTERN PetscErrorCode VecView_Seq(Vec xin,PetscViewer viewer)
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERDRAW,&isdraw);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
-  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERSOCKET,&issocket);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERBINARY,&isbinary);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_MATHEMATICA)
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERMATHEMATICA,&ismathematica);CHKERRQ(ierr);
@@ -654,7 +653,7 @@ PETSC_EXTERN PetscErrorCode VecView_Seq(Vec xin,PetscViewer viewer)
     ierr = VecView_Seq_Binary(xin,viewer);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_MATHEMATICA)
   } else if (ismathematica) {
-    ierr = PetscViewerMathematicaPutVector(viewer,xin);CHKERRQ(ierr);
+    ierr = PetscViewerMathematicaPutVector(xin,viewer);CHKERRQ(ierr);
 #endif
 #if defined(PETSC_HAVE_HDF5)
   } else if (ishdf5) {
@@ -890,6 +889,17 @@ PetscErrorCode VecCreate_Seq_Private(Vec v,const PetscScalar array[])
   ierr = PetscObjectComposeFunction((PetscObject)v,"PetscMatlabEngineGet_C",VecMatlabEngineGet_Default);CHKERRQ(ierr);
 #endif
   ierr = VecViewRegister(v,PETSCVIEWERDRAW,-1,VecView_Seq_Draw);CHKERRQ(ierr);
+  ierr = VecViewRegister(v,PETSCVIEWERBINARY,-1,VecView_Seq_Binary);CHKERRQ(ierr);
+  ierr = VecViewRegister(v,PETSCVIEWERGLVIS,-1,VecView_GLVis);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_MATLAB_ENGINE)
+  ierr = VecViewRegister(v,PETSCVIEWERMATLAB,-1,VecView_Seq_Matlab);CHKERRQ(ierr);
+#endif
+#if defined(PETSC_HAVE_HDF5)
+  ierr = VecViewRegister(v,PETSCVIEWERHDF5,-1,VecView_MPI_HDF5);CHKERRQ(ierr);
+#endif
+#if defined(PETSC_HAVE_MATHEMATICA)
+  ierr = VecViewRegister(v,PETSCVIEWERMATHEMATICA,-1,PetscViewerMathematicaPutVector);CHKERRQ(ierr);
+#endif
   PetscFunctionReturn(0);
 }
 

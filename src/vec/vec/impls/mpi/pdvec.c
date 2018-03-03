@@ -889,7 +889,7 @@ PETSC_EXTERN PetscErrorCode VecView_MPI(Vec xin,PetscViewer viewer)
     }
 #if defined(PETSC_HAVE_MATHEMATICA)
   } else if (ismathematica) {
-    ierr = PetscViewerMathematicaPutVector(viewer,xin);CHKERRQ(ierr);
+    ierr = PetscViewerMathematicaPutVector(xin,viewer);CHKERRQ(ierr);
 #endif
 #if defined(PETSC_HAVE_HDF5)
   } else if (ishdf5) {

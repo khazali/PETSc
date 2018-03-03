@@ -511,7 +511,7 @@ PetscErrorCode  PetscViewerMathematicaClearName(PetscViewer viewer)
 .keywords PetscViewer, Mathematica, vector
 .seealso VecView(), PetscViewerMathematicaPutVector()
 @*/
-PetscErrorCode  PetscViewerMathematicaGetVector(PetscViewer viewer, Vec v)
+PetscErrorCode  PetscViewerMathematicaGetVector(Vec x,PetscViewer viewer)
 {
   PetscViewer_Mathematica *vmath = (PetscViewer_Mathematica*) viewer->data;
   MLINK                   link;   /* The link to Mathematica */
@@ -556,7 +556,7 @@ PetscErrorCode  PetscViewerMathematicaGetVector(PetscViewer viewer, Vec v)
 .keywords PetscViewer, Mathematica, vector
 .seealso VecView(), PetscViewerMathematicaGetVector()
 @*/
-PetscErrorCode  PetscViewerMathematicaPutVector(PetscViewer viewer, Vec v)
+PetscErrorCode  PetscViewerMathematicaPutVector(Vec v,PetscViewer viewer)
 {
   PetscViewer_Mathematica *vmath = (PetscViewer_Mathematica*) viewer->data;
   MLINK                   link   = vmath->link; /* The link to Mathematica */

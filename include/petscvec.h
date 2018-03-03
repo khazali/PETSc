@@ -550,8 +550,8 @@ PETSC_EXTERN PetscErrorCode VecStepBoundInfo(Vec,Vec,Vec,Vec,PetscReal*, PetscRe
 PETSC_EXTERN PetscErrorCode VecStepMax(Vec, Vec, PetscReal *);
 PETSC_EXTERN PetscErrorCode VecStepMaxBounded(Vec,Vec,Vec,Vec,PetscReal*);
 
-PETSC_EXTERN PetscErrorCode PetscViewerMathematicaGetVector(PetscViewer, Vec);
-PETSC_EXTERN PetscErrorCode PetscViewerMathematicaPutVector(PetscViewer, Vec);
+PETSC_EXTERN PetscErrorCode PetscViewerMathematicaGetVector(Vec,PetscViewer);
+PETSC_EXTERN PetscErrorCode PetscViewerMathematicaPutVector(Vec,PetscViewer);
 
 /*S
      Vecs - Collection of vectors where the data for the vectors is stored in

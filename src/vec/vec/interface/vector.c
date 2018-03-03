@@ -1039,7 +1039,7 @@ $      ierr = VecCreateMPI(comm,m,M,&x);
 $      ierr = VecSetOperation(x,VECOP_VIEW,(void(*)(void))userview);
 
     Notes:
-    See the file include/petscvec.h for a complete list of matrix
+    See the file include/petscvec.h for a complete list of vector
     operations, which all have the form VECOP_<OPERATION>, where
     <OPERATION> is the name (in all capital letters) of the
     user interface routine (e.g., VecView() -> VECOP_VIEW).
@@ -1052,12 +1052,17 @@ $      ierr = VecSetOperation(x,VECOP_VIEW,(void(*)(void))userview);
 @*/
 PetscErrorCode VecSetOperation(Vec vec,VecOperation op, void (*f)(void))
 {
+  PetscErrorCode ierr;
+
   PetscFunctionBegin;
   PetscValidHeaderSpecific(vec,VEC_CLASSID,1);
   if (op == VECOP_VIEW && !vec->ops->viewnative) {
     vec->ops->viewnative = vec->ops->view;
   } else if (op == VECOP_LOAD && !vec->ops->loadnative) {
     vec->ops->loadnative = vec->ops->load;
+  }
+  if (op == VECOP_VIEW) {
+    ierr = PetscFunctionListDestroy(&((PetscObject)vec)->viewlist);CHKERRQ(ierr);
   }
   (((void(**)(void))vec->ops)[(int)op]) = f;
   PetscFunctionReturn(0);
