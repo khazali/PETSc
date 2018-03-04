@@ -45,6 +45,7 @@ PetscErrorCode VecView_MPI_ASCII(Vec xin,PetscViewer viewer)
   PetscViewerFormat format;
 
   PetscFunctionBegin;
+  ierr = VecViewASCIIHeader(xin,viewer);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject)xin),&size);CHKERRQ(ierr);
   ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
   if (format == PETSC_VIEWER_LOAD_BALANCE) {

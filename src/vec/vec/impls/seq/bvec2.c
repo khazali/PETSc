@@ -276,6 +276,7 @@ PetscErrorCode VecView_Seq_ASCII(Vec xin,PetscViewer viewer)
   const PetscScalar *xv;
 
   PetscFunctionBegin;
+  ierr = VecViewASCIIHeader(xin,viewer);CHKERRQ(ierr);
   ierr = VecGetArrayRead(xin,&xv);CHKERRQ(ierr);
   ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
   if (format == PETSC_VIEWER_ASCII_MATLAB) {
@@ -888,7 +889,8 @@ PetscErrorCode VecCreate_Seq_Private(Vec v,const PetscScalar array[])
   ierr = PetscObjectComposeFunction((PetscObject)v,"PetscMatlabEnginePut_C",VecMatlabEnginePut_Default);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)v,"PetscMatlabEngineGet_C",VecMatlabEngineGet_Default);CHKERRQ(ierr);
 #endif
-  ierr = VecViewRegister(v,PETSCVIEWERDRAW,-1,VecView_Seq_Draw);CHKERRQ(ierr);
+  ierr = VecViewRegister(v,PETSCVIEWERASCII,-1,VecView_Seq_ASCII);CHKERRQ(ierr);
+  ierr = VecViewRegister(v,PETSCVIEWERDRAW,-1,VecView_Seq_Draw);CHKERRQ(ierr);  
   ierr = VecViewRegister(v,PETSCVIEWERBINARY,-1,VecView_Seq_Binary);CHKERRQ(ierr);
   ierr = VecViewRegister(v,PETSCVIEWERGLVIS,-1,VecView_GLVis);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_MATLAB_ENGINE)

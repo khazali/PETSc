@@ -479,6 +479,34 @@ PetscErrorCode  VecDestroyVecs(PetscInt m,Vec *vv[])
   PetscFunctionReturn(0);
 }
 
+
+/*
+    Prints common information for Vecs viewed with ASCII viewers.
+
+*/
+PetscErrorCode VecViewASCIIHeader(Vec vec,PetscViewer viewer)
+{
+  PetscErrorCode    ierr;
+  PetscInt          rows,bs;
+  PetscViewerFormat format;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectPrintClassNamePrefixType((PetscObject)vec,viewer);CHKERRQ(ierr);
+  ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
+  if (format == PETSC_VIEWER_ASCII_INFO || format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
+    ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
+    ierr = VecGetSize(vec,&rows);CHKERRQ(ierr);
+    ierr = VecGetBlockSize(vec,&bs);CHKERRQ(ierr);
+    if (bs != 1) {
+      ierr = PetscViewerASCIIPrintf(viewer,"length=%D, bs=%D\n",rows,bs);CHKERRQ(ierr);
+    } else {
+      ierr = PetscViewerASCIIPrintf(viewer,"length=%D\n",rows);CHKERRQ(ierr);
+    }
+    ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 /*@C
    VecView - Views a vector object.
 
@@ -544,27 +572,32 @@ $    here should equal the name that you use in the Vec object that you use with
 PetscErrorCode  VecView(Vec vec,PetscViewer viewer)
 {
   PetscErrorCode    ierr;
-  PetscBool         iascii;
   PetscViewerFormat format;
   PetscMPIInt       size;
   PetscErrorCode    (*func)(Vec,PetscViewer);
   char              typeformat[128];
   const char        *vtype;
+  PetscBool         iascii;
+  PetscFunctionList viewlist = ((PetscObject)vec)->viewlist;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(vec,VEC_CLASSID,1);
   PetscValidType(vec,1);
+  if (vec->stash.n || vec->bstash.n) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call VecAssemblyBegin/End() before viewing this vector");
   if (!viewer) {
     ierr = PetscViewerASCIIGetStdout(PetscObjectComm((PetscObject)vec),&viewer);CHKERRQ(ierr);
   }
   PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,2);
   ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(PetscObjectComm((PetscObject)vec),&size);CHKERRQ(ierr);
+  if (size == 1 && format == PETSC_VIEWER_LOAD_BALANCE) PetscFunctionReturn(0);
+  if (format == PETSC_VIEWER_NATIVE) viewlist = ((PetscObject)vec)->nativeviewlist;
 
   /* new system for handling multi-dispatch viewers */
   ierr = PetscObjectGetType((PetscObject)viewer,&vtype);CHKERRQ(ierr);
   ierr = PetscStrncpy(typeformat,vtype,sizeof(typeformat));CHKERRQ(ierr);
   ierr = PetscStrncat(typeformat,PetscViewerFormats[format],sizeof(typeformat));CHKERRQ(ierr);
-  ierr = PetscFunctionListFind(((PetscObject)vec)->viewlist,typeformat,&func);CHKERRQ(ierr);
+  ierr = PetscFunctionListFind(viewlist,typeformat,&func);CHKERRQ(ierr);
   if (func) {
     ierr = PetscLogEventBegin(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
     ierr = VecLockPush(vec);CHKERRQ(ierr);
@@ -573,7 +606,7 @@ PetscErrorCode  VecView(Vec vec,PetscViewer viewer)
     ierr = PetscLogEventEnd(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   } else {
-    ierr = PetscFunctionListFind(((PetscObject)vec)->viewlist,vtype,&func);CHKERRQ(ierr);
+    ierr = PetscFunctionListFind(viewlist,vtype,&func);CHKERRQ(ierr);
     if (func) {
       ierr = PetscLogEventBegin(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
       ierr = VecLockPush(vec);CHKERRQ(ierr);
@@ -584,29 +617,11 @@ PetscErrorCode  VecView(Vec vec,PetscViewer viewer)
     }
   }
 
-  ierr = MPI_Comm_size(PetscObjectComm((PetscObject)vec),&size);CHKERRQ(ierr);
-  if (size == 1 && format == PETSC_VIEWER_LOAD_BALANCE) PetscFunctionReturn(0);
-
-  if (vec->stash.n || vec->bstash.n) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call VecAssemblyBegin/End() before viewing this vector");
-
-  ierr = PetscLogEventBegin(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
   if (iascii) {
-    PetscInt rows,bs;
-
-    ierr = PetscObjectPrintClassNamePrefixType((PetscObject)vec,viewer);CHKERRQ(ierr);
-    if (format == PETSC_VIEWER_ASCII_INFO || format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
-      ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
-      ierr = VecGetSize(vec,&rows);CHKERRQ(ierr);
-      ierr = VecGetBlockSize(vec,&bs);CHKERRQ(ierr);
-      if (bs != 1) {
-        ierr = PetscViewerASCIIPrintf(viewer,"length=%D, bs=%D\n",rows,bs);CHKERRQ(ierr);
-      } else {
-        ierr = PetscViewerASCIIPrintf(viewer,"length=%D\n",rows);CHKERRQ(ierr);
-      }
-      ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
-    }
+    ierr = VecViewASCIIHeader(vec,viewer);CHKERRQ(ierr);
   }
+  ierr = PetscLogEventBegin(VEC_View,vec,viewer,0,0);CHKERRQ(ierr);
   ierr = VecLockPush(vec);CHKERRQ(ierr);
   if ((format == PETSC_VIEWER_NATIVE || format == PETSC_VIEWER_LOAD_BALANCE) && vec->ops->viewnative) {
     ierr = (*vec->ops->viewnative)(vec,viewer);CHKERRQ(ierr);
@@ -1062,7 +1077,9 @@ PetscErrorCode VecSetOperation(Vec vec,VecOperation op, void (*f)(void))
     vec->ops->loadnative = vec->ops->load;
   }
   if (op == VECOP_VIEW) {
-    ierr = PetscFunctionListDestroy(&((PetscObject)vec)->viewlist);CHKERRQ(ierr);
+    ierr = PetscFunctionListDestroy(&((PetscObject)vec)->nativeviewlist);CHKERRQ(ierr);
+    ((PetscObject)vec)->nativeviewlist = ((PetscObject)vec)->viewlist;
+    ((PetscObject)vec)->viewlist       = NULL;
   }
   (((void(**)(void))vec->ops)[(int)op]) = f;
   PetscFunctionReturn(0);

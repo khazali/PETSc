@@ -131,7 +131,7 @@ typedef struct _p_PetscObject {
 #endif
   PetscOptions         options;         /* options database used, NULL means default */
   PetscBool            donotPetscObjectPrintClassNamePrefixType;
-  PetscFunctionList    viewlist;        /* list of viewers and formats this object can utilize */
+  PetscFunctionList    viewlist,nativeviewlist;        /* list of viewers and formats this object can utilize */
 } _p_PetscObject;
 
 #define PETSCHEADER(ObjectOps) \

@@ -4,6 +4,8 @@
  */
 #include <petscoptions.h>
 #include <../src/vec/vec/impls/mpi/pvecimpl.h>   /*I  "petscvec.h"   I*/
+#include <petsc/private/glvisviewerimpl.h>
+#include <petsc/private/glvisvecimpl.h>
 
 static PetscErrorCode VecDot_MPI(Vec xin,Vec yin,PetscScalar *z)
 {
@@ -471,6 +473,8 @@ static struct _VecOps DvOps = { VecDuplicate_MPI, /* 1 */
                                 0
 };
 
+PetscErrorCode VecView_MPI_ASCII(Vec,PetscViewer);
+  
 /*
     VecCreate_MPI_Private - Basic create routine called by VecCreate_MPI() (i.e. VecCreateMPI()),
     VecCreateMPIWithArray(), VecCreate_Shared() (i.e. VecCreateShared()), VecCreateGhost(),
@@ -518,6 +522,20 @@ PetscErrorCode VecCreate_MPI_Private(Vec v,PetscBool alloc,PetscInt nghost,const
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
   ierr = PetscObjectComposeFunction((PetscObject)v,"PetscMatlabEnginePut_C",VecMatlabEnginePut_Default);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)v,"PetscMatlabEngineGet_C",VecMatlabEngineGet_Default);CHKERRQ(ierr);
+#endif
+  ierr = VecViewRegister(v,PETSCVIEWERASCII,-1,VecView_MPI_ASCII);CHKERRQ(ierr);
+  ierr = VecViewRegister(v,PETSCVIEWERDRAW,PETSC_VIEWER_DRAW_LG,VecView_MPI_Draw_LG);CHKERRQ(ierr);
+  ierr = VecViewRegister(v,PETSCVIEWERDRAW,-1,VecView_MPI_Draw);CHKERRQ(ierr);
+  ierr = VecViewRegister(v,PETSCVIEWERBINARY,-1,VecView_MPI_Binary);CHKERRQ(ierr);
+  ierr = VecViewRegister(v,PETSCVIEWERGLVIS,-1,VecView_GLVis);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_MATLAB_ENGINE)
+  ierr = VecViewRegister(v,PETSCVIEWERMATLAB,-1,VecView_MPI_Matlab);CHKERRQ(ierr);
+#endif
+#if defined(PETSC_HAVE_HDF5)
+  ierr = VecViewRegister(v,PETSCVIEWERHDF5,-1,VecView_MPI_HDF5);CHKERRQ(ierr);
+#endif
+#if defined(PETSC_HAVE_MATHEMATICA)
+  ierr = VecViewRegister(v,PETSCVIEWERMATHEMATICA,-1,PetscViewerMathematicaPutVector);CHKERRQ(ierr);
 #endif
   ierr = PetscObjectChangeTypeName((PetscObject)v,VECMPI);CHKERRQ(ierr);
   PetscFunctionReturn(0);
