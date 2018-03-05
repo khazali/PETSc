@@ -6,6 +6,33 @@
 extern PetscLogEvent PETSC_Barrier,PETSC_BuildTwoSided,PETSC_BuildTwoSidedF;
 static PetscBool PetscSysPackageInitialized = PETSC_FALSE;
 
+PetscViewerFormat PETSC_VIEWER_DEFAULT;
+PetscViewerFormat PETSC_VIEWER_ASCII_MATLAB;
+PetscViewerFormat PETSC_VIEWER_ASCII_IMPL;
+PetscViewerFormat PETSC_VIEWER_ASCII_INFO;
+PetscViewerFormat PETSC_VIEWER_ASCII_INFO_DETAIL;
+PetscViewerFormat PETSC_VIEWER_ASCII_COMMON;
+PetscViewerFormat PETSC_VIEWER_ASCII_INDEX;
+PetscViewerFormat PETSC_VIEWER_ASCII_MATRIXMARKET;
+PetscViewerFormat PETSC_VIEWER_ASCII_VTK;
+PetscViewerFormat PETSC_VIEWER_ASCII_VTK_CELL;
+PetscViewerFormat PETSC_VIEWER_ASCII_VTK_COORDS;
+PetscViewerFormat PETSC_VIEWER_ASCII_PYTHON;
+PetscViewerFormat PETSC_VIEWER_ASCII_LATEX;
+PetscViewerFormat PETSC_VIEWER_ASCII_XML;
+PetscViewerFormat PETSC_VIEWER_ASCII_GLVIS;
+PetscViewerFormat PETSC_VIEWER_DRAW_BASIC;
+PetscViewerFormat PETSC_VIEWER_DRAW_LG;
+PetscViewerFormat PETSC_VIEWER_DRAW_CONTOUR;
+PetscViewerFormat PETSC_VIEWER_DRAW_PORTS;
+PetscViewerFormat PETSC_VIEWER_VTK_VTS;
+PetscViewerFormat PETSC_VIEWER_VTK_VTR;
+PetscViewerFormat PETSC_VIEWER_VTK_VTU;
+PetscViewerFormat PETSC_VIEWER_BINARY_MATLAB;
+PetscViewerFormat PETSC_VIEWER_NATIVE;
+PetscViewerFormat PETSC_VIEWER_NOFORMAT;
+PetscViewerFormat PETSC_VIEWER_LOAD_BALANCE;
+
 /*@C
   PetscSysFinalizePackage - This function destroys everything in the PETSc created internally in the system library portion of PETSc.
   It is called from PetscFinalize().
@@ -18,8 +45,13 @@ static PetscBool PetscSysPackageInitialized = PETSC_FALSE;
 PetscErrorCode  PetscSysFinalizePackage(void)
 {
   PetscErrorCode ierr;
+  PetscInt       i;
 
   PetscFunctionBegin;
+  for (i=0; i<PetscViewerFormatNumber; i++) {
+    ierr = PetscFree(PetscViewerFormats[i]);CHKERRQ(ierr);
+  }
+  PetscViewerFormatNumber = 0;
   if (Petsc_Seq_keyval != MPI_KEYVAL_INVALID) {
     ierr = MPI_Comm_free_keyval(&Petsc_Seq_keyval);CHKERRQ(ierr);
   }
@@ -71,6 +103,34 @@ PetscErrorCode  PetscSysInitializePackage(void)
       ierr = PetscLogEventDeactivateClass(0);CHKERRQ(ierr);
     }
   }
+
+  ierr = PetscViewerFormatRegister("DEFAULT",&PETSC_VIEWER_DEFAULT);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_MATRIXMARKET",&PETSC_VIEWER_ASCII_MATRIXMARKET);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_MATLAB",&PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_IMPL",&PETSC_VIEWER_ASCII_IMPL);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_INFO",&PETSC_VIEWER_ASCII_INFO);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_INFO_DETAIL",&PETSC_VIEWER_ASCII_INFO_DETAIL);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_COMMON",&PETSC_VIEWER_ASCII_COMMON);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_INDEX",&PETSC_VIEWER_ASCII_INDEX);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_VTK",&PETSC_VIEWER_ASCII_VTK);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_VTK_CELL",&PETSC_VIEWER_ASCII_VTK_CELL);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_VTK_COORDS",&PETSC_VIEWER_ASCII_VTK_COORDS);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_PYTHON",&PETSC_VIEWER_ASCII_PYTHON);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_LATEX",&PETSC_VIEWER_ASCII_LATEX);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_XML",&PETSC_VIEWER_ASCII_XML);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_GLVIS",&PETSC_VIEWER_ASCII_GLVIS);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("DRAW_BASIC",&PETSC_VIEWER_DRAW_BASIC);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("DRAW_LG",&PETSC_VIEWER_DRAW_LG);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("DRAW_CONTOUR",&PETSC_VIEWER_DRAW_CONTOUR);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("DRAW_PORTS",&PETSC_VIEWER_DRAW_PORTS);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("VTK_VTS",&PETSC_VIEWER_VTK_VTS);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("VTK_VTR",&PETSC_VIEWER_VTK_VTR);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("VTK_VTU",&PETSC_VIEWER_VTK_VTU);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("BINARY_MATLAB",&PETSC_VIEWER_BINARY_MATLAB);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("NATIVE",&PETSC_VIEWER_NATIVE);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("NOFORMAT",&PETSC_VIEWER_NOFORMAT);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("LOAD_BALANCE",&PETSC_VIEWER_LOAD_BALANCE);CHKERRQ(ierr);  
+
   ierr = PetscRegisterFinalize(PetscSysFinalizePackage);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

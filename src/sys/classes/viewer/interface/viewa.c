@@ -1,43 +1,65 @@
 
 #include <petsc/private/viewerimpl.h>  /*I "petscsys.h" I*/
 
-const char *const PetscViewerFormats[] = {
-  "DEFAULT",
-  "ASCII_MATLAB",
-  "ASCII_MATHEMATICA",
-  "ASCII_IMPL",
-  "ASCII_INFO",
-  "ASCII_INFO_DETAIL",
-  "ASCII_COMMON",
-  "ASCII_SYMMODU",
-  "ASCII_INDEX",
-  "ASCII_DENSE",
-  "ASCII_MATRIXMARKET",
-  "ASCII_VTK",
-  "ASCII_VTK_CELL",
-  "ASCII_VTK_COORDS",
-  "ASCII_PCICE",
-  "ASCII_PYTHON",
-  "ASCII_FACTOR_INFO",
-  "ASCII_LATEX",
-  "ASCII_XML",
-  "ASCII_GLVIS",
-  "DRAW_BASIC",
-  "DRAW_LG",
-  "DRAW_CONTOUR",
-  "DRAW_PORTS",
-  "VTK_VTS",
-  "VTK_VTR",
-  "VTK_VTU",
-  "BINARY_MATLAB",
-  "NATIVE",
-  "HDF5_VIZ",
-  "NOFORMAT",
-  "LOAD_BALANCE",
-  "PetscViewerFormat",
-  "PETSC_VIEWER_",
-  0
-};
+#define PETSC_VIEWER_FORMAT_MAX 100
+char *PetscViewerFormats[PETSC_VIEWER_FORMAT_MAX];
+PetscViewerFormat PetscViewerFormatNumber = 0;
+
+/*@C
+   PetscViewerFormatRegister - Register a new viewer format
+
+   Logically Collective
+
+   Input Parameter:
+.  name - a string name for the format
+
+   Output Parameter:
+.  format - the format
+
+   Level: intermediate
+
+.seealso: PetscViwerFormat, PetscViewerPushFormat(), PetscViewerPopFormat(), PetscViewerFormatGet()
+
+@*/
+PetscErrorCode PetscViewerFormatRegister(const char *name,PetscViewerFormat *value)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (PetscViewerFormatNumber > PETSC_VIEWER_FORMAT_MAX-1) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_PLIB,"Rebuild with a larger PETSC_VIEWER_FORMAT_MAX");
+  ierr = PetscStrallocpy(name,&PetscViewerFormats[PetscViewerFormatNumber]);CHKERRQ(ierr);
+  *value = PetscViewerFormatNumber++;
+  PetscFunctionReturn(0);
+}
+
+/*@C
+   PetscViewerFormatGet - gets the PetscViewerFormat value for a string name of a format
+
+   Logically Collective
+
+   Input Parameter:
+.  name - a string name for the format
+
+   Output Parameter:
+.  format - the format
+
+   Notes: This routine is most useful from Fortran since in C the various format values are available as variables
+
+   Level: intermediate
+
+.seealso: PetscViwerFormat, PetscViewerPushFormat(), PetscViewerPopFormat(), PetscViewerFormatRegister()
+
+@*/
+PetscErrorCode PetscViewerFormatGet(const char *name,PetscViewerFormat *value)
+{
+  PetscErrorCode ierr;
+  PetscBool      flag;
+  
+  PetscFunctionBegin;
+  ierr = PetscEListFind(PetscViewerFormatNumber,(const char *const *)PetscViewerFormats,name,value,&flag);CHKERRQ(ierr);
+  if (!flag) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Unknown viewer format %s",name);
+  PetscFunctionReturn(0);
+}
 
 /*@C
    PetscViewerSetFormat - Sets the format for PetscViewers.

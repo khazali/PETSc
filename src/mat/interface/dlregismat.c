@@ -34,6 +34,9 @@ const char *const MPChacoGlobalTypes[] = {"","MULTILEVEL","SPECTRAL","","LINEAR"
 const char *const MPChacoLocalTypes[] = {"","KERNIGHAN","NONE","MPChacoLocalType","MP_CHACO_",0};
 const char *const MPChacoEigenTypes[] = {"LANCZOS","RQI","MPChacoEigenType","MP_CHACO_",0};
 
+PetscViewerFormat PETSC_VIEWER_ASCII_DENSE;
+PetscViewerFormat PETSC_VIEWER_ASCII_FACTOR_INFO;
+
 extern PetscErrorCode  MatMFFDInitializePackage(void);
 extern PetscErrorCode  MatSolverTypeDestroy(void);
 static PetscBool MatPackageInitialized = PETSC_FALSE;
@@ -153,6 +156,7 @@ PetscErrorCode  MatInitializePackage(void)
 
   PetscFunctionBegin;
   if (MatPackageInitialized) PetscFunctionReturn(0);
+  ierr = VecInitializePackage();CHKERRQ(ierr);
   MatPackageInitialized = PETSC_TRUE;
   /* Inialize subpackage */
   ierr = MatMFFDInitializePackage();CHKERRQ(ierr);
@@ -397,6 +401,9 @@ PetscErrorCode  MatInitializePackage(void)
   ierr = MatSolverTypeRegister_SparseElemental();CHKERRQ(ierr);
 #endif
 
+  ierr = PetscViewerFormatRegister("ASCII_FACTOR_INFO",&PETSC_VIEWER_ASCII_FACTOR_INFO);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_DENSE",&PETSC_VIEWER_ASCII_DENSE);CHKERRQ(ierr);
+  
   ierr = PetscRegisterFinalize(MatFinalizePackage);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

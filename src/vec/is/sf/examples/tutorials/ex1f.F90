@@ -16,6 +16,7 @@
       PetscMPIInt                   rank,size
       PetscSF                       sf
       PetscInt                      rootdata(6),leafdata(6)
+      PetscViewerFormat             format
 
 ! used with PetscSFGetGraph()
       type(PetscSFNode), pointer :: gremote(:)
@@ -66,8 +67,9 @@
       call PetscSFSetGraph(sf,nrootsalloc,nleaves,mine,PETSC_COPY_VALUES,remote,PETSC_COPY_VALUES,ierr);CHKERRA(ierr);
       call PetscSFSetUp(sf,ierr);CHKERRA(ierr);
 
-!   View graph, mostly useful for debugging purposes.
-      call PetscViewerPushFormat(PETSC_VIEWER_STDOUT_WORLD,PETSC_VIEWER_ASCII_INFO_DETAIL,ierr);CHKERRA(ierr);
+!     View graph, mostly useful for debugging purposes.
+      call PetscViewerFormatGet("ASCII_INFO_DETAIL",format,ierr);CHKERRA(ierr);
+      call PetscViewerPushFormat(PETSC_VIEWER_STDOUT_WORLD,format,ierr);CHKERRA(ierr);
       call PetscSFView(sf,PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr);
       call PetscViewerPopFormat(PETSC_VIEWER_STDOUT_WORLD,ierr);CHKERRA(ierr);
 

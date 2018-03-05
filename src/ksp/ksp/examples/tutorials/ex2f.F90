@@ -54,7 +54,8 @@
       KSP         ksp
       PetscRandom rctx
       PetscViewerAndFormat vf;
-
+      PetscViewerFormat format;
+      
 !  These variables are not currently used.
 !      PC          pc
 !      PCType      ptype
@@ -228,7 +229,8 @@
 !
 !     Also use the default KSP monitor routine showing how it may be used from Fortran
 !
-        call PetscViewerAndFormatCreate(PETSC_VIEWER_STDOUT_WORLD,PETSC_VIEWER_DEFAULT,vf,ierr)
+        call PetscViewerFormatGet("DEFAULT",format,ierr);CHKERRA(ierr);
+        call PetscViewerAndFormatCreate(PETSC_VIEWER_STDOUT_WORLD,format,vf,ierr)
         call KSPMonitorSet(ksp,KSPMonitorDefault,vf,PetscViewerAndFormatDestroy,ierr)
       endif
 

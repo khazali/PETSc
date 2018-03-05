@@ -626,6 +626,10 @@ PETSC_EXTERN PetscErrorCode PetscSectionVecNorm(PetscSection, PetscSection, Vec,
 
 PETSC_EXTERN PetscErrorCode PetscSFCreateFromZero(MPI_Comm,Vec,PetscSF*);
 
+PETSC_EXTERN PetscViewerFormat PETSC_VIEWER_ASCII_SYMMODU;
+PETSC_EXTERN PetscViewerFormat PETSC_VIEWER_ASCII_PCICE;
+PETSC_EXTERN PetscViewerFormat PETSC_VIEWER_HDF5_VIZ;
+
 /*S
   VecTagger - Object used to manage the tagging of a subset of indices based on the values of a vector.  The
               motivating application is the selection of cells for refinement or coarsening based on vector containing

@@ -8,6 +8,10 @@
 static PetscBool         ISPackageInitialized = PETSC_FALSE;
 extern PetscFunctionList ISLocalToGlobalMappingList;
 
+PetscViewerFormat PETSC_VIEWER_ASCII_SYMMODU;
+PetscViewerFormat PETSC_VIEWER_ASCII_PCICE;
+PetscViewerFormat PETSC_VIEWER_HDF5_VIZ;
+
 /*@C
   ISFinalizePackage - This function destroys everything in the IS package. It is
   called from PetscFinalize().
@@ -260,6 +264,10 @@ PetscErrorCode  VecInitializePackage(void)
   for (i=0; i<4; i++) {
     ierr = PetscObjectComposedDataRegister(NormIds+i);CHKERRQ(ierr);
   }
+
+  ierr = PetscViewerFormatRegister("ASCII_SYMMODU",&PETSC_VIEWER_ASCII_SYMMODU);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("ASCII_PCICE",&PETSC_VIEWER_ASCII_PCICE);CHKERRQ(ierr);
+  ierr = PetscViewerFormatRegister("HDF5_VIZ",&PETSC_VIEWER_HDF5_VIZ);CHKERRQ(ierr);
 
   /* Register finalization routine */
   ierr = PetscRegisterFinalize(VecFinalizePackage);CHKERRQ(ierr);

@@ -640,14 +640,10 @@ PetscErrorCode DMPlexVTKWriteAll(PetscObject odm, PetscViewer viewer)
   PetscValidHeaderSpecific(viewer, PETSC_VIEWER_CLASSID, 2);
   ierr = PetscObjectTypeCompare((PetscObject) viewer, PETSCVIEWERVTK, &isvtk);CHKERRQ(ierr);
   if (!isvtk) SETERRQ1(PetscObjectComm((PetscObject)viewer), PETSC_ERR_ARG_INCOMP, "Cannot use viewer type %s", ((PetscObject)viewer)->type_name);
-  switch (viewer->format) {
-  case PETSC_VIEWER_ASCII_VTK:
+  if (viewer->format == PETSC_VIEWER_ASCII_VTK) {
     ierr = DMPlexVTKWriteAll_ASCII(dm, viewer);CHKERRQ(ierr);
-    break;
-  case PETSC_VIEWER_VTK_VTU:
+  } else if (viewer->format == PETSC_VIEWER_VTK_VTU) {
     ierr = DMPlexVTKWriteAll_VTU(dm, viewer);CHKERRQ(ierr);
-    break;
-  default: SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "No support for format '%s'", PetscViewerFormats[viewer->format]);
-  }
+  } else SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "No support for format '%s'", PetscViewerFormats[viewer->format]);
   PetscFunctionReturn(0);
 }

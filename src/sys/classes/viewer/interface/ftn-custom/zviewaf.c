@@ -11,6 +11,7 @@
 #define petscviewerandformatdestroy_ PETSCVIEWERANDFORMATDESTROY
 #define petscviewergetsubviewer_     PETSCVIEWERGETSUBVIEWER
 #define petscviewerrestoresubviewer_ PETSCVIEWERRESTORESUBVIEWER
+#define petscviewerformatget_        PETSCVIEWERFORMATGET
 #elif !defined(PETSC_HAVE_FORTRAN_UNDERSCORE)
 #define petscviewersetformat_        petscviewersetformat
 #define petscviewersettype_          petscviewersettype
@@ -21,7 +22,17 @@
 #define petscviewerandformatdestroy_ petscviewerandformatdestroy
 #define petscviewergetsubviewer_     petscviewergetsubviewer
 #define petscviewerrestoresubviewer_ petscviewerrestoresubviewer
+#define petscviewerformatget_        petscviewerformatget
 #endif
+
+PETSC_EXTERN void PETSC_STDCALL petscviewerformatget_(char* format PETSC_MIXED_LEN(len),PetscViewerFormat *value,PetscErrorCode *ierr PETSC_END_LEN(len))
+{
+  char *t;
+
+  FIXCHAR(format,len,t);
+  *ierr = PetscViewerFormatGet(t,value);
+  FREECHAR(format,t);
+}
 
 PETSC_EXTERN void PETSC_STDCALL  petscviewergetsubviewer_(PetscViewer *vin,MPI_Fint * comm,PetscViewer *outviewer, PetscErrorCode *ierr)
 {

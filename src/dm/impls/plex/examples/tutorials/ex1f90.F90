@@ -24,6 +24,7 @@
       IS, pointer :: pBcPointIS(:)
       PetscBool :: interpolate
       PetscErrorCode :: ierr
+      PetscViewerFormat format
 
       call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
       if (ierr .ne. 0) then
@@ -89,7 +90,8 @@
       call DMGetGlobalVector(dm, u, ierr);CHKERRA(ierr)
       call PetscViewerCreate(PETSC_COMM_WORLD, viewer, ierr);CHKERRA(ierr)
       call PetscViewerSetType(viewer, PETSCVIEWERVTK, ierr);CHKERRA(ierr)
-      call PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_VTK, ierr);CHKERRA(ierr)
+      call PetscViewerFormatGet("ASCII_VTK",format,ierr);CHKERRA(ierr);
+      call PetscViewerPushFormat(viewer, format, ierr);CHKERRA(ierr)
       call PetscViewerFileSetName(viewer, 'sol.vtk', ierr);CHKERRA(ierr)
       call VecView(u, viewer, ierr);CHKERRA(ierr)
       call PetscViewerDestroy(viewer, ierr);CHKERRA(ierr)
