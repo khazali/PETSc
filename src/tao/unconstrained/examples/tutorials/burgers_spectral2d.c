@@ -142,7 +142,7 @@ int main(int argc,char **argv)
   appctx.param.mu   = 0.005; /* diffusion coefficient */
   appctx.initial_dt = 5e-3;
   appctx.param.steps = PETSC_MAX_INT;
-  appctx.param.Tend  = 2.0;
+  appctx.param.Tend  = 4.0;
   appctx.ncoeff      = 2;
 
   ierr = PetscOptionsGetInt(NULL,NULL,"-N",&appctx.param.N,NULL);CHKERRQ(ierr);
@@ -317,8 +317,8 @@ int main(int argc,char **argv)
   ierr = TSSetRHSFunction(appctx.ts,NULL,RHSFunction,&appctx);CHKERRQ(ierr);
   
 
-  //ierr = ComputeObjective(0.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
-  //ierr = TSSolve(appctx.ts,appctx.dat.obj);CHKERRQ(ierr);
+  ierr = ComputeObjective(2.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
+  ierr = TSSolve(appctx.ts,appctx.dat.obj);CHKERRQ(ierr);
   
 /*
 
@@ -404,8 +404,9 @@ exit(1);
 
   ierr = ComputeSolutionCoefficients(&appctx);CHKERRQ(ierr);
   ierr = InitialConditions(appctx.dat.ic,&appctx);CHKERRQ(ierr);
-  ierr = TrueSolution(appctx.dat.true_solution,&appctx);CHKERRQ(ierr);
-  ierr = ComputeObjective(3.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
+  ierr = ComputeObjective(4.0,appctx.dat.true_solution,&appctx);CHKERRQ(ierr);
+  //ierr = TrueSolution(appctx.dat.true_solution,&appctx);CHKERRQ(ierr);
+  //ierr = ComputeObjective(4.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
 
   /* Create TAO solver and set desired solution method  */
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
@@ -534,7 +535,8 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
 */
 PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
 {
-  PetscScalar       **s,tt;
+  PetscScalar       tt;
+  Field             **s;  
   PetscErrorCode    ierr;
   PetscInt          i,j;
   DM                cda;
@@ -547,12 +549,13 @@ PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
   DMGetCoordinates(appctx->da,&global);
   DMDAVecGetArray(cda,global,&coors);
 
-  tt=2.0-appctx->param.Tend;
+  tt=4.0-appctx->param.Tend;
   for (i=0; i<appctx->param.lenx; i++) 
     {for (j=0; j<appctx->param.leny; j++) 
       {
-      s[j][i]=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y));
-      s[j][i]=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(2.*PETSC_PI*coors[j][i].x)+PetscCosScalar(2.*PETSC_PI*coors[j][i].y));
+      s[j][i].u=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(0.5*PETSC_PI*coors[j][i].x)+PetscSinScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
+      s[j][i].v=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(0.5*PETSC_PI*coors[j][i].x)+PetscCosScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
+      
       } 
      }
   
