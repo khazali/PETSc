@@ -706,8 +706,7 @@ PetscErrorCode MatAssemblyEnd_MPIAIJ(Mat mat,MatAssemblyType mode)
         for (j=i,rstart=row[j]; j<n; j++) {
           if (row[j] != rstart) break;
         }
-        if (j < n) ncols = j-i;
-        else       ncols = n-i;
+        ncols = j-i;
         /* Now assemble all these values with a single function call */
         ierr = MatSetValues_MPIAIJ(mat,1,row+i,ncols,col+i,val+i,mat->insertmode);CHKERRQ(ierr);
 
