@@ -5198,13 +5198,9 @@ PetscErrorCode MatAssemblyBegin(Mat mat,MatAssemblyType type)
     mat->was_assembled = PETSC_TRUE;
     mat->assembled     = PETSC_FALSE;
   }
-  if (!MatAssemblyEnd_InUse) {
-    ierr = PetscLogEventBegin(MAT_AssemblyBegin,mat,0,0,0);CHKERRQ(ierr);
-    if (mat->ops->assemblybegin) {ierr = (*mat->ops->assemblybegin)(mat,type);CHKERRQ(ierr);}
-    ierr = PetscLogEventEnd(MAT_AssemblyBegin,mat,0,0,0);CHKERRQ(ierr);
-  } else if (mat->ops->assemblybegin) {
-    ierr = (*mat->ops->assemblybegin)(mat,type);CHKERRQ(ierr);
-  }
+  if (!MatAssemblyEnd_InUse)   { ierr = PetscLogEventBegin(MAT_AssemblyBegin,mat,0,0,0);CHKERRQ(ierr); }
+  if (mat->ops->assemblybegin) { ierr = (*mat->ops->assemblybegin)(mat,type);CHKERRQ(ierr); }
+  if (!MatAssemblyEnd_InUse)   { ierr = PetscLogEventEnd(MAT_AssemblyBegin,mat,0,0,0);CHKERRQ(ierr); }
   PetscFunctionReturn(0);
 }
 
@@ -5286,15 +5282,10 @@ PetscErrorCode MatAssemblyEnd(Mat mat,MatAssemblyType type)
 
   inassm++;
   MatAssemblyEnd_InUse++;
-  if (MatAssemblyEnd_InUse == 1) { /* Do the logging only the first time through */
-    ierr = PetscLogEventBegin(MAT_AssemblyEnd,mat,0,0,0);CHKERRQ(ierr);
-    if (mat->ops->assemblyend) {
-      ierr = (*mat->ops->assemblyend)(mat,type);CHKERRQ(ierr);
-    }
-    ierr = PetscLogEventEnd(MAT_AssemblyEnd,mat,0,0,0);CHKERRQ(ierr);
-  } else if (mat->ops->assemblyend) {
-    ierr = (*mat->ops->assemblyend)(mat,type);CHKERRQ(ierr);
-  }
+
+  if (MatAssemblyEnd_InUse == 1) { ierr = PetscLogEventBegin(MAT_AssemblyEnd,mat,0,0,0);CHKERRQ(ierr); } /* Do the logging only the first time through */
+  if (mat->ops->assemblyend)     { ierr = (*mat->ops->assemblyend)(mat,type);CHKERRQ(ierr); }
+  if (MatAssemblyEnd_InUse == 1) { ierr = PetscLogEventEnd(MAT_AssemblyEnd,mat,0,0,0);CHKERRQ(ierr); }
 
   /* Flush assembly is not a true assembly */
   if (type != MAT_FLUSH_ASSEMBLY) {
