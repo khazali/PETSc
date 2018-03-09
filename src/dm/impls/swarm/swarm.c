@@ -170,9 +170,9 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   PetscDS        prob;
   PetscSection   fsection, globalFSection;
   PetscHashJK    ht;
-  PetscLayout    rLayout;
+  PetscLayout    rLayout, colLayout;
   PetscInt      *dnz, *onz;
-  PetscInt       locRows, rStart, rEnd;
+  PetscInt       locRows, locCols, rStart, colStart, colEnd;
   PetscReal     *v0, *J, *invJ, detJ;
   PetscScalar   *elemMat;
   PetscInt       dim, Nf, field, totDim, cStart, cEnd, cell, maxC = 0;
@@ -192,19 +192,27 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
   ierr = DMSwarmSortGetAccess(dmc);CHKERRQ(ierr);
 
-  ierr = MatGetLocalSize(mass, &locRows, NULL);CHKERRQ(ierr);
+  ierr = MatGetLocalSize(mass, &locRows, &locCols);CHKERRQ(ierr);
+
+  ierr = PetscLayoutCreate(PetscObjectComm((PetscObject) mass), &colLayout);CHKERRQ(ierr);
+  ierr = PetscLayoutSetLocalSize(colLayout, locCols);CHKERRQ(ierr);
+  ierr = PetscLayoutSetBlockSize(colLayout, 1);CHKERRQ(ierr);
+  ierr = PetscLayoutSetUp(colLayout);CHKERRQ(ierr);
+  ierr = PetscLayoutGetRange(colLayout, &colStart, &colEnd);CHKERRQ(ierr);
+  ierr = PetscLayoutDestroy(&colLayout);CHKERRQ(ierr);
+
   ierr = PetscLayoutCreate(PetscObjectComm((PetscObject) mass), &rLayout);CHKERRQ(ierr);
   ierr = PetscLayoutSetLocalSize(rLayout, locRows);CHKERRQ(ierr);
   ierr = PetscLayoutSetBlockSize(rLayout, 1);CHKERRQ(ierr);
   ierr = PetscLayoutSetUp(rLayout);CHKERRQ(ierr);
-  ierr = PetscLayoutGetRange(rLayout, &rStart, &rEnd);CHKERRQ(ierr);
+  ierr = PetscLayoutGetRange(rLayout, &rStart, NULL);CHKERRQ(ierr);
   ierr = PetscLayoutDestroy(&rLayout);CHKERRQ(ierr);
   ierr = PetscCalloc2(locRows,&dnz,locRows,&onz);CHKERRQ(ierr);
   ierr = PetscHashJKCreate(&ht);CHKERRQ(ierr);
 
 PetscMPIInt rank;
 MPI_Comm_rank(PetscObjectComm((PetscObject)dmf),&rank);
-PetscPrintf(PETSC_COMM_SELF,"******* [%D]DMSwarmComputeMassMatrix_Private cStart %D, cEnd %D locRows=%D rStart=%D\n",rank,cStart,cEnd,locRows,rStart);
+PetscPrintf(PETSC_COMM_SELF,"******* [%D] cStart %D, cEnd=%D locRows=%D locCols=%D rStart=%D, colStart=%D, colEnd=%D\n",rank,cStart,cEnd,locRows,locCols,rStart,colStart,colEnd);
 
 
   for (field = 0; field < Nf; ++field) {
@@ -215,7 +223,7 @@ PetscPrintf(PETSC_COMM_SELF,"******* [%D]DMSwarmComputeMassMatrix_Private cStart
     /* For each fine grid cell */
     for (cell = cStart; cell < cEnd; ++cell) {
       PetscInt  c;
-      PetscInt *findices,   *cindices;
+      PetscInt *findices,   *cindices; /* fine is verices, coarse is particles */
       PetscInt  numFIndices, numCIndices;
 
       ierr = DMPlexGetClosureIndices(dmf, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
@@ -228,18 +236,18 @@ PetscPrintf(PETSC_COMM_SELF,"******* [%D]DMSwarmComputeMassMatrix_Private cStart
 
         for (i = 0; i < numFIndices; ++i) {
           key.j = findices[i];
-PetscPrintf(PETSC_COMM_SELF, "\t\t[%D] %D,%D) rStart=%D, key.j=%D, idx=%D/%D\n",rank,cell,i,rStart,key.j,key.j-rStart,locRows);
+PetscPrintf(PETSC_COMM_SELF, "\t\t[%D] %D,%D) rStart=%D, key.j=%D (vertex)\n",rank,cell,i,rStart,key.j);
           if (key.j >= 0) {
             /* Get indices for coarse elements */
             for (c = 0; c < numCIndices; ++c) {
-              key.k = cindices[c];
+              key.k = cindices[c] + rStart;
               if (key.k < 0) continue;
               ierr = PetscHashJKPut(ht, key, &missing, &iter);CHKERRQ(ierr);
               if (missing) {
-PetscPrintf(PETSC_COMM_SELF, "\t\t\t\t[%D] add nnz at %D,%D\n",rank,key.j,key.k);
+PetscPrintf(PETSC_COMM_SELF, "\t\t\t\t[%D] add nnz at %D,%D. %D <= %D < %D idx=%D\n",rank,key.k,key.j,colStart,key.j,colEnd,key.k-rStart);
                 ierr = PetscHashJKSet(ht, iter, 1);CHKERRQ(ierr);
-                if ((size == 1) || ((key.k >= rStart) && (key.k < rEnd))) ++dnz[key.j-rStart];
-                else                                                      ++onz[key.j-rStart];
+                if ((key.j >= colStart) && (key.j < colEnd)) ++dnz[key.k-rStart];
+                else ++onz[key.k-rStart];
               }
             }
           }
@@ -294,19 +302,19 @@ PetscPrintf(PETSC_COMM_SELF,"******* [%D]DMSwarmComputeMassMatrix_Private dnz[0]
             pxi[d] += invJ[d*dim+e]*(pxx[e] - v0[e]); /* map to element space */
           }
         }
+        cindices[p] += rStart;
       }
       ierr = PetscFEGetTabulation((PetscFE) obj, Np, xi, &Bcoarse, NULL, NULL);CHKERRQ(ierr);
       ierr = PetscFree(xi);CHKERRQ(ierr);
       /* Get elemMat entries by multiplying by weight */
       for (i = 0; i < numFIndices; ++i) {
-        /* ierr = PetscMemzero(elemMat, numCIndices * sizeof(PetscScalar));CHKERRQ(ierr); */
         for (p = 0; p < numCIndices; ++p) {
           elemMat[p] = Bcoarse[p*numFIndices + i] * detJ;
           /* for (c = 0; c < Nc; ++c) elemMat[j] += Bfine[(j*numFIndices + i)*Nc + c]*qweights[j*Nc + c]*detJ; */
         }
         /* Update interpolator */
         if (0) {ierr = DMPrintCellMatrix(cell, name, 1, numCIndices, elemMat);CHKERRQ(ierr);}
-        ierr = MatSetValues(mass, 1, &findices[i], numCIndices, cindices, elemMat, ADD_VALUES);CHKERRQ(ierr);
+        ierr = MatSetValues(mass, numCIndices, cindices, 1, &findices[i], elemMat, ADD_VALUES);CHKERRQ(ierr);
       }
       ierr = PetscFree(cindices);CHKERRQ(ierr);
       ierr = DMPlexRestoreClosureIndices(dmf, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
@@ -335,7 +343,7 @@ static PetscErrorCode DMCreateMassMatrix_Swarm(DM dmCoarse, DM dmFine, Mat *mass
   ierr = DMSwarmGetLocalSize(dmCoarse, &n);CHKERRQ(ierr);
 
   ierr = MatCreate(PetscObjectComm((PetscObject) dmCoarse), mass);CHKERRQ(ierr);
-  ierr = MatSetSizes(*mass, m, n, PETSC_DETERMINE, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = MatSetSizes(*mass, n, m, PETSC_DETERMINE, PETSC_DETERMINE);CHKERRQ(ierr); /* mass is num_part by num vertices */
   ierr = MatSetType(*mass, dmCoarse->mattype);CHKERRQ(ierr);
   ierr = DMGetApplicationContext(dmFine, &ctx);CHKERRQ(ierr);
 

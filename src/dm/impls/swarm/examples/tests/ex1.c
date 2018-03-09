@@ -243,7 +243,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = PetscObjectViewFromOptions((PetscObject)u, NULL, "-f_view");CHKERRQ(ierr);
   ierr = DMGetGlobalVector(dm, &rhs);CHKERRQ(ierr);
   ierr = DMCreateMassMatrix(sw, dm, &mass);CHKERRQ(ierr);
-  ierr = MatMult(mass, u, rhs);CHKERRQ(ierr);
+  ierr = MatMultTranspose(mass, u, rhs);CHKERRQ(ierr);
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = MatViewFromOptions(mass, NULL, "-particle_mass_mat_view");CHKERRQ(ierr);
   ierr = MatDestroy(&mass);CHKERRQ(ierr);
