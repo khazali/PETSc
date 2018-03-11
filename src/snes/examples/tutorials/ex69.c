@@ -3601,7 +3601,7 @@ static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
       PetscInt   order;
 
       ierr = PetscFEGetBasisSpace(feAux[f], &sp);CHKERRQ(ierr);
-      ierr = PetscSpaceGetOrder(sp, &order);CHKERRQ(ierr);
+      ierr = PetscSpaceGetDegree(sp, &order, NULL);CHKERRQ(ierr);
       if (order != 1) SETERRQ1(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONG, "Temperature element must be linear, not order %D", order);
     }
   }
