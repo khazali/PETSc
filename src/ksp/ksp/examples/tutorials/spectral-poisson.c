@@ -210,7 +210,7 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
    AppCtx         *appctx;
    PetscScalar    **outl;
    PetscScalar     **stiff, **mass;
-   PetscScalar     **wrk1, **wrk2, **wrk3, **wrk4, **wrk5, **wrk6;
+   PetscScalar     **wrk1, **wrk2, **wrk3;
    PetscScalar     **ulb, **ul,**uj;
    PetscInt        Nl, Nl2, inc;
    PetscInt        xs,ys,xm,ym,ix,iy,jx,jy, indx,indy, i;
@@ -271,19 +271,6 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk3[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) wrk3[i] = wrk3[i-1]+Nl;
 
-  ierr = PetscMalloc1(appctx->param.N,&wrk4);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk4[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk4[i] = wrk4[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk5);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk5[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk5[i] = wrk5[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk6);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk6[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
-
-
   alpha = 1.0;
   beta  = 0.0;
   Nl2= Nl*Nl;
@@ -296,7 +283,6 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
            ulb[jy][jx]=0.0;
            indx=ix*(appctx->param.N-1)+jx;
            indy=iy*(appctx->param.N-1)+jy;
-           wrk4[jy][jx]=0.0; 
         }
       }
 
@@ -354,12 +340,6 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   ierr = PetscFree(wrk2);CHKERRQ(ierr);
   ierr = PetscFree((wrk3)[0]);CHKERRQ(ierr);
   ierr = PetscFree(wrk3);CHKERRQ(ierr);
-  ierr = PetscFree((wrk4)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk4);CHKERRQ(ierr);
-  ierr = PetscFree((wrk5)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk5);CHKERRQ(ierr);
-  ierr = PetscFree((wrk6)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk6);CHKERRQ(ierr);
   return 0;
 }  
 
