@@ -339,6 +339,10 @@ ex100: ex100.o  chkopts
 	-${CLINKER} -o ex100 ex100.o  ${PETSC_KSP_LIB}
 	${RM} ex100.o
 
+spectral-poisson: spectral-poisson.o  chkopts
+	-${CLINKER} -o spectral-poisson spectral-poisson.o  ${PETSC_KSP_LIB}
+	${RM} spectral-poisson.o
+
 ex100f: ex100f.o  chkopts
 	-${FLINKER} -o ex100f ex100f.o  ${PETSC_KSP_LIB}
 	${RM} ex100f.o
