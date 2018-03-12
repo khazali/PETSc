@@ -44,6 +44,7 @@ typedef struct {
    User-defined routines
 */
 extern PetscErrorCode MyMatMult(Mat,Vec,Vec);
+extern PetscErrorCode TestMult(Mat);
 
 int main(int argc,char **argv)
 {
@@ -59,7 +60,7 @@ int main(int argc,char **argv)
   DM             cda;
   PetscInt       jx,jy;
   PetscViewer    viewfile;
-  Mat            H_shell;
+  Mat            H;
   MatNullSpace   nsp;
 
  
@@ -116,6 +117,7 @@ int main(int argc,char **argv)
  
   ierr = DMDAGetCorners(appctx.da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
   /* Compute function over the locally owned part of the grid */
+  /* scale the corners so they represent ELEMENTS not grid points */
   xs=xs/(appctx.param.N-1);
   xm=xm/(appctx.param.N-1);
   ys=ys/(appctx.param.N-1);
@@ -186,17 +188,19 @@ int main(int argc,char **argv)
   VecGetLocalSize(u,&m);
   VecGetSize(u,&nn);
 
-  MatCreateShell(PETSC_COMM_WORLD,m,m,nn,nn,&appctx,&H_shell);
-  MatShellSetOperation(H_shell,MATOP_MULT,(void(*)(void))MyMatMult);
+  MatCreateShell(PETSC_COMM_WORLD,m,m,nn,nn,&appctx,&H);
+  MatShellSetOperation(H,MATOP_MULT,(void(*)(void))MyMatMult);
   
  /* attach the null space to the matrix, this probably is not needed but does no harm */
   
   ierr = MatNullSpaceCreate(PETSC_COMM_WORLD,PETSC_TRUE,0,NULL,&nsp);CHKERRQ(ierr);
-  ierr = MatSetNullSpace(H_shell,nsp);CHKERRQ(ierr);
-  ierr = MatNullSpaceTest(nsp,H_shell,NULL);CHKERRQ(ierr);
+  ierr = MatSetNullSpace(H,nsp);CHKERRQ(ierr);
+  ierr = MatNullSpaceTest(nsp,H,NULL);CHKERRQ(ierr);
   ierr = MatNullSpaceDestroy(&nsp);CHKERRQ(ierr);
 
-  ierr = MatDestroy(&H_shell);CHKERRQ(ierr);
+  ierr = TestMult(H);CHKERRQ(ierr);
+  
+  ierr = MatDestroy(&H);CHKERRQ(ierr);
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.SEMop.mass);CHKERRQ(ierr);
   ierr = PetscGLLDestroy(&appctx.SEMop.gll);CHKERRQ(ierr);
@@ -205,17 +209,52 @@ int main(int argc,char **argv)
   return ierr;
 }
 
+PetscErrorCode TestMult(Mat H)
+{
+  PetscErrorCode ierr;
+  Vec            in,out,global;
+  AppCtx         *appctx;
+  DMDACoor2d     **coors;
+  PetscScalar    **invalues,x,y;
+  DM             cda;
+  PetscInt       xs,ys,xm,ym,ix,iy;
+
+  ierr = MatShellGetContext(H,&appctx);CHKERRQ(ierr);
+  ierr = DMCreateGlobalVector(appctx->da,&in);CHKERRQ(ierr);
+  ierr = DMCreateGlobalVector(appctx->da,&out);CHKERRQ(ierr);  
+  ierr = DMGetCoordinates(appctx->da,&global);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDM(appctx->da,&cda);CHKERRQ(ierr);
+  ierr = DMDAVecGetArray(cda,global,&coors);CHKERRQ(ierr);
+  ierr = DMDAGetCorners(appctx->da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  ierr = DMDAVecGetArray(appctx->da,in,&invalues);CHKERRQ(ierr);
+  for (ix=xs; ix<xs+xm; ix++) {
+    for (iy=ys; iy<ys+ym; iy++) {
+      x = coors[iy][ix].x;
+      y = coors[iy][ix].y;
+      invalues[iy][ix] = PetscSinScalar(PETSC_PI*x) + PetscSinScalar(2.0*PETSC_PI*y);
+    }
+  }
+  ierr = DMDAVecRestoreArray(appctx->da,in,&invalues);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArray(cda,global,&coors);CHKERRQ(ierr);
+  ierr = VecView(in,PETSC_VIEWER_DRAW_WORLD);CHKERRQ(ierr);
+  ierr = MatMult(H,in,out);CHKERRQ(ierr);
+  ierr = VecView(out,PETSC_VIEWER_DRAW_WORLD);CHKERRQ(ierr);
+  ierr = VecDestroy(&in);CHKERRQ(ierr);
+  ierr = VecDestroy(&out);CHKERRQ(ierr);  
+  return 0;
+}
+
 PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
  {
    AppCtx         *appctx;
    PetscScalar    **outl;
    PetscScalar     **stiff, **mass;
    PetscScalar     **wrk1, **wrk2, **wrk3;
-   PetscScalar     **ulb, **ul,**uj;
+   PetscScalar     **ulb, **ul;
    PetscInt        Nl, Nl2, inc;
    PetscInt        xs,ys,xm,ym,ix,iy,jx,jy, indx,indy, i;
    PetscErrorCode  ierr;
-   Vec             uloc, outloc, ujloc;
+   Vec             uloc, outloc;
    PetscScalar     alpha, beta;
  
   MatShellGetContext(H,&appctx);
@@ -231,12 +270,6 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
 
   DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
 
-  // vector form jacobian
-  DMGetLocalVector(appctx->da,&ujloc);
-
-
-  DMDAVecGetArrayRead(appctx->da,ujloc,&uj);CHKERRQ(ierr);
- 
   /* unwrap local vector for the output solution */
   DMGetLocalVector(appctx->da,&outloc);
   VecSet(outloc,0.0);
@@ -278,11 +311,10 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   for (ix=xs; ix<xs+xm; ix++) {
     for (iy=ys; iy<ys+ym; iy++) {
       for (jx=0; jx<appctx->param.N; jx++) {
-        for (jy=0; jy<appctx->param.N; jy++){ 
-               
-           ulb[jy][jx]=0.0;
-           indx=ix*(appctx->param.N-1)+jx;
-           indy=iy*(appctx->param.N-1)+jy;
+        for (jy=0; jy<appctx->param.N; jy++){
+          indx=ix*(appctx->param.N-1)+jx;
+          indy=iy*(appctx->param.N-1)+jy;
+          ulb[jy][jx]=ul[indy][indx];
         }
       }
 
@@ -324,9 +356,7 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   VecScale(out, -1.0);
   ierr = VecPointwiseDivide(out,out,appctx->SEMop.mass);CHKERRQ(ierr);
 
-  DMDAVecRestoreArrayRead(appctx->da,ujloc,&uj);CHKERRQ(ierr);  
   DMRestoreLocalVector(appctx->da,&uloc);
-  DMRestoreLocalVector(appctx->da,&ujloc);
   DMRestoreLocalVector(appctx->da,&outloc);
   
   ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
