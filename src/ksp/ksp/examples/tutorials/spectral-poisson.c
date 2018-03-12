@@ -231,7 +231,7 @@ PetscErrorCode TestMult(Mat H)
     for (iy=ys; iy<ys+ym; iy++) {
       x = coors[iy][ix].x;
       y = coors[iy][ix].y;
-      invalues[iy][ix] = PetscSinScalar(PETSC_PI*x) + PetscSinScalar(2.0*PETSC_PI*y);
+      invalues[iy][ix] = PetscSinScalar(PETSC_PI*x);
     }
   }
   ierr = DMDAVecRestoreArray(appctx->da,in,&invalues);CHKERRQ(ierr);
@@ -312,16 +312,21 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
     for (iy=ys; iy<ys+ym; iy++) {
       for (jx=0; jx<appctx->param.N; jx++) {
         for (jy=0; jy<appctx->param.N; jy++){
-          indx=ix*(appctx->param.N-1)+jx;
-          indy=iy*(appctx->param.N-1)+jy;
+          indx=ix*(Nl-1)+jx;
+          indy=iy*(Nl-1)+jy;
           ulb[jy][jx]=ul[indy][indx];
+          printf("%d %d %g %d %d\n",jy,jx,ulb[jy][jx],indy,indx);
         }
       }
 
       //here the stifness matrix in 2d
       //first product (B x K_yy) u=W2 (u_yy)
       alpha=appctx->param.Lex/2.0;
-      BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+      PetscBLASInt LDA = 2+(Nl)*xm;
+      BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&LDA,&ul[iy*(Nl-1)][ix*(Nl-1)],&Nl,&beta,&wrk1[0][0],&Nl);
+      //BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
+      PetscRealView(64,&ul[iy*(Nl-1)][ix*(Nl-1)],0);
+      PetscRealView(64,&ulb[0][0],0);      
       alpha=2./appctx->param.Ley;
       BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
       
