@@ -175,6 +175,9 @@ PetscErrorCode DMDAGetDof(DM da, PetscInt *dof)
 
   Level: intermediate
 
+  Notes: TODO: "per-processor overlap" doesn't seem to make sense
+         shouldn't it be subdomain overlap?
+
 .keywords:  distributed array, overlap, domain decomposition
 .seealso: DMDACreateDomainDecomposition(), DMDASetOverlap(), DMDA
 @*/
@@ -202,6 +205,9 @@ PetscErrorCode  DMDAGetOverlap(DM da,PetscInt *x,PetscInt *y,PetscInt *z)
 - z   - Overlap in the z direction
 
   Level: intermediate
+
+  Notes: TODO: "per-processor overlap" doesn't seem to make sense
+         shouldn't it be subdomain overlap?
 
 .keywords:  distributed array, overlap, domain decomposition
 .seealso: DMDACreateDomainDecomposition(), DMDAGetOverlap(), DMDA

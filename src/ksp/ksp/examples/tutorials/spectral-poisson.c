@@ -59,11 +59,12 @@ int main(int argc,char **argv)
   DMDACoor2d     **coors;
   Vec            global,loc;
   DM             cda;
-  PetscInt       jx,jy;
+  PetscInt       jx,jy,num_domains,*indices,cnt,dcnt;
   Mat            H;
   MatNullSpace   nsp;
   KSP            ksp;
   PC             pc;
+  IS             *domains;
 
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program and set problem parameters
@@ -200,11 +201,33 @@ int main(int argc,char **argv)
   ierr = KSPSetOperators(ksp,H,H);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
 
-  /*  Each element is its own subdomain for additive Schwarz */
-  ierr = DMDASetNumLocalSubDomains(appctx.da,xm*ym);CHKERRQ(ierr);
+
   ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+  /*  Each element is its own subdomain for additive Schwarz */
+  num_domains = xm*ym;
+  ierr = PetscMalloc1(num_domains,&domains);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx.param.N*appctx.param.N,&indices);CHKERRQ(ierr);
+  dcnt = 0;
+  for (ix=xs; ix<xs+xm; ix++) {
+    for (iy=ys; iy<ys+ym; iy++) {
+      cnt = 0;
+      for (jx=0; jx<appctx.param.N-1; jx++) {
+        for (jy=0; jy<appctx.param.N-1; jy++)   {
+          indx=ix*(appctx.param.N-1)+jx;
+          indy=iy*(appctx.param.N-1)+jy;
+          indices[cnt++] = indx + indy*appctx.param.lenx;
+        }
+      }
+      ierr = ISCreateGeneral(PETSC_COMM_SELF,cnt,indices,PETSC_COPY_VALUES,&domains[dcnt++]);CHKERRQ(ierr);
+    }
+  }
+  ierr = PetscFree(indices);CHKERRQ(ierr);
+  ierr = PCASMSetLocalSubdomains(pc, num_domains, domains,domains);CHKERRQ(ierr);
+  for (dcnt=0; dcnt<num_domains; dcnt++) {
+    ierr = ISDestroy(&domains[dcnt]);CHKERRQ(ierr);
+  }
+  ierr = PetscFree(domains);CHKERRQ(ierr);
   ierr = PCASMSetType(pc,PC_ASM_BASIC);CHKERRQ(ierr);
-  ierr = PCASMSetDMSubdomains(pc,PETSC_TRUE);CHKERRQ(ierr);
   ierr = PCASMSetOverlap(pc,0);CHKERRQ(ierr);
   ierr = KSPSetUp(ksp);CHKERRQ(ierr);
 
