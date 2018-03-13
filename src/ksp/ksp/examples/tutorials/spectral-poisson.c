@@ -44,6 +44,7 @@ typedef struct {
    User-defined routines
 */
 extern PetscErrorCode MyMatMult(Mat,Vec,Vec);
+extern PetscErrorCode MyMatCreateSubMatrices(Mat,PetscInt,const IS[],const IS[],MatReuse,Mat*[]);
 extern PetscErrorCode TestMult(Mat);
 
 int main(int argc,char **argv)
@@ -62,8 +63,8 @@ int main(int argc,char **argv)
   Mat            H;
   MatNullSpace   nsp;
   KSP            ksp;
+  PC             pc;
 
- 
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program and set problem parameters
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -180,6 +181,7 @@ int main(int argc,char **argv)
 
   MatCreateShell(PETSC_COMM_WORLD,m,m,nn,nn,&appctx,&H);
   MatShellSetOperation(H,MATOP_MULT,(void(*)(void))MyMatMult);
+  MatShellSetOperation(H,MATOP_CREATE_SUBMATRICES,(void(*)(void))MyMatCreateSubMatrices);  
   
  /* attach the null space to the matrix, this probably is not needed but does no harm */
   
@@ -191,10 +193,21 @@ int main(int argc,char **argv)
   ierr = TestMult(H);CHKERRQ(ierr);
 
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
+  ierr = KSPSetDM(ksp,appctx.da);CHKERRQ(ierr);
+  ierr = KSPSetDMActive(ksp,PETSC_FALSE);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&b);CHKERRQ(ierr);
   ierr = VecSetRandom(b,PETSC_RANDOM_(PETSC_COMM_WORLD));CHKERRQ(ierr);
   ierr = KSPSetOperators(ksp,H,H);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
+
+  /*  Each element is its own subdomain for additive Schwarz */
+  ierr = DMDASetNumLocalSubDomains(appctx.da,xm*ym);CHKERRQ(ierr);
+  ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+  ierr = PCASMSetType(pc,PC_ASM_BASIC);CHKERRQ(ierr);
+  ierr = PCASMSetDMSubdomains(pc,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = PCASMSetOverlap(pc,0);CHKERRQ(ierr);
+  ierr = KSPSetUp(ksp);CHKERRQ(ierr);
+
   ierr = KSPSolve(ksp,b,u);CHKERRQ(ierr);
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
   ierr = VecDestroy(&b);CHKERRQ(ierr);
@@ -369,8 +382,28 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   ierr = PetscFree((wrk3)[0]);CHKERRQ(ierr);
   ierr = PetscFree(wrk3);CHKERRQ(ierr);
   return 0;
-}  
+}
 
+PetscErrorCode MyMatCreateSubMatrices(Mat mat,PetscInt n,const IS irow[],const IS icol[],MatReuse scall,Mat *submat[])
+{
+  Mat            *subs;
+  PetscErrorCode ierr;
+  PetscInt       i,m;
+
+  ierr = PetscMalloc1(n,&subs);CHKERRQ(ierr);
+  for (i=0; i<n; i++) {
+    ierr = MatCreate(PETSC_COMM_SELF,&subs[i]);CHKERRQ(ierr);
+    ierr = ISGetSize(irow[i],&m);CHKERRQ(ierr);
+    ierr = MatSetSizes(subs[i],m,m,PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
+    ierr = MatSetType(subs[i],MATSEQAIJ);CHKERRQ(ierr);
+    ierr = MatSetUp(subs[i]);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(subs[i],MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(subs[i],MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);    
+    ierr = MatShift(subs[i],1.0);CHKERRQ(ierr);
+  }
+  *submat = subs;
+  return 0;
+}
 
 /*TEST
 
