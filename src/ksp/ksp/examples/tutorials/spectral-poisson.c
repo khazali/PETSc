@@ -49,7 +49,7 @@ extern PetscErrorCode TestMult(Mat);
 int main(int argc,char **argv)
 {
   AppCtx         appctx;                 /* user-defined application context */
-  Vec            u;                      /* approximate solution vector */
+  Vec            u,b;                      /* approximate solution vector */
   PetscErrorCode ierr;
   PetscInt       xs, xm, ys,ym, ix,iy;
   PetscInt       indx,indy,m, nn;
@@ -59,9 +59,9 @@ int main(int argc,char **argv)
   Vec            global,loc;
   DM             cda;
   PetscInt       jx,jy;
-  PetscViewer    viewfile;
   Mat            H;
   MatNullSpace   nsp;
+  KSP            ksp;
 
  
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -171,16 +171,6 @@ int main(int argc,char **argv)
   }
   DMDAVecRestoreArray(cda,global,&coors);
 
-  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"tomesh.m",&viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject)global,"grid");
-  ierr = VecView(global,viewfile);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject)appctx.SEMop.mass,"mass");
-  ierr = VecView(appctx.SEMop.mass,viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPopFormat(viewfile);
-  ierr = PetscViewerDestroy(&viewfile);CHKERRQ(ierr);
-  
-  
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
    Create matrix data structure; set matrix evaluation routine.
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
@@ -199,7 +189,15 @@ int main(int argc,char **argv)
   ierr = MatNullSpaceDestroy(&nsp);CHKERRQ(ierr);
 
   ierr = TestMult(H);CHKERRQ(ierr);
-  
+
+  ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
+  ierr = VecDuplicate(u,&b);CHKERRQ(ierr);
+  ierr = VecSetRandom(b,PETSC_RANDOM_(PETSC_COMM_WORLD));CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp,H,H);CHKERRQ(ierr);
+  ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
+  ierr = KSPSolve(ksp,b,u);CHKERRQ(ierr);
+  ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
+  ierr = VecDestroy(&b);CHKERRQ(ierr);
   ierr = MatDestroy(&H);CHKERRQ(ierr);
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.SEMop.mass);CHKERRQ(ierr);
@@ -315,18 +313,13 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
           indx=ix*(Nl-1)+jx;
           indy=iy*(Nl-1)+jy;
           ulb[jy][jx]=ul[indy][indx];
-          printf("%d %d %g %d %d\n",jy,jx,ulb[jy][jx],indy,indx);
         }
       }
 
       //here the stifness matrix in 2d
       //first product (B x K_yy) u=W2 (u_yy)
       alpha=appctx->param.Lex/2.0;
-      PetscBLASInt LDA = 2+(Nl)*xm;
-      BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&LDA,&ul[iy*(Nl-1)][ix*(Nl-1)],&Nl,&beta,&wrk1[0][0],&Nl);
-      //BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-      PetscRealView(64,&ul[iy*(Nl-1)][ix*(Nl-1)],0);
-      PetscRealView(64,&ulb[0][0],0);      
+      BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
       alpha=2./appctx->param.Ley;
       BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
       

@@ -2665,7 +2665,8 @@ PETSC_EXTERN PetscErrorCode PetscRandomSetSeed(PetscRandom,unsigned long);
 PETSC_EXTERN PetscErrorCode PetscRandomGetSeed(PetscRandom,unsigned long *);
 PETSC_EXTERN PetscErrorCode PetscRandomSeed(PetscRandom);
 PETSC_EXTERN PetscErrorCode PetscRandomDestroy(PetscRandom*);
-
+PETSC_EXTERN PetscRandom PETSC_RANDOM_(MPI_Comm);
+  
 PETSC_EXTERN PetscErrorCode PetscGetFullPath(const char[],char[],size_t);
 PETSC_EXTERN PetscErrorCode PetscGetRelativePath(const char[],char[],size_t);
 PETSC_EXTERN PetscErrorCode PetscGetWorkingDirectory(char[],size_t);

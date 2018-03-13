@@ -14,6 +14,28 @@
 
 #include <../src/sys/classes/random/randomimpl.h>                              /*I "petscsys.h" I*/
 
+static PetscRandom rand_comm = NULL;
+
+PetscErrorCode PETSC_RANDOM_DESTROY()
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscRandomDestroy(&rand_comm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+PetscRandom PETSC_RANDOM_(MPI_Comm comm)
+{
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  if (!rand_comm) {
+    ierr = PetscRandomCreate(comm,&rand_comm);if (ierr) PetscFunctionReturn(NULL);
+    ierr = PetscRegisterFinalize(PETSC_RANDOM_DESTROY);if (ierr) PetscFunctionReturn(NULL);
+  }
+  PetscFunctionReturn(rand_comm);
+}
+
 /*@
    PetscRandomGetValue - Generates a random number.  Call this after first calling
    PetscRandomCreate().
