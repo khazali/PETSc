@@ -65,6 +65,7 @@ int main(int argc,char **argv)
   KSP            ksp;
   PC             pc;
   IS             *domains;
+  AO             ao;
 
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program and set problem parameters
@@ -120,9 +121,13 @@ int main(int argc,char **argv)
   ierr = DMDAGetCorners(appctx.da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
   /* Compute function over the locally owned part of the grid */
   /* scale the corners so they represent ELEMENTS not grid points */
+  if (xs % (appctx.param.N-1)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"xs is not divisible by element size minus one");
   xs=xs/(appctx.param.N-1);
+  if (xm % (appctx.param.N-1)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"xm is not divisible by element size minus one");
   xm=xm/(appctx.param.N-1);
+  if (ys % (appctx.param.N-1)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"ys is not divisible by element size minus one");
   ys=ys/(appctx.param.N-1);
+  if (ym % (appctx.param.N-1)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"ym is not divisible by element size minus one");
   ym=ym/(appctx.param.N-1);
 
   VecSet(appctx.SEMop.mass,0.0);
@@ -198,11 +203,13 @@ int main(int argc,char **argv)
   ierr = KSPSetDMActive(ksp,PETSC_FALSE);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&b);CHKERRQ(ierr);
   ierr = VecSetRandom(b,PETSC_RANDOM_(PETSC_COMM_WORLD));CHKERRQ(ierr);
+  ierr = VecSet(b,1.0);CHKERRQ(ierr);
   ierr = KSPSetOperators(ksp,H,H);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
 
 
   ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+  ierr = DMDAGetAO(appctx.da,&ao);CHKERRQ(ierr);
   /*  Each element is its own subdomain for additive Schwarz */
   num_domains = xm*ym;
   ierr = PetscMalloc1(num_domains,&domains);CHKERRQ(ierr);
@@ -211,13 +218,16 @@ int main(int argc,char **argv)
   for (ix=xs; ix<xs+xm; ix++) {
     for (iy=ys; iy<ys+ym; iy++) {
       cnt = 0;
-      for (jx=0; jx<appctx.param.N-1; jx++) {
-        for (jy=0; jy<appctx.param.N-1; jy++)   {
+      for (jx=0; jx<appctx.param.N; jx++) {
+        for (jy=0; jy<appctx.param.N; jy++)   {
           indx=ix*(appctx.param.N-1)+jx;
           indy=iy*(appctx.param.N-1)+jy;
+          if (indx == appctx.param.lenx) indx = 0;
+          if (indy == appctx.param.leny) indy = 0;
           indices[cnt++] = indx + indy*appctx.param.lenx;
         }
       }
+      ierr = AOApplicationToPetsc(ao,cnt,indices);CHKERRQ(ierr);
       ierr = ISCreateGeneral(PETSC_COMM_SELF,cnt,indices,PETSC_COPY_VALUES,&domains[dcnt++]);CHKERRQ(ierr);
     }
   }
@@ -227,6 +237,7 @@ int main(int argc,char **argv)
     ierr = ISDestroy(&domains[dcnt]);CHKERRQ(ierr);
   }
   ierr = PetscFree(domains);CHKERRQ(ierr);
+
   ierr = PCASMSetType(pc,PC_ASM_BASIC);CHKERRQ(ierr);
   ierr = PCASMSetOverlap(pc,0);CHKERRQ(ierr);
   ierr = KSPSetUp(ksp);CHKERRQ(ierr);
