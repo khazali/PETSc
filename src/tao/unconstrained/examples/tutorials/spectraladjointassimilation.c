@@ -56,14 +56,14 @@ typedef struct {
   PetscReal   Tend;           /* endtime */
   PetscReal   mu;             /* viscosity */
   PetscReal   a;              /* advection speed */
-  PetscReal   L;              /* total length of domain */   
-  PetscReal   Le; 
+  PetscReal   L;              /* total length of domain */
+  PetscReal   Le;
   PetscReal   Tadj;
 } PetscParam;
 
 typedef struct {
   Vec         reference;               /* desired end state */
-  Vec         grid;              /* total grid */   
+  Vec         grid;              /* total grid */
   Vec         grad;
   Vec         ic;
   Vec         curr_sol;
@@ -72,7 +72,7 @@ typedef struct {
 } PetscData;
 
 typedef struct {
-  Vec         grid;              /* total grid */   
+  Vec         grid;              /* total grid */
   Vec         mass;              /* mass matrix for total integration */
   Mat         stiff;             /* stifness matrix */
   Mat         advec;
@@ -95,6 +95,9 @@ typedef struct {
    User-defined routines
 */
 extern PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
+extern PetscErrorCode FormFunctionGradient_AO(Tao,Vec,PetscReal*,Vec,void*);
+extern PetscErrorCode EvalObjectiveGradient_U_AO(Vec,Vec,PetscReal,Vec,void*);
+extern PetscErrorCode EvalObjective_AO(Vec,Vec,PetscReal,PetscReal*,void*);
 extern PetscErrorCode RHSLaplacian(TS,PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode RHSAdvection(TS,PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode InitialConditions(Vec,AppCtx*);
@@ -114,6 +117,7 @@ int main(int argc,char **argv)
   PetscInt       i, xs, xm, ind, j, lenglob;
   PetscReal      x, *wrk_ptr1, *wrk_ptr2;
   MatNullSpace   nsp;
+  PetscBool      adjointode = PETSC_FALSE;
 
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program and set problem parameters
@@ -133,6 +137,7 @@ int main(int argc,char **argv)
   appctx.param.Tend  = 0.01;
   appctx.ncoeff      = 2;
 
+  ierr = PetscOptionsGetBool(NULL,NULL,"-adjointode",&adjointode,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-N",&appctx.param.N,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-E",&appctx.param.E,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-ncoeff",&appctx.ncoeff,NULL);CHKERRQ(ierr);
@@ -157,7 +162,7 @@ int main(int argc,char **argv)
   ierr = DMDACreate1d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,lenglob,1,1,NULL,&appctx.da);CHKERRQ(ierr);
   ierr = DMSetFromOptions(appctx.da);CHKERRQ(ierr);
   ierr = DMSetUp(appctx.da);CHKERRQ(ierr);
- 
+
   /*
      Extract global and local vectors from DMDA; we use these to store the
      approximate solution.  Then duplicate these for remaining vectors that
@@ -171,29 +176,29 @@ int main(int argc,char **argv)
   ierr = VecDuplicate(u,&appctx.SEMop.grid);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.SEMop.mass);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&appctx.dat.curr_sol);CHKERRQ(ierr);
-  ierr = VecDuplicate(u,&appctx.dat.joe);CHKERRQ(ierr);  
- 
+  ierr = VecDuplicate(u,&appctx.dat.joe);CHKERRQ(ierr);
+
   ierr = DMDAGetCorners(appctx.da,&xs,NULL,NULL,&xm,NULL,NULL);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(appctx.da,appctx.SEMop.grid,&wrk_ptr1);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(appctx.da,appctx.SEMop.mass,&wrk_ptr2);CHKERRQ(ierr);
-  
+
   /* Compute function over the locally owned part of the grid */
-  
+
     xs=xs/(appctx.param.N-1);
     xm=xm/(appctx.param.N-1);
-  
-  /* 
-     Build total grid and mass over entire mesh (multi-elemental) 
-  */ 
+
+  /*
+     Build total grid and mass over entire mesh (multi-elemental)
+  */
 
   for (i=xs; i<xs+xm; i++) {
     for (j=0; j<appctx.param.N-1; j++) {
-      x = (appctx.param.Le/2.0)*(appctx.SEMop.gll.nodes[j]+1.0)+appctx.param.Le*i; 
+      x = (appctx.param.Le/2.0)*(appctx.SEMop.gll.nodes[j]+1.0)+appctx.param.Le*i;
       ind=i*(appctx.param.N-1)+j;
       wrk_ptr1[ind]=x;
       wrk_ptr2[ind]=.5*appctx.param.Le*appctx.SEMop.gll.weights[j];
       if (j==0) wrk_ptr2[ind]+=.5*appctx.param.Le*appctx.SEMop.gll.weights[j];
-    } 
+    }
   }
   ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.grid,&wrk_ptr1);CHKERRQ(ierr);
   ierr = DMDAVecRestoreArray(appctx.da,appctx.SEMop.mass,&wrk_ptr2);CHKERRQ(ierr);
@@ -248,19 +253,36 @@ int main(int argc,char **argv)
   ierr = InitialConditions(appctx.dat.ic,&appctx);CHKERRQ(ierr);
   ierr = ComputeReference(appctx.ts,appctx.param.Tend,appctx.dat.reference,&appctx);CHKERRQ(ierr);
   ierr = ComputeReference(appctx.ts,0.0,appctx.dat.true_solution,&appctx);CHKERRQ(ierr);
-  
+
   /* Create TAO solver and set desired solution method  */
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
   ierr = TaoSetMonitor(tao,MonitorError,&appctx,MonitorDestroy);CHKERRQ(ierr);
   ierr = TaoSetType(tao,TAOBLMVM);CHKERRQ(ierr);
   ierr = TaoSetInitialVector(tao,appctx.dat.ic);CHKERRQ(ierr);
   /* Set routine for function and gradient evaluation  */
-  ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&appctx);CHKERRQ(ierr);
+  if (!adjointode) {
+    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&appctx);CHKERRQ(ierr);
+  } else {
+    Mat Id;
+
+    /* the cost functional needs to be evaluated at final time */
+    ierr = TSSetObjective(appctx.ts,appctx.param.Tend,EvalObjective_AO,EvalObjectiveGradient_U_AO,NULL,
+                          NULL,NULL,NULL,NULL,NULL,NULL,(void *)&appctx);CHKERRQ(ierr);
+    /* set Jacobian G_p for the ODE dependence from initial conditions in implicit form: G(u(0),p) = 0 */
+    ierr = MatDuplicate(appctx.SEMop.stiff,MAT_DO_NOT_COPY_VALUES,&Id);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatZeroEntries(Id);CHKERRQ(ierr);
+    ierr = MatShift(Id,-1.0);CHKERRQ(ierr);
+    ierr = TSSetGradientIC(appctx.ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&Id);CHKERRQ(ierr);
+    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_AO,(void *)&appctx);CHKERRQ(ierr);
+  }
   /* Check for any TAO command line options  */
   ierr = TaoSetTolerances(tao,1e-8,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
   ierr = TaoSetFromOptions(tao);CHKERRQ(ierr);
   ierr = TaoSolve(tao);CHKERRQ(ierr);
-  
+
   ierr = TaoDestroy(&tao);CHKERRQ(ierr);
   ierr = PetscFree(appctx.solutioncoefficients);CHKERRQ(ierr);
   ierr = MatDestroy(&appctx.SEMop.advec);CHKERRQ(ierr);
@@ -268,7 +290,7 @@ int main(int argc,char **argv)
   ierr = MatDestroy(&appctx.SEMop.keptstiff);CHKERRQ(ierr);
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.dat.ic);CHKERRQ(ierr);
-  ierr = VecDestroy(&appctx.dat.joe);CHKERRQ(ierr);  
+  ierr = VecDestroy(&appctx.dat.joe);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.dat.true_solution);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.dat.reference);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.SEMop.grid);CHKERRQ(ierr);
@@ -297,6 +319,7 @@ PetscErrorCode ComputeSolutionCoefficients(AppCtx *appctx)
   PetscRandom       rand;
   PetscInt          i;
 
+  PetscFunctionBegin;
   ierr = PetscMalloc1(appctx->ncoeff,&appctx->solutioncoefficients);CHKERRQ(ierr);
   ierr = PetscRandomCreate(PETSC_COMM_WORLD,&rand);CHKERRQ(ierr);
   ierr = PetscRandomSetInterval(rand,.9,1.0);CHKERRQ(ierr);
@@ -304,7 +327,7 @@ PetscErrorCode ComputeSolutionCoefficients(AppCtx *appctx)
     ierr = PetscRandomGetValue(rand,&appctx->solutioncoefficients[i]);CHKERRQ(ierr);
   }
   ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 
 /* --------------------------------------------------------------------- */
@@ -327,6 +350,7 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   PetscReal         sum,val;
   PetscRandom       rand;
 
+  PetscFunctionBegin;
   ierr = PetscRandomCreate(PETSC_COMM_WORLD,&rand);CHKERRQ(ierr);
   ierr = PetscRandomSetInterval(rand,.9,1.0);CHKERRQ(ierr);
   ierr = DMDAVecGetArray(appctx->da,u,&s);CHKERRQ(ierr);
@@ -345,12 +369,12 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   /* make sure initial conditions do not contain the constant functions, since with periodic boundary conditions the constant functions introduce a null space */
   ierr = VecSum(u,&sum);CHKERRQ(ierr);
   ierr = VecShift(u,-sum/lenglob);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 
 
 /*
-   TrueSolution() computes the true solution for the Tao optimization solve which means they are the initial conditions for the objective function. 
+   TrueSolution() computes the true solution for the Tao optimization solve which means they are the initial conditions for the objective function.
 
              InitialConditions() computes the initial conditions for the begining of the Tao iterations
 
@@ -369,6 +393,7 @@ PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
   PetscInt          i,j,lenglob;
   PetscReal         sum;
 
+  PetscFunctionBegin;
   ierr = DMDAVecGetArray(appctx->da,u,&s);CHKERRQ(ierr);
   ierr = DMDAVecGetArrayRead(appctx->da,appctx->SEMop.grid,(void*)&xg);CHKERRQ(ierr);
   lenglob  = appctx->param.E*(appctx->param.N-1);
@@ -383,7 +408,7 @@ PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
   /* make sure initial conditions do not contain the constant functions, since with periodic boundary conditions the constant functions introduce a null space */
   ierr = VecSum(u,&sum);CHKERRQ(ierr);
   ierr = VecShift(u,-sum/lenglob);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 /* --------------------------------------------------------------------- */
 /*
@@ -402,6 +427,7 @@ PetscErrorCode ComputeReference(TS ts,PetscReal t,Vec obj,AppCtx *appctx)
   PetscErrorCode    ierr;
   PetscInt          i, j,lenglob;
 
+  PetscFunctionBegin;
   ierr = DMDAVecGetArray(appctx->da,obj,&s);CHKERRQ(ierr);
   ierr = DMDAVecGetArrayRead(appctx->da,appctx->SEMop.grid,(void*)&xg);CHKERRQ(ierr);
   lenglob  = appctx->param.E*(appctx->param.N-1);
@@ -414,27 +440,23 @@ PetscErrorCode ComputeReference(TS ts,PetscReal t,Vec obj,AppCtx *appctx)
   }
   ierr = DMDAVecRestoreArray(appctx->da,obj,&s);CHKERRQ(ierr);
   ierr = DMDAVecRestoreArrayRead(appctx->da,appctx->SEMop.grid,(void*)&xg);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "RHSFunction"
 PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
 {
   PetscErrorCode ierr;
-  AppCtx          *appctx = (AppCtx*)ctx;  
+  AppCtx          *appctx = (AppCtx*)ctx;
 
   PetscFunctionBegin;
   ierr = MatMult(appctx->SEMop.keptstiff,globalin,globalout);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "RHSJacobian"
 PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec globalin,Mat A, Mat B,void *ctx)
 {
   PetscErrorCode ierr;
-  AppCtx         *appctx = (AppCtx*)ctx;  
+  AppCtx         *appctx = (AppCtx*)ctx;
 
   PetscFunctionBegin;
   ierr = MatCopy(appctx->SEMop.keptstiff,A,DIFFERENT_NONZERO_PATTERN);CHKERRQ(ierr);
@@ -469,6 +491,7 @@ PetscErrorCode RHSLaplacian(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
   PetscInt       i,xs,xn,l,j;
   PetscInt       *rowsDM;
 
+  PetscFunctionBegin;
   /*
    Creates the element stiffness matrix for the given gll
    */
@@ -505,7 +528,7 @@ PetscErrorCode RHSLaplacian(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
   ierr = VecReciprocal(appctx->SEMop.mass);CHKERRQ(ierr);
 
   ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 
 /*
@@ -522,6 +545,7 @@ PetscErrorCode RHSAdvection(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
   PetscInt       i,xs,xn,l,j;
   PetscInt       *rowsDM;
 
+  PetscFunctionBegin;
   /*
    Creates the element stiffness matrix for the given gll
    */
@@ -558,7 +582,7 @@ PetscErrorCode RHSAdvection(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
   ierr = VecReciprocal(appctx->SEMop.mass);CHKERRQ(ierr);
 
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -584,7 +608,7 @@ PetscErrorCode RHSAdvection(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void *ctx)
                  M^{-1} J
           where J is the Jacobian of F. Now the adjoint equation is
                 M v_t = J^T v
-          but TSAdjoint does not solve this since it can only solve the transposed system for the 
+          but TSAdjoint does not solve this since it can only solve the transposed system for the
           Jacobian the user provided. Hence TSAdjoint solves
                  w_t = J^T M^{-1} w  (where w = M v)
           since there is no way to indicate the mass matrix as a seperate entitity to TS. Thus one
@@ -600,9 +624,13 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec ic,PetscReal *f,Vec G,void *ctx)
   AppCtx           *appctx = (AppCtx*)ctx;     /* user-defined application context */
   PetscErrorCode    ierr;
   Vec               temp;
+  TSTrajectory      tj;
 
+  PetscFunctionBegin;
   ierr = TSSetTime(appctx->ts,0.0);CHKERRQ(ierr);
   ierr = TSSetStepNumber(appctx->ts,0);CHKERRQ(ierr);
+  ierr = TSGetTrajectory(appctx->ts,&tj);CHKERRQ(ierr);
+  ierr = TSTrajectoryReset(tj);CHKERRQ(ierr);
   ierr = TSSetTimeStep(appctx->ts,appctx->initial_dt);CHKERRQ(ierr);
   ierr = VecCopy(ic,appctx->dat.curr_sol);CHKERRQ(ierr);
 
@@ -625,6 +653,58 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec ic,PetscReal *f,Vec G,void *ctx)
 
   ierr = TSAdjointSolve(appctx->ts);CHKERRQ(ierr);
   /* ierr = VecPointwiseDivide(G,G,appctx->SEMop.mass);CHKERRQ(ierr);*/
+  PetscFunctionReturn(0);
+}
+
+/* adjoint ODE callbacks */
+
+/* the cost functional interface: returns ||u - u_obs||^2 */
+PetscErrorCode EvalObjective_AO(Vec U, Vec P, PetscReal time, PetscReal *val, void *ctx)
+{
+  const PetscScalar *x,*xobs,*m;
+  AppCtx           *appctx = (AppCtx*)ctx;
+  PetscErrorCode    ierr;
+  PetscInt          i,n;
+
+  PetscFunctionBeginUser;
+  *val = 0.0;
+  ierr = VecGetLocalSize(U,&n);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(appctx->SEMop.mass,&m);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(U,&x);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(appctx->dat.reference,&xobs);CHKERRQ(ierr);
+  for (i=0;i<n;i++) {
+    *val += (x[i]-xobs[i])*m[i]*(x[i]-xobs[i]);
+  }
+  ierr = VecRestoreArrayRead(appctx->dat.reference,&xobs);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(U,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(appctx->SEMop.mass,&m);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* the gradient of the cost functional with respect to the state variables */
+PetscErrorCode EvalObjectiveGradient_U_AO(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
+{
+  AppCtx          *appctx = (AppCtx*)ctx;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecWAXPY(grad,-1.0,appctx->dat.reference,U);CHKERRQ(ierr);
+  ierr = VecPointwiseMult(grad,grad,appctx->SEMop.mass);CHKERRQ(ierr);
+  ierr = VecScale(grad,2.0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*
+   FormFunctionGradient_AO - Evaluates the function and corresponding gradient.
+   Version that solves the adjoint ODE
+*/
+PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec ic,PetscReal *f,Vec G,void *ctx)
+{
+  AppCtx         *appctx = (AppCtx*)ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = TSComputeObjectiveAndGradient(appctx->ts,0.0,appctx->initial_dt,appctx->param.Tend,ic,ic,G,f);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -673,19 +753,37 @@ PetscErrorCode MonitorDestroy(void **ctx)
    build:
      requires: !complex
 
-   test:
+   testset:
      requires: !single
-     args:  -ts_adapt_dt_max 3.e-3 -E 10 -N 8 -ncoeff 5
+     args: -ts_adapt_dt_max 3.e-3 -E 10 -N 8 -ncoeff 5
+     output_file: output/spectraladjointassimilation_1.out
+     test:
+       suffix: 1
+       args: -adjointode 0
+     test:
+       suffix: 1_ao
+       args: -adjointode 1
 
-   test:
-     suffix: cn
+   testset:
      requires: !single
      args:  -ts_type cn -ts_dt .003 -pc_type lu -E 10 -N 8 -ncoeff 5
+     output_file: output/spectraladjointassimilation_cn.out
+     test:
+       suffix: cn
+       args: -adjointode 0
+     test:
+       suffix: cn_ao
+       args: -adjointode 1
 
-   test:
-     suffix: 2
+   testset:
      requires: !single
      args:  -ts_adapt_dt_max 3.e-3 -E 10 -N 8 -ncoeff 5  -a .1
-
+     output_file: output/spectraladjointassimilation_2.out
+     test:
+       suffix: 2
+       args: -adjointode 0
+     test:
+       suffix: 2_ao
+       args: -adjointode 1
 
 TEST*/
