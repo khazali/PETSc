@@ -546,8 +546,6 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
   ierr = KSPGetOperators(ksp,&A,&Ap);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)A,MATIS,&ismatis);CHKERRQ(ierr);
   if (!ismatis) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_USER,"Amat should be of type MATIS");
-  ierr = PetscObjectTypeCompare((PetscObject)Ap,MATIS,&ismatis);CHKERRQ(ierr);
-  if (!ismatis) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_USER,"Pmat should be of type MATIS");
 
   /* Quiet return if the matrix states are unchanged.
      Needed only for the saddle point case since it uses MatZeroRows
@@ -572,7 +570,7 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
   }
 
   if (!fetidp->saddlepoint) {
-    ierr = PCSetOperators(fetidp->innerbddc,A,Ap);CHKERRQ(ierr);
+    ierr = PCSetOperators(fetidp->innerbddc,A,A);CHKERRQ(ierr);
   } else {
     Mat      nA,lA;
     Mat      PPmat;
@@ -800,6 +798,7 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
         list[0] = plP;
         list[1] = pcbddc->DirichletBoundariesLocal;
         ierr = ISConcatenate(PetscObjectComm((PetscObject)ksp),2,list,&isout);CHKERRQ(ierr);
+        ierr = ISSortRemoveDups(isout);CHKERRQ(ierr);
         ierr = ISDestroy(&plP);CHKERRQ(ierr);
         ierr = ISRestoreIndices(lP,&idxs);CHKERRQ(ierr);
         ierr = PCBDDCSetDirichletBoundariesLocal(fetidp->innerbddc,isout);CHKERRQ(ierr);
@@ -810,6 +809,7 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
         list[0] = pP;
         list[1] = pcbddc->DirichletBoundaries;
         ierr = ISConcatenate(PetscObjectComm((PetscObject)ksp),2,list,&isout);CHKERRQ(ierr);
+        ierr = ISSortRemoveDups(isout);CHKERRQ(ierr);
         ierr = PCBDDCSetDirichletBoundaries(fetidp->innerbddc,isout);CHKERRQ(ierr);
         ierr = ISDestroy(&isout);CHKERRQ(ierr);
       } else {
@@ -893,7 +893,8 @@ static PetscErrorCode KSPFETIDPSetUpOperators(KSP ksp)
         ierr = MatScale(C,-1.);CHKERRQ(ierr);
         ierr = PetscObjectCompose((PetscObject)fetidp->innerbddc,"__KSPFETIDP_C",(PetscObject)C);CHKERRQ(ierr);
         ierr = MatDestroy(&C);CHKERRQ(ierr);
-      } else if (A != Ap) { /* user has provided a different Pmat, use it to extract the pressure preconditioner */
+      }
+      if (A != Ap) { /* user has provided a different Pmat, use it to extract the pressure preconditioner */
         Mat C;
 
         ierr = MatCreateSubMatrix(Ap,fetidp->pP,fetidp->pP,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
@@ -1136,8 +1137,8 @@ static PetscErrorCode KSPView_FETIDP(KSP ksp,PetscViewer viewer)
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
   if (iascii) {
-    ierr = PetscViewerASCIIPrintf(viewer,"  fully redundant: %D\n",fetidp->fully_redundant);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer,"  saddle point:    %D\n",fetidp->saddlepoint);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"  fully redundant: %d\n",fetidp->fully_redundant);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"  saddle point:    %d\n",fetidp->saddlepoint);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  inner solver details\n");CHKERRQ(ierr);
     ierr = PetscViewerASCIIAddTab(viewer,2);CHKERRQ(ierr);
   }
@@ -1207,7 +1208,8 @@ static PetscErrorCode KSPSetFromOptions_FETIDP(PetscOptionItems *PetscOptionsObj
    will use GMRES for the solution of the linear system on the Lagrange multipliers, generated using a non-symmetric PCBDDC.
 
    For saddle point problems with continuous pressures, the preconditioned operator for the pressure solver can be specified with KSPFETIDPSetPressureOperator().
-   If it's not provided, an identity matrix will be created; the user then needs to scale it through a Richardson solver.
+   Alternatively, the pressure operator is extracted from the precondioned matrix (if it is different from the linear solver matrix).
+   If none of the above, an identity matrix will be created; the user then needs to scale it through a Richardson solver.
    Options for the pressure solver can be prefixed with -fetidp_fielsplit_p_, E.g.
 .vb
       -fetidp_fielsplit_p_ksp_type preonly -fetidp_fielsplit_p_pc_type lu -fetidp_fielsplit_p_pc_factor_mat_solver_type mumps

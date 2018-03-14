@@ -3,7 +3,7 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = ts.c tscreate.c tsreg.c tsregall.c dlregists.c tseig.c tsfwdsen.c tsobj.c \
+SOURCEC  = ts.c tscreate.c tsreg.c tsregall.c dlregists.c tseig.c tssen.c tsobj.c \
            tssplitjac.c tsgradhess.c tsadjointts.c tstlmts.c tspdeconstrainedutils.c \
            tspropagator.c tshistory.c
 SOURCEF  =

@@ -34,6 +34,8 @@ PetscBool         PetscDSRegisterAllCalled = PETSC_FALSE;
 
   Level: advanced
 
+   Not available from Fortran
+
 .keywords: PetscDS, register
 .seealso: PetscDSRegisterAll(), PetscDSRegisterDestroy()
 
@@ -60,6 +62,8 @@ PetscErrorCode PetscDSRegister(const char sname[], PetscErrorCode (*function)(Pe
 . -petscds_type <type> - Sets the PetscDS type; use -help for a list of available types
 
   Level: intermediate
+
+   Not available from Fortran
 
 .keywords: PetscDS, set, type
 .seealso: PetscDSGetType(), PetscDSCreate()
@@ -100,6 +104,8 @@ PetscErrorCode PetscDSSetType(PetscDS prob, PetscDSType name)
 . name - The PetscDS type name
 
   Level: intermediate
+
+   Not available from Fortran
 
 .keywords: PetscDS, get, type, name
 .seealso: PetscDSSetType(), PetscDSCreate()
@@ -157,10 +163,10 @@ static PetscErrorCode PetscDSView_Ascii(PetscDS prob, PetscViewer viewer)
       else                        {ierr = PetscViewerASCIIPrintf(viewer, " (adj FUNKY)");CHKERRQ(ierr);}
     }
     ierr = PetscViewerASCIIPrintf(viewer, "\n");CHKERRQ(ierr);
-    if (format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
-      if (id == PETSCFE_CLASSID)      {ierr = PetscFEView((PetscFE) obj, viewer);CHKERRQ(ierr);}
-      else if (id == PETSCFV_CLASSID) {ierr = PetscFVView((PetscFV) obj, viewer);CHKERRQ(ierr);}
-    }
+    ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
+    if (id == PETSCFE_CLASSID)      {ierr = PetscFEView((PetscFE) obj, viewer);CHKERRQ(ierr);}
+    else if (id == PETSCFV_CLASSID) {ierr = PetscFVView((PetscFV) obj, viewer);CHKERRQ(ierr);}
+    ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
   }
   ierr = PetscDSGetConstants(prob, &numConstants, &constants);CHKERRQ(ierr);
   if (numConstants) {
@@ -268,7 +274,7 @@ PetscErrorCode PetscDSSetFromOptions(PetscDS prob)
   /* process any options handlers added with PetscObjectAddOptionsHandler() */
   ierr = PetscObjectProcessOptionsHandlers(PetscOptionsObject,(PetscObject) prob);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
-  ierr = PetscDSViewFromOptions(prob, NULL, "-petscds_view");CHKERRQ(ierr);
+  if (prob->Nf) {ierr = PetscDSViewFromOptions(prob, NULL, "-petscds_view");CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 

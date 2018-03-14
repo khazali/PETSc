@@ -199,7 +199,7 @@ def chkwinf90():
 
 def chkdosfiles():
   # cygwin - but not a hg clone - so check one of files in bin dir
-  if "\r\n" in open(os.path.join('bin','petscmpiexec'),"rb").read():
+  if "\r\n" in open(os.path.join('lib','petsc','bin','petscmpiexec'),"rb").read():
     print '==============================================================================='
     print ' *** Scripts are in DOS mode. Was winzip used to extract petsc sources?    ****'
     print ' *** Please restart with a fresh tarball and use "tar -xzf petsc.tar.gz"   ****'
@@ -320,7 +320,7 @@ def move_configure_log(framework):
 def print_final_timestamp(framework):
   import time
   framework.log.write(('='*80)+'\n')
-  framework.log.write('Finishing Configure Run at '+time.ctime(time.time())+'\n')
+  framework.log.write('Finishing configure run at '+time.strftime('%a, %d %b %Y %H:%M:%S %z')+'\n')
   framework.log.write(('='*80)+'\n')
   return
 
@@ -330,7 +330,7 @@ def petsc_configure(configure_options):
     if petscdir.find(' ') > -1:
       raise RuntimeError('Your PETSC_DIR '+petscdir+' has spaces in it; this is not allowed.\n Change the directory with PETSc to not have spaces in it')
     try:
-      sys.path.append(os.path.join(petscdir,'bin'))
+      sys.path.append(os.path.join(petscdir,'lib','petsc','bin'))
       import petscnagupgrade
       file     = os.path.join(petscdir,'.nagged')
       if not petscnagupgrade.naggedtoday(file):

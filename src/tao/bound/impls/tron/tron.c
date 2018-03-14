@@ -51,10 +51,8 @@ static PetscErrorCode TaoView_TRON(Tao tao, PetscViewer viewer)
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);CHKERRQ(ierr);
   if (isascii) {
-    ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"Total PG its: %D,",tron->total_gp_its);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"PG tolerance: %g \n",(double)tron->pg_ftol);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -137,6 +135,7 @@ static PetscErrorCode TaoSolve_TRON(Tao tao)
     tron->n_free_last = tron->n_free;
     ierr = TaoComputeHessian(tao,tao->solution,tao->hessian,tao->hessian_pre);CHKERRQ(ierr);
 
+    /* Generate index set (IS) of which bound constraints are active */
     ierr = ISDestroy(&tron->Free_Local);CHKERRQ(ierr);
     ierr = VecWhichInactive(tao->XL,tao->solution,tao->gradient,tao->XU,PETSC_TRUE,&tron->Free_Local);CHKERRQ(ierr);
     ierr = ISGetSize(tron->Free_Local, &tron->n_free);CHKERRQ(ierr);
@@ -262,7 +261,7 @@ static PetscErrorCode TronGradientProjections(Tao tao,TAO_TRON *tron)
 
     if (-actred <= (tron->pg_ftol)*actred_max) break;
 
-    ++tron->gp_iterates; 
+    ++tron->gp_iterates;
     ++tron->total_gp_its;
     f_new=tron->f;
 
@@ -370,11 +369,13 @@ PETSC_EXTERN PetscErrorCode TaoCreate_TRON(Tao tao)
   tao->subset_type = TAO_SUBSET_SUBVEC;
 
   ierr = TaoLineSearchCreate(((PetscObject)tao)->comm, &tao->linesearch);CHKERRQ(ierr);
+  ierr = PetscObjectIncrementTabLevel((PetscObject)tao->linesearch, (PetscObject)tao, 1);CHKERRQ(ierr);
   ierr = TaoLineSearchSetType(tao->linesearch,morethuente_type);CHKERRQ(ierr);
   ierr = TaoLineSearchUseTaoRoutines(tao->linesearch,tao);CHKERRQ(ierr);
   ierr = TaoLineSearchSetOptionsPrefix(tao->linesearch,tao->hdr.prefix);CHKERRQ(ierr);
 
   ierr = KSPCreate(((PetscObject)tao)->comm, &tao->ksp);CHKERRQ(ierr);
+  ierr = PetscObjectIncrementTabLevel((PetscObject)tao->ksp, (PetscObject)tao, 1);CHKERRQ(ierr);
   ierr = KSPSetOptionsPrefix(tao->ksp, tao->hdr.prefix);CHKERRQ(ierr);
   ierr = KSPSetType(tao->ksp,KSPCGSTCG);CHKERRQ(ierr);
   PetscFunctionReturn(0);

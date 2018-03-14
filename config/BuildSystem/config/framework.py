@@ -419,6 +419,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
     if output.find('warning: ISO C90 does not support') >= 0: return output
     if output.find('warning: ISO C does not support') >= 0: return output
     if output.find('Warning: attribute visibility is unsupported and will be skipped') >= 0: return output
+    if output.find('(E) Invalid statement found within an interface block. Executable statement, statement function or syntax error encountered.') >= 0: return output
     elif self.argDB['ignoreCompileOutput']:
       output = ''
     elif output:
@@ -821,7 +822,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
     import time, sys
     self.log.write(('='*80)+'\n')
     self.log.write(('='*80)+'\n')
-    self.log.write('Starting Configure Run at '+time.ctime(time.time())+'\n')
+    self.log.write('Starting configure run at '+time.strftime('%a, %d %b %Y %H:%M:%S %z')+'\n')
     self.log.write('Configure Options: '+self.getOptionsString()+'\n')
     self.log.write('Working directory: '+os.getcwd()+'\n')
     self.log.write('Machine platform:\n' + str(platform.uname())+'\n')
@@ -932,35 +933,6 @@ class Framework(config.base.Configure, script.LanguageProcessor):
       print '=================================================================================\r'
       sys.exit(0)
     return
-
-  def runTimeTestBatch(self,name,includes,body,lib = None):
-    '''Either runs a test or adds it to the batch of runtime tests'''
-    if name in self.argDB: return self.argDB[name]
-    if self.argDB['with-batch']:
-      self.framework.addBatchInclude(includes)
-      self.framework.addBatchBody(body)
-      if lib: self.framework.addBatchLib(lib)
-      if self.include: self.framework.batchIncludeDirs.extend([self.headers.getIncludeArgument(inc) for inc in self.include])
-      return None
-    else:
-      result = None
-      self.pushLanguage('C')
-      filename = 'runtimetestoutput'
-      body = '''FILE *output = fopen("'''+filename+'''","w");\n'''+body
-      if lib:
-        if not isinstance(lib, list): lib = [lib]
-        oldLibs  = self.compilers.LIBS
-        self.compilers.LIBS = self.libraries.toString(self.lib)+' '+self.compilers.LIBS
-      if self.checkRun(includes, body) and os.path.exists(filename):
-        f    = file(filename)
-        out  = f.read()
-        f.close()
-        os.remove(filename)
-        result = out.split("=")[1].split("'")[0]
-      self.popLanguage()
-      if lib:
-        self.compilers.LIBS = oldLibs
-      return result
 
   def parallelQueueEvaluation(self, depGraph, numThreads = 1):
     import graph
