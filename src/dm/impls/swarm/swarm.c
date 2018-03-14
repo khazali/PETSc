@@ -210,11 +210,6 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   ierr = PetscCalloc2(locRows,&dnz,locRows,&onz);CHKERRQ(ierr);
   ierr = PetscHashJKCreate(&ht);CHKERRQ(ierr);
 
-PetscMPIInt rank;
-MPI_Comm_rank(PetscObjectComm((PetscObject)dmf),&rank);
-PetscPrintf(PETSC_COMM_SELF,"******* [%D] cStart %D, cEnd=%D locRows=%D locCols=%D rStart=%D, colStart=%D, colEnd=%D\n",rank,cStart,cEnd,locRows,locCols,rStart,colStart,colEnd);
-
-
   for (field = 0; field < Nf; ++field) {
     PetscObject      obj;
     PetscInt         i;
@@ -236,7 +231,6 @@ PetscPrintf(PETSC_COMM_SELF,"******* [%D] cStart %D, cEnd=%D locRows=%D locCols=
 
         for (i = 0; i < numFIndices; ++i) {
           key.j = findices[i];
-PetscPrintf(PETSC_COMM_SELF, "\t\t[%D] %D,%D) rStart=%D, key.j=%D (vertex)\n",rank,cell,i,rStart,key.j);
           if (key.j >= 0) {
             /* Get indices for coarse elements */
             for (c = 0; c < numCIndices; ++c) {
@@ -244,11 +238,10 @@ PetscPrintf(PETSC_COMM_SELF, "\t\t[%D] %D,%D) rStart=%D, key.j=%D (vertex)\n",ra
               if (key.k < 0) continue;
               ierr = PetscHashJKPut(ht, key, &missing, &iter);CHKERRQ(ierr);
               if (missing) {
-PetscPrintf(PETSC_COMM_SELF, "\t\t\t\t[%D] add nnz at %D,%D. %D <= %D < %D idx=%D\n",rank,key.k,key.j,colStart,key.j,colEnd,key.k-rStart);
                 ierr = PetscHashJKSet(ht, iter, 1);CHKERRQ(ierr);
                 if ((key.j >= colStart) && (key.j < colEnd)) ++dnz[key.k-rStart];
                 else ++onz[key.k-rStart];
-              }
+              } else SETERRQ2(PetscObjectComm((PetscObject) dmf), PETSC_ERR_SUP, "Set new value at %D,%D",key.j,key.k);
             }
           }
         }
@@ -257,9 +250,6 @@ PetscPrintf(PETSC_COMM_SELF, "\t\t\t\t[%D] add nnz at %D,%D. %D <= %D < %D idx=%
       ierr = DMPlexRestoreClosureIndices(dmf, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
     }
   }
-
-PetscPrintf(PETSC_COMM_SELF,"******* [%D]DMSwarmComputeMassMatrix_Private dnz[0]=%D, onz[0]=%D\n",rank,dnz[0],onz[0]);
-
   ierr = PetscHashJKDestroy(&ht);CHKERRQ(ierr);
   ierr = MatXAIJSetPreallocation(mass, 1, dnz, onz, NULL, NULL);CHKERRQ(ierr);
   ierr = MatSetOption(mass, MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
