@@ -35,9 +35,37 @@ PetscErrorCode TSTrajectoryRegister(const char sname[],PetscErrorCode (*function
 }
 
 /*@
+  TSTrajectoryReset - Resets a trajectory to its initial state
+
+  Collective on TSTrajectory
+
+  Input Parameters:
+. tj      - the trajectory object
+
+  Level: developer
+
+  Notes:
+
+.keywords: TS, trajectory, create
+
+.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySet()
+@*/
+PetscErrorCode TSTrajectoryReset(TSTrajectory tj)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
+  ierr = TSHistoryDestroy(&tj->tsh);CHKERRQ(ierr);
+  ierr = TSHistoryCreate(PetscObjectComm((PetscObject)tj),&tj->tsh);CHKERRQ(ierr);
+  tj->setupcalled = PETSC_FALSE;
+  PetscFunctionReturn(0);
+}
+
+/*@
   TSTrajectorySet - Sets a vector of state in the trajectory object
 
-  Collective on TS
+  Collective on TSTrajectory
 
   Input Parameters:
 + tj      - the trajectory object
@@ -828,6 +856,7 @@ PetscErrorCode  TSTrajectorySetUp(TSTrajectory tj,TS ts)
   tj->diskwrites = 0;
   ierr = PetscStrlen(tj->dirname,&s1);CHKERRQ(ierr);
   ierr = PetscStrlen(tj->filetemplate,&s2);CHKERRQ(ierr);
+  ierr = PetscFree(tj->dirfiletemplate);CHKERRQ(ierr);
   ierr = PetscMalloc((s1 + s2 + 10)*sizeof(char),&tj->dirfiletemplate);CHKERRQ(ierr);
   ierr = PetscSNPrintf(tj->dirfiletemplate,s1+s2+10,"%s/%s",tj->dirname,tj->filetemplate);CHKERRQ(ierr);
   PetscFunctionReturn(0);
