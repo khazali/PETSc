@@ -412,6 +412,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx0)
   PetscScalar    *u;
   PetscScalar    *x_ptr,*y_ptr;
   Vec            q,*qgrad;
+  TSTrajectory   tj;
   PetscErrorCode ierr;
 
   ierr = VecGetArrayRead(P,(const PetscScalar**)&x_ptr);CHKERRQ(ierr);
@@ -453,7 +454,13 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx0)
     ierr = MatAssemblyEnd(sp,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
 
-  /* sovle the ODE */
+  /* reset the trajectory */
+  ierr = TSGetTrajectory(ctx->ts,&tj);CHKERRQ(ierr);
+  if (tj) {
+    ierr = TSTrajectoryReset(tj);CHKERRQ(ierr);
+  }
+
+  /* solve the ODE */
   ierr = TSSolve(ctx->ts,ctx->U);CHKERRQ(ierr);
   ierr = TSGetSolveTime(ctx->ts,&ftime);CHKERRQ(ierr);
   ierr = TSGetStepNumber(ctx->ts,&steps);CHKERRQ(ierr);
