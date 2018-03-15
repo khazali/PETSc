@@ -84,6 +84,9 @@ typedef struct {
    User-defined routines
 */
 extern PetscErrorCode FormFunctionGradient(Tao,Vec,PetscReal*,Vec,void*);
+extern PetscErrorCode FormFunctionGradient_AO(Tao,Vec,PetscReal*,Vec,void*);
+extern PetscErrorCode EvalObjectiveGradient_U_AO(Vec,Vec,PetscReal,Vec,void*);
+extern PetscErrorCode EvalObjective_AO(Vec,Vec,PetscReal,PetscReal*,void*);
 extern PetscErrorCode RHSMatrixLaplaciangllDM(TS,PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode RHSMatrixAdvectiongllDM(TS,PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode InitialConditions(Vec,AppCtx*);
@@ -102,6 +105,7 @@ int main(int argc,char **argv)
   PetscInt       i, xs, xm, ind, j, lenglob;
   PetscReal      x, *wrk_ptr1, *wrk_ptr2;
   MatNullSpace   nsp;
+  PetscBool      adjointode = PETSC_FALSE;
   PetscMPIInt    size;
 
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -120,6 +124,7 @@ int main(int argc,char **argv)
   appctx.param.steps = PETSC_MAX_INT;
   appctx.param.Tend  = 4;
 
+  ierr = PetscOptionsGetBool(NULL,NULL,"-adjointode",&adjointode,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-N",&appctx.param.N,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-E",&appctx.param.E,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetReal(NULL,NULL,"-Tend",&appctx.param.Tend,NULL);CHKERRQ(ierr);
@@ -248,7 +253,24 @@ int main(int argc,char **argv)
   ierr = TaoSetType(tao,TAOBLMVM);CHKERRQ(ierr);
   ierr = TaoSetInitialVector(tao,appctx.dat.ic);CHKERRQ(ierr);
   /* Set routine for function and gradient evaluation  */
-  ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&appctx);CHKERRQ(ierr);
+  if (!adjointode) {
+    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void *)&appctx);CHKERRQ(ierr);
+  } else {
+    Mat Id;
+
+    /* the cost functional needs to be evaluated at final time */
+    ierr = TSSetObjective(appctx.ts,appctx.param.Tend,EvalObjective_AO,EvalObjectiveGradient_U_AO,NULL,
+                          NULL,NULL,NULL,NULL,NULL,NULL,(void *)&appctx);CHKERRQ(ierr);
+    /* set Jacobian G_p for the ODE dependence from initial conditions in implicit form: G(u(0),p) = 0 */
+    ierr = MatDuplicate(appctx.SEMop.stiff,MAT_DO_NOT_COPY_VALUES,&Id);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(Id,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatZeroEntries(Id);CHKERRQ(ierr);
+    ierr = MatShift(Id,-1.0);CHKERRQ(ierr);
+    ierr = TSSetGradientIC(appctx.ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&Id);CHKERRQ(ierr);
+    ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient_AO,(void *)&appctx);CHKERRQ(ierr);
+  }
   /* Check for any TAO command line options  */
   ierr = TaoSetTolerances(tao,1e-8,PETSC_DEFAULT,PETSC_DEFAULT);CHKERRQ(ierr);
   ierr = TaoSetFromOptions(tao);CHKERRQ(ierr);
@@ -275,8 +297,8 @@ int main(int argc,char **argv)
        - provides summary and diagnostic information if certain runtime
          options are chosen (e.g., -log_summary).
   */
-    ierr = PetscFinalize();
-    return ierr;
+  ierr = PetscFinalize();
+  return ierr;
 }
 
 /* --------------------------------------------------------------------- */
@@ -299,6 +321,7 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   PetscErrorCode    ierr;
   PetscInt          i,xs,xn;
 
+  PetscFunctionBegin;
   ierr = DMDAVecGetArray(appctx->da,u,&s);CHKERRQ(ierr);
   ierr = DMDAVecGetArrayRead(appctx->da,appctx->SEMop.grid,(void*)&xg);CHKERRQ(ierr);
   ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xn,NULL,NULL);CHKERRQ(ierr);
@@ -307,7 +330,7 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   }
   ierr = DMDAVecRestoreArray(appctx->da,u,&s);CHKERRQ(ierr);
   ierr = DMDAVecRestoreArrayRead(appctx->da,appctx->SEMop.grid,(void*)&xg);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 
 /*
@@ -329,6 +352,7 @@ PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
   PetscErrorCode    ierr;
   PetscInt          i,xs,xn;
 
+  PetscFunctionBegin;
   ierr = DMDAVecGetArray(appctx->da,u,&s);CHKERRQ(ierr);
   ierr = DMDAVecGetArrayRead(appctx->da,appctx->SEMop.grid,(void*)&xg);CHKERRQ(ierr);
   ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xn,NULL,NULL);CHKERRQ(ierr);
@@ -337,7 +361,7 @@ PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
   } 
   ierr = DMDAVecRestoreArray(appctx->da,u,&s);CHKERRQ(ierr);
   ierr = DMDAVecRestoreArrayRead(appctx->da,appctx->SEMop.grid,(void*)&xg);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 /* --------------------------------------------------------------------- */
 /*
@@ -356,6 +380,7 @@ PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
   PetscErrorCode    ierr;
   PetscInt          i, xs,xn;
 
+  PetscFunctionBegin;
   ierr = DMDAVecGetArray(appctx->da,obj,&s);CHKERRQ(ierr);
   ierr = DMDAVecGetArrayRead(appctx->da,appctx->SEMop.grid,(void*)&xg);CHKERRQ(ierr);
   ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xn,NULL,NULL);CHKERRQ(ierr);
@@ -365,11 +390,9 @@ PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
   } 
   ierr = DMDAVecRestoreArray(appctx->da,obj,&s);CHKERRQ(ierr);
   ierr = DMDAVecRestoreArrayRead(appctx->da,appctx->SEMop.grid,(void*)&xg);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "RHSFunction"
 PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
 {
   PetscErrorCode ierr;
@@ -383,8 +406,6 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   PetscFunctionReturn(0);
 }
 
-#undef __FUNCT__
-#define __FUNCT__ "RHSJacobian"
 /*
 
       K is the discretiziation of the Laplacian
@@ -444,6 +465,7 @@ PetscErrorCode RHSMatrixLaplaciangllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
   PetscInt       i,xs,xn,l,j;
   PetscInt       *rowsDM;
 
+  PetscFunctionBegin;
   /*
    Creates the element stiffness matrix for the given gll
    */
@@ -479,11 +501,8 @@ PetscErrorCode RHSMatrixLaplaciangllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
   ierr = VecReciprocal(appctx->SEMop.mass);CHKERRQ(ierr);
 
   ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
-
-#undef __FUNCT__
-#define __FUNCT__ "RHSMatrixAdvectiongllDM"
 
 /*
    RHSMatrixAdvection - User-provided routine to compute the right-hand-side
@@ -509,6 +528,7 @@ PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
   PetscInt       xs,xn,l,j;
   PetscInt       *rowsDM;
 
+  PetscFunctionBegin;
   /*
    Creates the advection matrix for the given gll
    */
@@ -535,7 +555,7 @@ PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
   ierr = MatDiagonalScale(A,appctx->SEMop.mass,0);CHKERRQ(ierr);
   ierr = VecReciprocal(appctx->SEMop.mass);CHKERRQ(ierr);
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&temp);CHKERRQ(ierr);
-  return 0;
+  PetscFunctionReturn(0);
 }
 /* ------------------------------------------------------------------ */
 /*
@@ -583,6 +603,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   TaoConvergedReason reason;
   TSTrajectory       tj;
 
+  PetscFunctionBegin;
   ierr = TSSetTime(appctx->ts,0.0);CHKERRQ(ierr);
   ierr = TSSetStepNumber(appctx->ts,0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(appctx->ts,appctx->initial_dt);CHKERRQ(ierr);
@@ -623,6 +644,61 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   PetscFunctionReturn(0);
 }
 
+/* adjoint ODE callbacks */
+
+/* the cost functional interface: returns ||u - u_obs||^2 */
+PetscErrorCode EvalObjective_AO(Vec U, Vec P, PetscReal time, PetscReal *val, void *ctx)
+{
+  const PetscScalar *x,*xobs,*m;
+  AppCtx           *appctx = (AppCtx*)ctx;
+  PetscErrorCode    ierr;
+  PetscInt          i,n;
+  PetscReal         lval;
+
+  PetscFunctionBeginUser;
+  lval = 0.0;
+  ierr = VecGetLocalSize(U,&n);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(appctx->SEMop.mass,&m);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(U,&x);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(appctx->dat.obj,&xobs);CHKERRQ(ierr);
+  for (i=0;i<n;i++) {
+    lval += (x[i]-xobs[i])*m[i]*(x[i]-xobs[i]);
+  }
+  ierr = MPIU_Allreduce(&lval,val,1,MPIU_REAL,MPIU_SUM,PetscObjectComm((PetscObject)U));CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(appctx->dat.obj,&xobs);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(U,&x);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(appctx->SEMop.mass,&m);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* the gradient of the cost functional with respect to the state variables */
+PetscErrorCode EvalObjectiveGradient_U_AO(Vec U, Vec M, PetscReal time, Vec grad, void *ctx)
+{
+  AppCtx          *appctx = (AppCtx*)ctx;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecWAXPY(grad,-1.0,appctx->dat.obj,U);CHKERRQ(ierr);
+  ierr = VecPointwiseMult(grad,grad,appctx->SEMop.mass);CHKERRQ(ierr);
+  ierr = VecScale(grad,2.0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*
+   FormFunctionGradient_AO - Evaluates the function and corresponding gradient.
+   Version that solves the adjoint ODE
+*/
+PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec ic,PetscReal *f,Vec G,void *ctx)
+{
+  AppCtx         *appctx = (AppCtx*)ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = TSComputeObjectiveAndGradient(appctx->ts,0.0,appctx->initial_dt,appctx->param.Tend,ic,ic,G,f);CHKERRQ(ierr);
+  ierr = VecPointwiseDivide(G,G,appctx->SEMop.mass);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode MonitorError(Tao tao,void *ctx)
 {
   AppCtx         *appctx = (AppCtx*)ctx;
@@ -647,14 +723,27 @@ PetscErrorCode MonitorError(Tao tao,void *ctx)
     build:
       requires: !complex
 
-    test:
+    testset:
       args: -tao_max_it 5
       requires: !single
+      output_file: output/burgers_spectral.out
+      test:
+        suffix: 1
+        args: -adjointode 0
+      test:
+        suffix: 1_ao
+        args: -adjointode
 
-    test:
-      suffix: 2
+    testset:
       nsize: 2
       args: -tao_max_it 5
       requires: !single
+      output_file: output/burgers_spectral_2.out
+      test:
+        suffix: 2
+        args: -adjointode 0
+      test:
+        suffix: 2_ao
+        args: -adjointode
 
 TEST*/

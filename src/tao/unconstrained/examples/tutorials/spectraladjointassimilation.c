@@ -665,16 +665,18 @@ PetscErrorCode EvalObjective_AO(Vec U, Vec P, PetscReal time, PetscReal *val, vo
   AppCtx           *appctx = (AppCtx*)ctx;
   PetscErrorCode    ierr;
   PetscInt          i,n;
+  PetscReal         lval;
 
   PetscFunctionBeginUser;
-  *val = 0.0;
+  lval = 0.0;
   ierr = VecGetLocalSize(U,&n);CHKERRQ(ierr);
   ierr = VecGetArrayRead(appctx->SEMop.mass,&m);CHKERRQ(ierr);
   ierr = VecGetArrayRead(U,&x);CHKERRQ(ierr);
   ierr = VecGetArrayRead(appctx->dat.reference,&xobs);CHKERRQ(ierr);
   for (i=0;i<n;i++) {
-    *val += (x[i]-xobs[i])*m[i]*(x[i]-xobs[i]);
+    lval += (x[i]-xobs[i])*m[i]*(x[i]-xobs[i]);
   }
+  ierr = MPIU_Allreduce(&lval,val,1,MPIU_REAL,MPIU_SUM,PetscObjectComm((PetscObject)U));CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(appctx->dat.reference,&xobs);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(U,&x);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(appctx->SEMop.mass,&m);CHKERRQ(ierr);
