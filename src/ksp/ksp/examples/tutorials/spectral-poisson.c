@@ -190,21 +190,29 @@ int main(int argc,char **argv)
   MatShellSetOperation(H,MATOP_CREATE_SUBMATRICES,(void(*)(void))MyMatCreateSubMatrices);  
   
  /* attach the null space to the matrix, this probably is not needed but does no harm */
+
+    Mat E;
+  ierr = MatComputeExplicitOperator(H,&E);CHKERRQ(ierr);
   
   ierr = MatNullSpaceCreate(PETSC_COMM_WORLD,PETSC_TRUE,0,NULL,&nsp);CHKERRQ(ierr);
-  ierr = MatSetNullSpace(H,nsp);CHKERRQ(ierr);
-  ierr = MatNullSpaceTest(nsp,H,NULL);CHKERRQ(ierr);
+  ierr = MatSetNullSpace(E,nsp);CHKERRQ(ierr);
+  ierr = MatNullSpaceTest(nsp,E,NULL);CHKERRQ(ierr);
+  //  ierr = MatSetNullSpace(H,nsp);CHKERRQ(ierr);
+  //ierr = MatNullSpaceTest(nsp,H,NULL);CHKERRQ(ierr);
   ierr = MatNullSpaceDestroy(&nsp);CHKERRQ(ierr);
 
-  ierr = TestMult(H);CHKERRQ(ierr);
+  //ierr = TestMult(H);CHKERRQ(ierr);
 
+
+  
   ierr = KSPCreate(PETSC_COMM_WORLD,&ksp);CHKERRQ(ierr);
   ierr = KSPSetDM(ksp,appctx.da);CHKERRQ(ierr);
   ierr = KSPSetDMActive(ksp,PETSC_FALSE);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&b);CHKERRQ(ierr);
   ierr = VecSetRandom(b,PETSC_RANDOM_(PETSC_COMM_WORLD));CHKERRQ(ierr);
-  ierr = VecSet(b,1.0);CHKERRQ(ierr);
-  ierr = KSPSetOperators(ksp,H,H);CHKERRQ(ierr);
+  //ierr = VecSet(b,1.0);CHKERRQ(ierr);
+  ierr = KSPSetOperators(ksp,E,E);CHKERRQ(ierr);
+  //ierr = KSPSetOperators(ksp,H,H);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
 
 
@@ -246,6 +254,7 @@ int main(int argc,char **argv)
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
   ierr = VecDestroy(&b);CHKERRQ(ierr);
   ierr = MatDestroy(&H);CHKERRQ(ierr);
+  ierr = MatDestroy(&E);CHKERRQ(ierr);  
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.SEMop.mass);CHKERRQ(ierr);
   ierr = PetscGLLDestroy(&appctx.SEMop.gll);CHKERRQ(ierr);
