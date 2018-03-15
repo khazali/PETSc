@@ -581,12 +581,15 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   PetscInt           its;
   PetscReal          ff, gnorm, cnorm, xdiff,errex;
   TaoConvergedReason reason;
+  TSTrajectory       tj;
 
   ierr = TSSetTime(appctx->ts,0.0);CHKERRQ(ierr);
   ierr = TSSetStepNumber(appctx->ts,0);CHKERRQ(ierr);
   ierr = TSSetTimeStep(appctx->ts,appctx->initial_dt);CHKERRQ(ierr);
   ierr = VecCopy(IC,appctx->dat.curr_sol);CHKERRQ(ierr);
 
+  ierr = TSGetTrajectory(appctx->ts,&tj);CHKERRQ(ierr);
+  ierr = TSTrajectoryReset(tj);CHKERRQ(ierr);
   ierr = TSSolve(appctx->ts,appctx->dat.curr_sol);CHKERRQ(ierr);
 
   ierr = VecWAXPY(G,-1.0,appctx->dat.curr_sol,appctx->dat.obj);CHKERRQ(ierr);
