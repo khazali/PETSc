@@ -37,6 +37,7 @@ PETSC_EXTERN PetscClassId PETSCSPACE_CLASSID;
 J*/
 typedef const char *PetscSpaceType;
 #define PETSCSPACEPOLYNOMIAL "poly"
+#define PETSCSPACETESNOR     "tensor"
 #define PETSCSPACEPOINT      "point"
 #define PETSCSPACESUBSPACE   "subspace"
 
