@@ -540,3 +540,64 @@ PetscErrorCode PetscLayoutCompare(PetscLayout mapa,PetscLayout mapb,PetscBool *c
   }
   PetscFunctionReturn(0);
 }
+
+/*@
+  PetscLayoutNodeReorderIndices - Node-reorder global indices
+
+  Collective, since a new shared memory communicator might be created in the call
+
+  Input Parameters:
++ petsccomm - PETSc communicator, a dup of the MPI communicator of layout but with extra attributes
+. layout    - pointer to the layout
+. n         - number of global indices
+- gindices  - [n] array of global indices
+
+  Output Parameters:
++ m        - number of on-node indices
+. gindices - reordered gindices
+- neworder - [n] the i-th index gindices[i] will be at neworder[i] in the new ordering (0-based)
+
+  Level: developer
+
+  Notes:
+    the subroutine node-reorders global indices, i.e., gives them a new ordering such that
+    on-node indices come before off-node indices. The relative order between on-node
+    (or off-node) indices will not be changed.
+
+    Here, node means a compute node containing multiple processors with shared memory
+@*/
+PetscErrorCode PetscLayoutNodeReorderIndices(MPI_Comm petsccomm,PetscLayout layout,PetscInt n,PetscInt *gindices,PetscInt *m,PetscInt *neworder)
+{
+  PetscErrorCode ierr;
+  PetscShmcomm   shmcomm;
+  PetscInt       grank; /* not PetscMPIInt because PetscLayoutFindOwner (incorrectly?) uses PetscInt for owner */
+  PetscMPIInt    lrank;
+  PetscInt       i,mon,moff,*array;
+
+  PetscFunctionBegin;
+  ierr = PetscShmcommGet(petsccomm,&shmcomm);CHKERRQ(ierr); /* one can only call it on a PETSc comm */
+
+  /* on-node uses non-negative offsets, off-node temporarily uses negative offsets */
+  i    = 0;
+  mon  = 0;
+  moff = -1;
+  while (i < n) {
+    ierr = PetscLayoutFindOwner(layout,gindices[i],&grank);CHKERRQ(ierr);
+    ierr = PetscShmcommGlobalToLocal(shmcomm,(PetscMPIInt)grank,&lrank);
+    if (lrank != MPI_PROC_NULL) { /* grank is an on-node processor */
+      while (i < n && gindices[i] < layout->range[grank+1]) neworder[i++] = mon++;
+    } else { /* grank is an off-node processor */
+      while (i < n && gindices[i] < layout->range[grank+1]) neworder[i++] = moff--;
+    }
+  }
+
+  /* adjust negative offsets to append off-node to on-node, and then permute gindices */
+  *m = mon;
+  for (i=0; i<n; i++) { if (neworder[i] < 0) neworder[i] = mon-neworder[i]-1; }
+
+  ierr = PetscMalloc1(n,&array);CHKERRQ(ierr);
+  ierr = PetscMemcpy(array,gindices,n*sizeof(PetscInt));CHKERRQ(ierr);
+  for (i=0; i<n; i++) gindices[neworder[i]] = array[i];
+  ierr = PetscFree(array);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
