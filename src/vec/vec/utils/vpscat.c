@@ -2672,7 +2672,7 @@ PetscErrorCode VecScatterCreate_PtoS(PetscInt nx,const PetscInt *inidx,PetscInt 
   range = xin->map->range;
 
   use_intranodeshmem = PETSC_FALSE;
-  ierr  = PetscOptionsGetBool(NULL,NULL,"-vecscatter_intranodeshmem",&use_intranodeshmem,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,NULL,"-vecscatter_intranodeshmem",&use_intranodeshmem,NULL);CHKERRQ(ierr);
   if (use_intranodeshmem) { ierr = PetscShmcommGet(comm,&pshmcomm);CHKERRQ(ierr); }
 
   /*=========================================================================
