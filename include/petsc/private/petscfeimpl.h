@@ -46,8 +46,8 @@ typedef struct {
 } PetscSpace_Poly;
 
 typedef struct {
-  PetscInt    numSubspaces;
-  PetscSpace *subspaces;
+  PetscInt    numSpaces;
+  PetscSpace *spaces;
 } PetscSpace_Tensor;
 
 typedef struct {
