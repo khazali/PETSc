@@ -55,12 +55,12 @@ int main(int argc,char **argv)
   PetscInt       xs, xm, ys,ym, ix,iy;
   PetscInt       indx,indy,m, nn;
   PetscReal      x,y;
-  PetscScalar    **bmass;
+  PetscScalar    **bmass,interpv[4];
   DMDACoor2d     **coors;
   Vec            global,loc;
-  DM             cda;
-  PetscInt       jx,jy,num_domains,*indices,cnt,dcnt;
-  Mat            H;
+  DM             cda,dac;
+  PetscInt       jx,jy,num_domains,*indices,cnt,dcnt,row,cols[4];
+  Mat            H,interp;
   MatNullSpace   nsp;
   KSP            ksp;
   PC             pc;
@@ -215,10 +215,17 @@ int main(int argc,char **argv)
   //ierr = KSPSetOperators(ksp,H,H);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
 
+  ierr = DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DMDA_STENCIL_BOX,appctx.param.lenx/(appctx.param.N-1),appctx.param.leny/(appctx.param.N-1),
+                      PETSC_DECIDE,PETSC_DECIDE,1,1,NULL,NULL,&dac);CHKERRQ(ierr);
+  ierr = DMSetFromOptions(dac);CHKERRQ(ierr);
+  ierr = DMSetUp(dac);CHKERRQ(ierr);
 
+  
   ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
   ierr = DMDAGetAO(appctx.da,&ao);CHKERRQ(ierr);
   /*  Each element is its own subdomain for additive Schwarz */
+  ierr = MatCreateAIJ(PETSC_COMM_WORLD,m,xm*ym,PETSC_DETERMINE,PETSC_DETERMINE,appctx.param.N,NULL,appctx.param.N,NULL,&interp);CHKERRQ(ierr);
+  ierr = MatSetOption(interp,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
   num_domains = xm*ym;
   ierr = PetscMalloc1(num_domains,&domains);CHKERRQ(ierr);
   ierr = PetscMalloc1(appctx.param.N*appctx.param.N,&indices);CHKERRQ(ierr);
@@ -237,8 +244,48 @@ int main(int argc,char **argv)
       }
       ierr = AOApplicationToPetsc(ao,cnt,indices);CHKERRQ(ierr);
       ierr = ISCreateGeneral(PETSC_COMM_SELF,cnt,indices,PETSC_COPY_VALUES,&domains[dcnt++]);CHKERRQ(ierr);
+
+      indx = ix*(appctx.param.N-1);
+      indy = iy*(appctx.param.N-1);
+      if (indx == appctx.param.lenx) indx = 0;
+      if (indy == appctx.param.leny) indy = 0;
+      cols[0] = indx + indy*appctx.param.lenx;
+      indx = (ix+1)*(appctx.param.N-1);
+      indy = iy*(appctx.param.N-1);
+      if (indx == appctx.param.lenx) indx = 0;
+      if (indy == appctx.param.leny) indy = 0;
+      cols[1] = indx + indy*appctx.param.lenx;
+      indx = ix*(appctx.param.N-1);
+      indy = (iy+1)*(appctx.param.N-1);
+      if (indx == appctx.param.lenx) indx = 0;
+      if (indy == appctx.param.leny) indy = 0;
+      cols[2] = indx + indy*appctx.param.lenx;
+      indx = (ix+1)*(appctx.param.N-1);
+      indy = (iy+1)*(appctx.param.N-1);
+      if (indx == appctx.param.lenx) indx = 0;
+      if (indy == appctx.param.leny) indy = 0;
+      cols[3] = indx + indy*appctx.param.lenx;
+      ierr = AOApplicationToPetsc(ao,4,cols);CHKERRQ(ierr);
+      printf("cols %d %d %d %d\n",cols[0],cols[1],cols[2],cols[3]);
+      cols[0] = cols[0]/(appctx.param.N-1);
+      cols[1] = cols[1]/(appctx.param.N-1);
+      cols[2] = cols[2]/(appctx.param.N-1);
+      cols[3] = cols[3]/(appctx.param.N-1);
+
+      for (jx=0; jx<appctx.param.N-1; jx++) {
+        for (jy=0; jy<appctx.param.N-1; jy++)   {
+          indx = ix*(appctx.param.N-1)+jx;
+          indy = iy*(appctx.param.N-1)+jy;
+          row  = indx + indy*appctx.param.lenx;
+          ierr = AOApplicationToPetsc(ao,1,&row);CHKERRQ(ierr);
+          ierr = MatSetValues(interp,1,&row,4,cols,interpv,INSERT_VALUES);CHKERRQ(ierr);
+        }
+      }
     }
   }
+  ierr = MatAssemblyBegin(interp,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(interp,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatView(interp,0);CHKERRQ(ierr);
   ierr = PetscFree(indices);CHKERRQ(ierr);
   ierr = PCASMSetLocalSubdomains(pc, num_domains, domains,domains);CHKERRQ(ierr);
   for (dcnt=0; dcnt<num_domains; dcnt++) {
@@ -254,11 +301,13 @@ int main(int argc,char **argv)
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
   ierr = VecDestroy(&b);CHKERRQ(ierr);
   ierr = MatDestroy(&H);CHKERRQ(ierr);
-  ierr = MatDestroy(&E);CHKERRQ(ierr);  
+  ierr = MatDestroy(&E);CHKERRQ(ierr);
+  ierr = MatDestroy(&interp);CHKERRQ(ierr);
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = VecDestroy(&appctx.SEMop.mass);CHKERRQ(ierr);
   ierr = PetscGLLDestroy(&appctx.SEMop.gll);CHKERRQ(ierr);
   ierr = DMDestroy(&appctx.da);CHKERRQ(ierr);
+  ierr = DMDestroy(&dac);CHKERRQ(ierr);  
   ierr = PetscFinalize();
   return ierr;
 }
