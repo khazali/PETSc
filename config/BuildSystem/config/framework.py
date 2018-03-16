@@ -419,6 +419,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
     if output.find('warning: ISO C90 does not support') >= 0: return output
     if output.find('warning: ISO C does not support') >= 0: return output
     if output.find('Warning: attribute visibility is unsupported and will be skipped') >= 0: return output
+    if output.find('(E) Invalid statement found within an interface block. Executable statement, statement function or syntax error encountered.') >= 0: return output
     elif self.argDB['ignoreCompileOutput']:
       output = ''
     elif output:
@@ -821,7 +822,7 @@ class Framework(config.base.Configure, script.LanguageProcessor):
     import time, sys
     self.log.write(('='*80)+'\n')
     self.log.write(('='*80)+'\n')
-    self.log.write('Starting Configure Run at '+time.ctime(time.time())+'\n')
+    self.log.write('Starting configure run at '+time.strftime('%a, %d %b %Y %H:%M:%S %z')+'\n')
     self.log.write('Configure Options: '+self.getOptionsString()+'\n')
     self.log.write('Working directory: '+os.getcwd()+'\n')
     self.log.write('Machine platform:\n' + str(platform.uname())+'\n')

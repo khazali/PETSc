@@ -318,7 +318,7 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec globalin,Mat A, Mat B,void *ctx
 
   /*   A  = K - A    */
   ierr = MatScale(A,-1.0);CHKERRQ(ierr);
-  ierr = MatAXPY(A,1.0,appctx->SEMop.keptstiff,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
+  ierr = MatAXPY(A,0.0,appctx->SEMop.keptstiff,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -553,6 +553,7 @@ PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
       requires: !complex
 
     test:
+      suffix: 1
       requires: !single
 
     test:
@@ -560,4 +561,15 @@ PetscErrorCode RHSMatrixAdvectiongllDM(TS ts,PetscReal t,Vec X,Mat A,Mat BB,void
       nsize: 5
       requires: !single
 
+    test:
+      suffix: 3
+      requires: !single
+      args: -ts_view  -ts_type beuler -gll_mf -pc_type none -ts_max_steps 5 -ts_monitor_error 
+
+    test:
+      suffix: 4
+      requires: !single
+      args: -ts_view  -ts_type beuler  -pc_type none -ts_max_steps 5 -ts_monitor_error 
+
 TEST*/
+

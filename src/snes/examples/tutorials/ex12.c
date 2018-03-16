@@ -481,7 +481,7 @@ static PetscErrorCode CreateBCLabel(DM dm, const char name[])
   PetscFunctionBeginUser;
   ierr = DMCreateLabel(dm, name);CHKERRQ(ierr);
   ierr = DMGetLabel(dm, name, &label);CHKERRQ(ierr);
-  ierr = DMPlexMarkBoundaryFaces(dm, label);CHKERRQ(ierr);
+  ierr = DMPlexMarkBoundaryFaces(dm, 1, label);CHKERRQ(ierr);
   ierr = DMPlexLabelComplete(dm, label);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -540,7 +540,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
     ierr = DMCreateLabel(*dm, "boundary");CHKERRQ(ierr);
     ierr = DMGetLabel(*dm, "boundary", &label);CHKERRQ(ierr);
-    ierr = DMPlexMarkBoundaryFaces(*dm, label);CHKERRQ(ierr);
+    ierr = DMPlexMarkBoundaryFaces(*dm, 1, label);CHKERRQ(ierr);
   } else if (user->bcType == DIRICHLET) {
     PetscBool hasLabel;
 
@@ -684,6 +684,7 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
                             "wall", user->bcType == DIRICHLET ? "marker" : "boundary", 0, 0, NULL,
                             user->fieldBC ? (void (*)()) user->exactFields[0] : (void (*)()) user->exactFuncs[0], 1, &id, user);CHKERRQ(ierr);
   ierr = PetscDSSetExactSolution(prob, 0, user->exactFuncs[0]);CHKERRQ(ierr);
+  ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -828,8 +829,8 @@ static PetscErrorCode KSPMonitorError(KSP ksp, PetscInt its, PetscReal rnorm, vo
   PetscBool      hasLevel;
 #if defined(PETSC_HAVE_HDF5)
   PetscViewer    viewer;
-#endif
   char           buf[256];
+#endif
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -873,15 +874,12 @@ static PetscErrorCode KSPMonitorError(KSP ksp, PetscInt its, PetscReal rnorm, vo
   ierr = VecAXPY(r,-1.0,du);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) r, "solution error");CHKERRQ(ierr);
   /* View error */
-  ierr = PetscSNPrintf(buf, 256, "ex12-%D.h5", level);CHKERRQ(ierr);
 #if defined(PETSC_HAVE_HDF5)
+  ierr = PetscSNPrintf(buf, 256, "ex12-%D.h5", level);CHKERRQ(ierr);
   ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, buf, FILE_MODE_APPEND, &viewer);CHKERRQ(ierr);
   ierr = VecView(r, viewer);CHKERRQ(ierr);
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
-#else
-  SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_SUP,"You need to configure with --download-hdf5");
 #endif
-  /* Cleanup */
   ierr = DMRestoreGlobalVector(dm, &r);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1479,6 +1477,13 @@ int main(int argc, char **argv)
     nsize: 5
     args: -run_type full -petscpartitioner_type simple -dm_refine 3 -bc_type dirichlet -interpolate 1 -petscspace_order 1 -ksp_type gmres -ksp_gmres_restart 100 -ksp_rtol 1.0e-9 -dm_mat_type is -pc_type bddc -snes_monitor_short -ksp_monitor_short -snes_converged_reason ::ascii_info_detail -ksp_converged_reason -snes_view -show_solution 0
 
+  # Full solve simplex: BDDC
+  test:
+    suffix: tri_bddc_parmetis
+    requires: hdf5 triangle !single
+    nsize: 4
+    args: -run_type full -petscpartitioner_type parmetis -dm_refine 3 -bc_type dirichlet -interpolate 1 -petscspace_order 1 -ksp_type gmres -ksp_gmres_restart 100 -ksp_rtol 1.0e-9 -dm_mat_type is -pc_type bddc -snes_monitor_short -ksp_monitor_short -snes_converged_reason ::ascii_info_detail -ksp_converged_reason -snes_view -show_solution 0
+
   # Full solve simplex: ASM
   test:
     suffix: tri_q2q1_asm_lu
@@ -1568,6 +1573,12 @@ int main(int argc, char **argv)
     args: -run_type test -interpolate 1 -petscspace_order 2 -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -petscpartitioner_type simple -cells 2,2
 
   test:
+    suffix: p4est_test_q2_conformal_parallel_parmetis
+    requires: hdf5 p4est
+    nsize: 4
+    args: -run_type test -interpolate 1 -petscspace_order 2 -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -petscpartitioner_type parmetis -cells 2,2
+
+  test:
     suffix: p4est_test_q2_nonconformal_serial
     requires: p4est
     filter: grep -v "CG or CGNE: variant"
@@ -1581,6 +1592,12 @@ int main(int argc, char **argv)
     args: -run_type test -interpolate 1 -petscspace_order 2 -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash -petscpartitioner_type simple -cells 2,2
 
   test:
+    suffix: p4est_test_q2_nonconformal_parallel_parmetis
+    requires: hdf5 p4est
+    nsize: 4
+    args: -run_type test -interpolate 1 -petscspace_order 2 -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash -petscpartitioner_type parmetis -cells 2,2
+
+  test:
     suffix: p4est_exact_q2_conformal_serial
     requires: p4est !single
     args: -run_type exact -interpolate 1 -petscspace_order 2 -snes_max_it 1 -snes_type fas -snes_fas_levels 3 -pc_type none -ksp_type preonly -fas_coarse_pc_type none -fas_coarse_ksp_type preonly -fas_coarse_snes_monitor_short -snes_monitor_short -snes_linesearch_type basic -fas_coarse_snes_linesearch_type basic -snes_converged_reason ::ascii_info_detail -snes_view -fas_levels_snes_type newtonls -fas_levels_pc_type none -fas_levels_ksp_type preonly -fas_levels_snes_monitor_short -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -cells 2,2
@@ -1592,6 +1609,12 @@ int main(int argc, char **argv)
     args: -run_type exact -interpolate 1 -petscspace_order 2 -snes_max_it 1 -snes_type fas -snes_fas_levels 3 -pc_type none -ksp_type preonly -fas_coarse_pc_type none -fas_coarse_ksp_type preonly -fas_coarse_snes_monitor_short -snes_monitor_short -snes_linesearch_type basic -fas_coarse_snes_linesearch_type basic -snes_converged_reason ::ascii_info_detail -snes_view -fas_levels_snes_type newtonls -fas_levels_pc_type none -fas_levels_ksp_type preonly -fas_levels_snes_monitor_short -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -cells 2,2
 
   test:
+    suffix: p4est_exact_q2_conformal_parallel_parmetis
+    requires: hdf5 p4est !single
+    nsize: 4
+    args: -run_type exact -interpolate 1 -petscspace_order 2 -snes_max_it 1 -snes_type fas -snes_fas_levels 3 -pc_type none -ksp_type preonly -fas_coarse_pc_type none -fas_coarse_ksp_type preonly -fas_coarse_snes_monitor_short -snes_monitor_short -snes_linesearch_type basic -fas_coarse_snes_linesearch_type basic -snes_converged_reason ::ascii_info_detail -snes_view -fas_levels_snes_type newtonls -fas_levels_pc_type none -fas_levels_ksp_type preonly -fas_levels_snes_monitor_short -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -petscpartitioner_type parmetis  -cells 2,2
+
+  test:
     suffix: p4est_exact_q2_nonconformal_serial
     requires: p4est
     args: -run_type exact -interpolate 1 -petscspace_order 2 -snes_max_it 1 -snes_type fas -snes_fas_levels 3 -pc_type none -ksp_type preonly -fas_coarse_pc_type none -fas_coarse_ksp_type preonly -fas_coarse_snes_monitor_short -snes_monitor_short -snes_linesearch_type basic -fas_coarse_snes_linesearch_type basic -snes_converged_reason ::ascii_info_detail -snes_view -fas_levels_snes_type newtonls -fas_levels_pc_type none -fas_levels_ksp_type preonly -fas_levels_snes_monitor_short -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash -cells 2,2
@@ -1601,6 +1624,12 @@ int main(int argc, char **argv)
     requires: p4est
     nsize: 7
     args: -run_type exact -interpolate 1 -petscspace_order 2 -snes_max_it 1 -snes_type fas -snes_fas_levels 3 -pc_type none -ksp_type preonly -fas_coarse_pc_type none -fas_coarse_ksp_type preonly -fas_coarse_snes_monitor_short -snes_monitor_short -snes_linesearch_type basic -fas_coarse_snes_linesearch_type basic -snes_converged_reason ::ascii_info_detail -snes_view -fas_levels_snes_type newtonls -fas_levels_pc_type none -fas_levels_ksp_type preonly -fas_levels_snes_monitor_short -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash -petscpartitioner_type simple -cells 2,2
+
+  test:
+    suffix: p4est_exact_q2_nonconformal_parallel_parmetis
+    requires: hdf5 p4est
+    nsize: 4
+    args: -run_type exact -interpolate 1 -petscspace_order 2 -snes_max_it 1 -snes_type fas -snes_fas_levels 3 -pc_type none -ksp_type preonly -fas_coarse_pc_type none -fas_coarse_ksp_type preonly -fas_coarse_snes_monitor_short -snes_monitor_short -snes_linesearch_type basic -fas_coarse_snes_linesearch_type basic -snes_converged_reason ::ascii_info_detail -snes_view -fas_levels_snes_type newtonls -fas_levels_pc_type none -fas_levels_ksp_type preonly -fas_levels_snes_monitor_short -simplex 0 -dm_plex_convert_type p4est -dm_forest_minimum_refinement 0 -dm_forest_initial_refinement 2 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash -petscpartitioner_type parmetis -cells 2,2
 
   test:
     suffix: p4est_full_q2_nonconformal_serial
