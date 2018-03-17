@@ -301,6 +301,9 @@ int main(int argc,char **argv)
     ierr = PCCompositeGetPC(pc,1,&pccoarse);CHKERRQ(ierr);
     ierr = PCGalerkinSetInterpolation(pccoarse,interp);CHKERRQ(ierr);
     ierr = MatPtAP(E,interp,MAT_INITIAL_MATRIX,5,&Hc);CHKERRQ(ierr);
+    ierr = MatNullSpaceCreate(PETSC_COMM_WORLD,PETSC_TRUE,0,NULL,&nsp);CHKERRQ(ierr);
+    ierr = MatSetNullSpace(Hc,nsp);CHKERRQ(ierr);
+    ierr = MatNullSpaceDestroy(&nsp);CHKERRQ(ierr);
     ierr = PCGalerkinGetKSP(pccoarse,&kspc);CHKERRQ(ierr);
     ierr = KSPSetOperators(kspc,Hc,Hc);CHKERRQ(ierr);
     ierr = MatDestroy(&Hc);CHKERRQ(ierr);
