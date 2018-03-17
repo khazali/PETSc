@@ -200,7 +200,6 @@ int main(int argc,char **argv)
   ierr = MatNullSpaceTest(nsp,E,NULL);CHKERRQ(ierr);
   //  ierr = MatSetNullSpace(H,nsp);CHKERRQ(ierr);
   //ierr = MatNullSpaceTest(nsp,H,NULL);CHKERRQ(ierr);
-  ierr = MatNullSpaceDestroy(&nsp);CHKERRQ(ierr);
 
   //ierr = TestMult(H);CHKERRQ(ierr);
 
@@ -211,6 +210,8 @@ int main(int argc,char **argv)
   ierr = KSPSetDMActive(ksp,PETSC_FALSE);CHKERRQ(ierr);
   ierr = VecDuplicate(u,&b);CHKERRQ(ierr);
   ierr = VecSetRandom(b,PETSC_RANDOM_(PETSC_COMM_WORLD));CHKERRQ(ierr);
+  ierr = MatNullSpaceRemove(nsp,b);CHKERRQ(ierr);
+  ierr = MatNullSpaceDestroy(&nsp);CHKERRQ(ierr);
   //ierr = VecSet(b,1.0);CHKERRQ(ierr);
   ierr = KSPSetOperators(ksp,E,E);CHKERRQ(ierr);
   //ierr = KSPSetOperators(ksp,H,H);CHKERRQ(ierr);
