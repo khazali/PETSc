@@ -327,8 +327,6 @@ $   PCGalerkinGetKSP(pc,&ksp); KSPSetOperators(ksp,A,....)
 
    Developer Note: If KSPSetOperators() has not been called on the inner KSP then PCGALERKIN could use MatRARt() or MatPtAP() to compute
                    the operators automatically.
-                   Should there be a prefix for the inner KSP.
-                   There is no KSPSetFromOptions_Galerkin() that calls KSPSetFromOptions() on the inner KSP
 
 .seealso:  PCCreate(), PCSetType(), PCType (for list of available types), PC,
            PCSHELL, PCKSP, PCGalerkinSetRestriction(), PCGalerkinSetInterpolation(), PCGalerkinGetKSP()

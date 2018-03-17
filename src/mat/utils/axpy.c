@@ -333,13 +333,9 @@ PetscErrorCode  MatComputeExplicitOperator(Mat inmat,Mat *mat)
 
   ierr = MatCreate(comm,mat);CHKERRQ(ierr);
   ierr = MatSetSizes(*mat,m,n,M,N);CHKERRQ(ierr);
-  if (size == 1) {
-    ierr = MatSetType(*mat,MATSEQDENSE);CHKERRQ(ierr);
-    ierr = MatSeqDenseSetPreallocation(*mat,NULL);CHKERRQ(ierr);
-  } else {
-    ierr = MatSetType(*mat,MATMPIAIJ);CHKERRQ(ierr);
-    ierr = MatMPIAIJSetPreallocation(*mat,n,NULL,N-n,NULL);CHKERRQ(ierr);
-  }
+  ierr = MatSetType(*mat,MATAIJ);CHKERRQ(ierr);
+  ierr = MatSeqAIJSetPreallocation(*mat,N,NULL);CHKERRQ(ierr);
+  ierr = MatMPIAIJSetPreallocation(*mat,n,NULL,N-n,NULL);CHKERRQ(ierr);
 
   for (i=0; i<N; i++) {
 

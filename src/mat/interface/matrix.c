@@ -9205,6 +9205,7 @@ PetscErrorCode MatFactorFactorizeSchurComplement(Mat F)
 .seealso: MatPtAPSymbolic(), MatPtAPNumeric(), MatMatMult(), MatRARt()
 @*/
 PetscErrorCode MatPtAP(Mat A,Mat P,MatReuse scall,PetscReal fill,Mat *C)
+  
 {
   PetscErrorCode ierr;
   PetscErrorCode (*fA)(Mat,Mat,MatReuse,PetscReal,Mat*);

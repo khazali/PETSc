@@ -63,9 +63,10 @@ int main(int argc,char **argv)
   Mat            H,interp;
   MatNullSpace   nsp;
   KSP            ksp;
-  PC             pc;
+  PC             pc,pcasm,pccoarse;
   IS             *domains;
-  AO             ao;
+  AO             ao,aoc;
+  PetscBool      iscomposite;
 
    /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Initialize program and set problem parameters
@@ -221,8 +222,9 @@ int main(int argc,char **argv)
   ierr = DMSetUp(dac);CHKERRQ(ierr);
 
   
-  ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+
   ierr = DMDAGetAO(appctx.da,&ao);CHKERRQ(ierr);
+  ierr = DMDAGetAO(dac,&aoc);CHKERRQ(ierr);
   /*  Each element is its own subdomain for additive Schwarz */
   ierr = MatCreateAIJ(PETSC_COMM_WORLD,m,xm*ym,PETSC_DETERMINE,PETSC_DETERMINE,appctx.param.N,NULL,appctx.param.N,NULL,&interp);CHKERRQ(ierr);
   ierr = MatSetOption(interp,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
@@ -245,32 +247,27 @@ int main(int argc,char **argv)
       ierr = AOApplicationToPetsc(ao,cnt,indices);CHKERRQ(ierr);
       ierr = ISCreateGeneral(PETSC_COMM_SELF,cnt,indices,PETSC_COPY_VALUES,&domains[dcnt++]);CHKERRQ(ierr);
 
-      indx = ix*(appctx.param.N-1);
-      indy = iy*(appctx.param.N-1);
-      if (indx == appctx.param.lenx) indx = 0;
-      if (indy == appctx.param.leny) indy = 0;
-      cols[0] = indx + indy*appctx.param.lenx;
-      indx = (ix+1)*(appctx.param.N-1);
-      indy = iy*(appctx.param.N-1);
-      if (indx == appctx.param.lenx) indx = 0;
-      if (indy == appctx.param.leny) indy = 0;
-      cols[1] = indx + indy*appctx.param.lenx;
-      indx = ix*(appctx.param.N-1);
-      indy = (iy+1)*(appctx.param.N-1);
-      if (indx == appctx.param.lenx) indx = 0;
-      if (indy == appctx.param.leny) indy = 0;
-      cols[2] = indx + indy*appctx.param.lenx;
-      indx = (ix+1)*(appctx.param.N-1);
-      indy = (iy+1)*(appctx.param.N-1);
-      if (indx == appctx.param.lenx) indx = 0;
-      if (indy == appctx.param.leny) indy = 0;
-      cols[3] = indx + indy*appctx.param.lenx;
-      ierr = AOApplicationToPetsc(ao,4,cols);CHKERRQ(ierr);
-      printf("cols %d %d %d %d\n",cols[0],cols[1],cols[2],cols[3]);
-      cols[0] = cols[0]/(appctx.param.N-1);
-      cols[1] = cols[1]/(appctx.param.N-1);
-      cols[2] = cols[2]/(appctx.param.N-1);
-      cols[3] = cols[3]/(appctx.param.N-1);
+      indx = ix;
+      indy = iy;
+      if (indx == appctx.param.lenx/(appctx.param.N-1)) indx = 0;
+      if (indy == appctx.param.leny/(appctx.param.N-1)) indy = 0;
+      cols[0] = indx + indy*appctx.param.lenx/(appctx.param.N-1);
+      indx = ix+1;
+      indy = iy;
+      if (indx == appctx.param.lenx/(appctx.param.N-1)) indx = 0;
+      if (indy == appctx.param.leny/(appctx.param.N-1)) indy = 0;
+      cols[1] = indx + indy*appctx.param.lenx/(appctx.param.N-1);
+      indx = ix;
+      indy = iy+1;
+      if (indx == appctx.param.lenx/(appctx.param.N-1)) indx = 0;
+      if (indy == appctx.param.leny/(appctx.param.N-1)) indy = 0;
+      cols[2] = indx + indy*appctx.param.lenx/(appctx.param.N-1);
+      indx = ix+1;
+      indy = iy+1;
+      if (indx == appctx.param.lenx/(appctx.param.N-1)) indx = 0;
+      if (indy == appctx.param.leny/(appctx.param.N-1)) indy = 0;
+      cols[3] = indx + indy*appctx.param.lenx/(appctx.param.N-1);
+      ierr = AOApplicationToPetsc(aoc,4,cols);CHKERRQ(ierr);
 
       for (jx=0; jx<appctx.param.N-1; jx++) {
         for (jy=0; jy<appctx.param.N-1; jy++)   {
@@ -278,6 +275,10 @@ int main(int argc,char **argv)
           indy = iy*(appctx.param.N-1)+jy;
           row  = indx + indy*appctx.param.lenx;
           ierr = AOApplicationToPetsc(ao,1,&row);CHKERRQ(ierr);
+          interpv[0] = .25*(1. - appctx.SEMop.gll.nodes[jx])*(1. - appctx.SEMop.gll.nodes[jy]);
+          interpv[1] = .25*(1. + appctx.SEMop.gll.nodes[jx])*(1. - appctx.SEMop.gll.nodes[jy]);
+          interpv[2] = .25*(1. - appctx.SEMop.gll.nodes[jx])*(1. + appctx.SEMop.gll.nodes[jy]);
+          interpv[3] = .25*(1. + appctx.SEMop.gll.nodes[jx])*(1. + appctx.SEMop.gll.nodes[jy]);
           ierr = MatSetValues(interp,1,&row,4,cols,interpv,INSERT_VALUES);CHKERRQ(ierr);
         }
       }
@@ -285,16 +286,36 @@ int main(int argc,char **argv)
   }
   ierr = MatAssemblyBegin(interp,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(interp,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatView(interp,0);CHKERRQ(ierr);
   ierr = PetscFree(indices);CHKERRQ(ierr);
-  ierr = PCASMSetLocalSubdomains(pc, num_domains, domains,domains);CHKERRQ(ierr);
+  
+  ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+  ierr = PetscObjectTypeCompare((PetscObject)pc,PCCOMPOSITE,&iscomposite);CHKERRQ(ierr);
+  if (iscomposite) {
+    Mat Hc;
+    KSP kspc;
+
+    ierr = PCCompositeSetType(pc,PC_COMPOSITE_MULTIPLICATIVE);CHKERRQ(ierr);
+    ierr = PCCompositeAddPC(pc,PCASM);CHKERRQ(ierr);
+    ierr = PCCompositeAddPC(pc,PCGALERKIN);CHKERRQ(ierr);
+    ierr = PCCompositeGetPC(pc,0,&pcasm);CHKERRQ(ierr);
+    ierr = PCCompositeGetPC(pc,1,&pccoarse);CHKERRQ(ierr);
+    ierr = PCGalerkinSetInterpolation(pccoarse,interp);CHKERRQ(ierr);
+    ierr = MatPtAP(E,interp,MAT_INITIAL_MATRIX,5,&Hc);CHKERRQ(ierr);
+    ierr = PCGalerkinGetKSP(pccoarse,&kspc);CHKERRQ(ierr);
+    ierr = KSPSetOperators(kspc,Hc,Hc);CHKERRQ(ierr);
+    ierr = MatDestroy(&Hc);CHKERRQ(ierr);
+  } else {
+    pcasm = pc;
+  }
+  ierr = PCASMSetLocalSubdomains(pcasm, num_domains, domains,domains);CHKERRQ(ierr);
   for (dcnt=0; dcnt<num_domains; dcnt++) {
     ierr = ISDestroy(&domains[dcnt]);CHKERRQ(ierr);
   }
   ierr = PetscFree(domains);CHKERRQ(ierr);
 
-  ierr = PCASMSetType(pc,PC_ASM_BASIC);CHKERRQ(ierr);
-  ierr = PCASMSetOverlap(pc,0);CHKERRQ(ierr);
+  ierr = PCASMSetType(pcasm,PC_ASM_BASIC);CHKERRQ(ierr);
+  ierr = PCASMSetOverlap(pcasm,0);CHKERRQ(ierr);
+  ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);
   ierr = KSPSetUp(ksp);CHKERRQ(ierr);
 
   ierr = KSPSolve(ksp,b,u);CHKERRQ(ierr);

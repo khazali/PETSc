@@ -411,6 +411,8 @@ static PetscErrorCode  PCCompositeGetPC_Composite(PC pc,PetscInt n,PC *subpc)
    Level: Developer
 
 .keywords: PC, set, type, composite preconditioner, additive, multiplicative
+
+.seealso: PCCompositeAddPC(), PCCompositeGetNumberPC(), PCSetOperators(), PCCompositeGetPC(), PCCompositeGetType(), PCCompositeSpecialSetAlpha()
 @*/
 PetscErrorCode  PCCompositeSetType(PC pc,PCCompositeType type)
 {
@@ -440,6 +442,8 @@ PetscErrorCode  PCCompositeSetType(PC pc,PCCompositeType type)
    Level: Developer
 
 .keywords: PC, set, type, composite preconditioner, additive, multiplicative
+
+.seealso: PCCompositeAddPC(), PCCompositeGetNumberPC(), PCSetOperators(), PCCompositeGetPC(), PCCompositeSetType(), PCCompositeSpecialSetAlpha()
 @*/
 PetscErrorCode  PCCompositeGetType(PC pc,PCCompositeType *type)
 {
@@ -464,6 +468,8 @@ PetscErrorCode  PCCompositeGetType(PC pc,PCCompositeType *type)
    Level: Developer
 
 .keywords: PC, set, type, composite preconditioner, additive, multiplicative
+
+.seealso: PCCompositeAddPC(), PCCompositeGetNumberPC(), PCSetOperators(), PCCompositeGetPC(), PCCompositeSetType(), PCCompositeGetType()
 @*/
 PetscErrorCode  PCCompositeSpecialSetAlpha(PC pc,PetscScalar alpha)
 {
@@ -514,7 +520,7 @@ PetscErrorCode  PCCompositeAddPC(PC pc,PCType type)
 
 .keywords: PC, get, composite preconditioner, sub preconditioner
 
-.seealso: PCCompositeGetPC()
+.seealso: PCCompositeAddPC(), PCCompositeGetNumberPC(), PCSetOperators(), PCCompositeGetPC(), PCCompositeGetType(), PCCompositeSpecialSetAlpha()
 @*/
 PetscErrorCode  PCCompositeGetNumberPC(PC pc,PetscInt *num)
 {
@@ -546,7 +552,7 @@ PetscErrorCode  PCCompositeGetNumberPC(PC pc,PetscInt *num)
 
 .keywords: PC, get, composite preconditioner, sub preconditioner
 
-.seealso: PCCompositeAddPC(), PCCompositeGetNumberPC(), PCSetOperators()
+.seealso: PCCompositeAddPC(), PCCompositeGetNumberPC(), PCSetOperators(), PCCompositeGetPC(), PCCompositeGetType(), PCCompositeSpecialSetAlpha()
 @*/
 PetscErrorCode  PCCompositeGetPC(PC pc,PetscInt n,PC *subpc)
 {
@@ -583,7 +589,7 @@ PetscErrorCode  PCCompositeGetPC(PC pc,PetscInt n,PC *subpc)
 
 .seealso:  PCCreate(), PCSetType(), PCType (for list of available types), PC,
            PCSHELL, PCKSP, PCCompositeSetType(), PCCompositeSpecialSetAlpha(), PCCompositeAddPC(),
-           PCCompositeGetPC(), PCSetUseAmat()
+           PCCompositeGetPC(), PCSetUseAmat(), PCCompositeGetType()
 
 M*/
 
