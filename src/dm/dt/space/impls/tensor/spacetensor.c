@@ -250,6 +250,9 @@ PetscErrorCode PetscSpaceEvaluate_Tensor(PetscSpace sp, PetscInt npoints, const 
   Ns = tens->numSpaces;
   pdim = tens->dim;
   ierr = DMGetWorkArray(dm, npoints*Nv, MPIU_REAL, &lpoints);CHKERRQ(ierr);
+  if (B) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc, MPIU_REAL, &sB);CHKERRQ(ierr);}
+  if (D) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc*Nv, MPIU_REAL, &sD);CHKERRQ(ierr);}
+  if (H) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc*Nv*Nv, MPIU_REAL, &sH);CHKERRQ(ierr);}
   for (s = 0, d = 0, pred = 1; s < Ns; s++) {
     PetscInt sd;
 
@@ -260,6 +263,8 @@ PetscErrorCode PetscSpaceEvaluate_Tensor(PetscSpace sp, PetscInt npoints, const 
       }
     }
     ierr = PetscSpaceEvaluate(tens->spaces[s], npoints, lpoints, sB, sD, sH);CHKERRQ(ierr);
+    if (sB) {
+    }
     d += sd;
     pred *= sd / Nc;
   }
