@@ -28,6 +28,7 @@
 #define TAOASILS    "asils"
 #define TAOASFLS    "asfls"
 #define TAOIPM      "ipm"
+#define TAOMAD      "mad"
 #define TAOFDTEST   "test"
 
 #endif

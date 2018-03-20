@@ -62,6 +62,7 @@ J*/
 #define TAOASILS    "asils"
 #define TAOASFLS    "asfls"
 #define TAOIPM      "ipm"
+#define TAOMAD      "mad"
 #define TAOTEST     "test"
 
 PETSC_EXTERN PetscClassId TAO_CLASSID;

@@ -24,6 +24,7 @@ PETSC_EXTERN PetscErrorCode TaoCreate_SSFLS(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_ASILS(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_ASFLS(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_IPM(Tao);
+PETSC_EXTERN PetscErrorCode TaoCreate_MAD(Tao);
 
 /*
    Offset the convergence reasons so negative number represent diverged and
@@ -89,6 +90,7 @@ PetscErrorCode TaoRegisterAll(void)
   ierr = TaoRegister(TAOASILS,TaoCreate_ASILS);CHKERRQ(ierr);
   ierr = TaoRegister(TAOASFLS,TaoCreate_ASFLS);CHKERRQ(ierr);
   ierr = TaoRegister(TAOIPM,TaoCreate_IPM);CHKERRQ(ierr);
+  ierr = TaoRegister(TAOMAD,TaoCreate_MAD);CHKERRQ(ierr);
 #endif
   ierr = TaoRegister(TAOTEST,TaoCreate_Test);CHKERRQ(ierr);
   PetscFunctionReturn(0);
