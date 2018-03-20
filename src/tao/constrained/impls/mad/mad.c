@@ -230,7 +230,7 @@ PetscErrorCode TaoMADComputeDiffMats(Tao tao)
   VecType            kkt_type;
   
   PetscFunctionBegin;
-  for (i=1; i<PetscMin(mad->k, mad->q); i++) {
+  for (i=1; i<mad->k; i++) {
     /* dY[i-1] = Y[i] - Y[i-1] */
     ierr = VecCopy(mad->Y[i], mad->dY[i-1]);CHKERRQ(ierr);
     ierr = VecAXPBY(mad->dY[i-1], -1.0, 1.0, mad->Y[i-1]);CHKERRQ(ierr);
@@ -238,7 +238,7 @@ PetscErrorCode TaoMADComputeDiffMats(Tao tao)
     ierr = VecCopy(mad->R[i], mad->dR[i-1]);CHKERRQ(ierr);
     ierr = VecAXPBY(mad->dR[i-1], -1.0, 1.0, mad->R[i-1]);CHKERRQ(ierr);
     ierr = VecGetType(mad->dR[i-1], &kkt_type);CHKERRQ(ierr);
-    /* apply the Hessian correction, if necessary */
+    /* apply the Hessian correction */
     if (kkt_type == VECNEST) {
       Vec r_x, x_old;
       ierr = VecNestGetSubVec(mad->dR[i-1], 0, &r_x);CHKERRQ(ierr);
@@ -259,7 +259,7 @@ PetscErrorCode TaoMADDiffMatMult(Tao tao, Vec *dM, PetscScalar *in, Vec out)
 
   PetscFunctionBegin;
   ierr = VecSet(out, 0.0);CHKERRQ(ierr);
-  for (i=0; i<PetscMin(mad->k, mad->q)-1; i++) {
+  for (i=0; i<mad->k-1; i++) {
     ierr = VecAXPBY(out, in[i], 1.0, dM[i]);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -270,10 +270,12 @@ PetscErrorCode TaoMADDiffMatMultTrans(Tao tao, Vec *dM, Vec in, PetscScalar *out
   TAO_MAD            *mad = (TAO_MAD*)tao->data;
   PetscErrorCode     ierr;
   PetscInt           i;
+  PetscReal          dot;
 
   PetscFunctionBegin;
-  for (i=0; i<PetscMin(mad->k, mad->q)-1; i++) {
-    ierr = VecDot(dM[i], in, &out[i]);CHKERRQ(ierr);
+  for (i=0; i<mad->k-1; i++) {
+    ierr = VecDot(dM[i], in, &dot);CHKERRQ(ierr);
+    out[i] = dot;
   }
   PetscFunctionReturn(0);
 }
@@ -284,32 +286,30 @@ PetscErrorCode TaoMADSolveSubproblem(Tao tao, PetscScalar *gamma)
   PetscErrorCode     ierr;
   PetscInt           i, j;
   PetscBLASInt       M = mad->nkkt; /* number of rows in the R matrix */
-  PetscBLASInt       N = PetscMin(mad->k, mad->q); /* number of columns in the R matrix */
+  PetscBLASInt       N = mad->k-1; /* number of columns in the R matrix */
   PetscBLASInt       LDA = M, LDU = M, LDVT = N;
   PetscBLASInt       info, lwork;
-  PetscScalar        R[LDA*N], S[N], U[LDU*N], VT[LDVT*N];
+  PetscScalar        dR[LDA*N], S[N], U[LDU*N], VT[LDVT*N];
   PetscScalar        wkopt;
   PetscScalar        *work;
-  const PetscScalar  *rtmp;
+  const PetscScalar  *rtmp, *kkt_tmp;
   PetscScalar        UTr[N], SUTr[N];
 
   PetscFunctionBegin;
   /* first convert the array of vectors in R into an actual matrix */
   for (j=0; j<N; j++) {
     ierr = VecGetArrayRead(mad->dR[j], &rtmp);CHKERRQ(ierr);
-    for (i=0; i<M; i++) {
-      R[i*N + j] = rtmp[j];
-    }
+    for (i=0; i<M; i++) dR[i*N + j] = rtmp[j];
     ierr = VecRestoreArrayRead(mad->dR[j], &rtmp);CHKERRQ(ierr);
   }
   /* now query LAPACK to get size of workspace and allocate it */
   lwork = -1;
-  LAPACKdgesvd_("A", "A", &M, &N, R, &LDA, S, U, &LDU, VT, &LDVT, &wkopt, &lwork, &info);
+  LAPACKgesvd_("S", "S", &M, &N, dR, &LDA, S, U, &LDU, VT, &LDVT, &wkopt, &lwork, &info);
   lwork = (PetscBLASInt)wkopt;
   ierr = PetscMalloc1(lwork, &work);CHKERRQ(ierr);
   
   /* compute SVD */
-  LAPACKdgesvd_("A", "A", &M, &N, R, &LDA, S, U, &LDU, VT, &LDVT, &wkopt, &lwork, &info);
+  LAPACKgesvd_("S", "S", &M, &N, dR, &LDA, S, U, &LDU, VT, &LDVT, work, &lwork, &info);
   if (info > 0) {
     ierr = PetscInfo(mad, "SVD calculation failed to converge!\n");CHKERRQ(ierr);
   }
@@ -321,12 +321,13 @@ PetscErrorCode TaoMADSolveSubproblem(Tao tao, PetscScalar *gamma)
   }
   
   /* apply the pseudo-inverse to the KKT vector, which computes gamma = (dR)^{-1} * r_k */
-  ierr = VecGetArrayRead(mad->kkt, &rtmp);CHKERRQ(ierr);
   /* first we do U^T * r */
+  ierr = VecGetArrayRead(mad->kkt, &kkt_tmp);CHKERRQ(ierr);
   for (j=0; j<N; j++) {
     UTr[j] = 0.0;
-    for (i=0; i<LDU; i++) UTr[j] += U[i*N + j] * rtmp[i];
+    for (i=0; i<LDU; i++) UTr[j] += U[i*N + j] * kkt_tmp[i];
   }
+  ierr = VecRestoreArrayRead(mad->kkt, &rtmp);CHKERRQ(ierr);
   /* now we do sigma * (U^T * r) */
   for (j=0; j<N; j++) SUTr[j] = S[j]*UTr[j];
   /* finally hit this with V to compute gamma */
@@ -334,7 +335,6 @@ PetscErrorCode TaoMADSolveSubproblem(Tao tao, PetscScalar *gamma)
     gamma[j] = 0.0;
     for (i=0; i<LDVT; i++) gamma[j] += VT[i*N + j] * SUTr[i];
   }
-  ierr = VecRestoreArrayRead(mad->kkt, &rtmp);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -415,7 +415,7 @@ static PetscErrorCode TaoSolve_MAD(Tao tao)
   TAO_MAD            *mad = (TAO_MAD*)tao->data;
   PetscErrorCode     ierr;
   PetscReal          f, steplen=1.0, step_norm, opt_norm, opt_norm0, feas_norm, feas_norm0;
-  PetscScalar        *gamma;
+  PetscReal          *gamma;
 
   PetscFunctionBegin;
   /* initialize all the vectors we need -- this also computes and processes bounds */
@@ -434,7 +434,7 @@ static PetscErrorCode TaoSolve_MAD(Tao tao)
   ierr = TaoMADUpdateHistory(tao, mad->sol, mad->kkt);CHKERRQ(ierr);
   
   /* allocate the gamma array for the first time */
-  ierr = PetscMalloc(PetscMin(mad->k, mad->q), &gamma);CHKERRQ(ierr);
+  ierr = PetscMalloc1(mad->q-1, &gamma);CHKERRQ(ierr);
   
   /* take a safe-guarded steepest descent step */
   ierr = VecCopy(mad->kkt, mad->step);CHKERRQ(ierr);
@@ -461,8 +461,7 @@ static PetscErrorCode TaoSolve_MAD(Tao tao)
     ierr = TaoMADComputeDiffMats(tao);CHKERRQ(ierr);
     
     /* solve the least-squares subproblem argmin_gamma ||r_k - R_k * gamma || */
-    ierr = PetscRealloc(PetscMin(mad->k, mad->q), &gamma);
-    ierr = TaoMADSolveSubproblem(tao, gamma);
+    ierr = TaoMADSolveSubproblem(tao, gamma);CHKERRQ(ierr);
     
     /* compute the new step */
     ierr = VecAXPBY(mad->step, -mad->alpha, 0.0, mad->kkt);CHKERRQ(ierr);
@@ -552,7 +551,6 @@ static PetscErrorCode TaoSetFromOptions_MAD(PetscOptionItems *PetscOptionsObject
   ierr = PetscOptionsReal("-tao_mad_max_step","maximum step size (L2 norm)",NULL,mad->max_step,&mad->max_step,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-tao_mad_svd_cutoff","relative tolerance for truncating small singular values",NULL,mad->svd_cutoff,&mad->svd_cutoff,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsTail();CHKERRQ(ierr);
-  ierr = KSPSetFromOptions(tao->ksp);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -597,7 +595,7 @@ PETSC_EXTERN PetscErrorCode TaoCreate_MAD(Tao tao)
   
   /* Vector counters for the approximation */
   mad->k = 0;
-  mad->q = 15;
+  mad->q = 25;
   mad->alpha = 0.1;
   mad->beta = 0.5;
   mad->max_step = 1.0;

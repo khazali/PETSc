@@ -1,9 +1,10 @@
 #ifndef __TAO_MAD_H
 #define __TAO_MAD_H
 #include <petsc/private/taoimpl.h>
+#include <petsc.h>
 #include <petscblaslapack.h>
 
-#define LAPACKdgesvd_   PETSCBLAS(dgesvd,DGESVD)
+#define LAPACKgesvd_   PETSCBLAS(gesvd,GESVD)
 
 /*
  Context for Multisecant Accelerated Descent
@@ -24,7 +25,7 @@ typedef struct {
 
 #endif /* ifndef __TAO_MAD_H */
 
-PETSC_EXTERN void LAPACKdgesvd_(const char*, const char*, PetscBLASInt*, PetscBLASInt*, PetscScalar*, PetscBLASInt*, PetscScalar*, PetscScalar*, PetscBLASInt*, PetscScalar*, PetscBLASInt*, PetscScalar*, PetscBLASInt*, PetscBLASInt*);
+PETSC_EXTERN void LAPACKgesvd_(const char*, const char*, PetscBLASInt*, PetscBLASInt*, PetscScalar*, PetscBLASInt*, PetscScalar*, PetscScalar*, PetscBLASInt*, PetscScalar*, PetscBLASInt*, PetscScalar*, PetscBLASInt*, PetscBLASInt*);
 
 PETSC_INTERN PetscErrorCode TaoMADInitVecs(Tao);
 PETSC_INTERN PetscErrorCode TaoMADSetInitPoint(Tao);
@@ -33,3 +34,4 @@ PETSC_INTERN PetscErrorCode TaoMADComputeDiffMats(Tao);
 PETSC_INTERN PetscErrorCode TaoMADComputeKKT(Tao, PetscReal*, PetscReal*, PetscReal*);
 PETSC_INTERN PetscErrorCode TaoMADDiffMatMult(Tao, Vec*, PetscScalar*, Vec);
 PETSC_INTERN PetscErrorCode TaoMADDiffMatMultTrans(Tao, Vec*, Vec, PetscScalar*);
+PETSC_INTERN PetscErrorCode TaoMADSolveSubproblem(Tao, PetscScalar*);
