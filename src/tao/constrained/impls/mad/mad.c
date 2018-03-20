@@ -565,6 +565,11 @@ static PetscErrorCode TaoView_MAD(Tao tao, PetscViewer viewer)
   TAOMAD - Multisecant Accelerated Descent algorithm for generally constrained optimization.
 
   Option Database Keys:
++   -tao_mad_vectors - number of vectors used in the approximation
++   -tao_mad_alpha - step length parameter
++   -tao_mad_beta - Hessian regularization parameter
++   -tao_mad_max_step - maximum step size, measured in L2 norms
+.   -tao_mad_svd_cutoff - tolerance for truncating small singular values, relative to highest SV
 
   Notes: This algorithm is more of a place-holder for future constrained optimization algorithms and should not yet be used for large problems or production code.
   Level: beginner
