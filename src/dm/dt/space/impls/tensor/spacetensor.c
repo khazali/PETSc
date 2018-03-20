@@ -2,18 +2,17 @@
 
 static PetscErrorCode PetscSpaceTensorCreateSubspace(PetscSpace space, PetscInt Nvs, PetscSpace *subspace)
 {
-  PetscInt Nc, degree;
+  PetscInt    degree;
   const char *prefix;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscSpaceGetNumComponents(space, &Nc);CHKERRQ(ierr);
   ierr = PetscSpaceGetDegree(space, &degree, NULL);CHKERRQ(ierr);
   ierr = PetscObjectGetOptionsPrefix((PetscObject)space, &prefix);CHKERRQ(ierr);
   ierr = PetscSpaceCreate(PetscObjectComm((PetscObject)space), subspace);CHKERRQ(ierr);
   ierr = PetscSpaceSetType(*subspace, PETSCSPACEPOLYNOMIAL);CHKERRQ(ierr);
   ierr = PetscSpaceSetNumVariables(*subspace, Nvs);CHKERRQ(ierr);
-  ierr = PetscSpaceSetNumComponents(*subspace, Nc);CHKERRQ(ierr);
+  ierr = PetscSpaceSetNumComponents(*subspace, 1);CHKERRQ(ierr);
   ierr = PetscSpaceSetDegree(*subspace, degree);CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject)*subspace, prefix);CHKERRQ(ierr);
   ierr = PetscObjectAppendOptionsPrefix((PetscObject)*subspace, "subspace_");CHKERRQ(ierr);
@@ -223,7 +222,7 @@ PetscErrorCode PetscSpaceGetDimension_Tensor(PetscSpace sp, PetscInt *dim)
       PetscInt id;
 
       ierr = PetscSpaceGetDimension(tens->spaces[i], &id);CHKERRQ(ierr);
-      d *= (id / Nc);
+      d *= id;
     }
     d *= Nc;
     tens->dim = d;
@@ -239,38 +238,143 @@ PetscErrorCode PetscSpaceEvaluate_Tensor(PetscSpace sp, PetscInt npoints, const 
   PetscInt         Nc      = sp->Nc;
   PetscInt         Nv      = sp->Nv;
   PetscInt         Ns;
-  PetscReal       *lpoints, *tmp, *sB, *sD, *sH;
-  PetscInt        *ind, *tup;
-  PetscInt         c, pdim, d, e, der, der2, i, p, deg, o, s;
-  PetscInt         pred;
+  PetscReal       *lpoints, *sB, *sD, *sH;
+  PetscInt         c, pdim, d, e, der, der2, i, l, si, p, s, step;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
   if (!tens->setupCalled) {ierr = PetscSpaceSetUp(sp);CHKERRQ(ierr);}
   Ns = tens->numSpaces;
-  pdim = tens->dim;
+  pdim = tens->dim / Nc;
   ierr = DMGetWorkArray(dm, npoints*Nv, MPIU_REAL, &lpoints);CHKERRQ(ierr);
-  if (B) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc, MPIU_REAL, &sB);CHKERRQ(ierr);}
-  if (D) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc*Nv, MPIU_REAL, &sD);CHKERRQ(ierr);}
-  if (H) {ierr = DMGetWorkArray(dm, npoints*pdim*Nc*Nv*Nv, MPIU_REAL, &sH);CHKERRQ(ierr);}
-  for (s = 0, d = 0, pred = 1; s < Ns; s++) {
-    PetscInt sd;
+  if (B || D || H) {ierr = DMGetWorkArray(dm, npoints*pdim,       MPIU_REAL, &sB);CHKERRQ(ierr);}
+  if (D || H)      {ierr = DMGetWorkArray(dm, npoints*pdim*Nv,    MPIU_REAL, &sD);CHKERRQ(ierr);}
+  if (H)           {ierr = DMGetWorkArray(dm, npoints*pdim*Nv*Nv, MPIU_REAL, &sH);CHKERRQ(ierr);}
+  if (B) {
+    for (i = 0; i < npoints*pdim; i++) B[i * Nc*Nc] = 1.;
+  }
+  if (D) {
+    for (i = 0; i < npoints*pdim; i++) {
+      for (l = 0; l < Nv; l++) {
+        D[i * Nc*Nc*Nv + l] = 1.;
+      }
+    }
+  }
+  if (H) {
+    for (i = 0; i < npoints*pdim; i++) {
+      for (l = 0; l < Nv*Nv; l++) {
+        H[i * Nc*Nc*Nv*Nv + l] = 1.;
+      }
+    }
+  }
+  for (s = 0, d = 0, step = 1; s < Ns; s++) {
+    PetscInt sNv, spdim;
+    PetscInt skip, j, k;
 
-    ierr = PetscSpaceGetDimension(tens->spaces[s], &sd);CHKERRQ(ierr);
+    ierr = PetscSpaceGetNumVariables(tens->spaces[s], &sNv);CHKERRQ(ierr);
+    ierr = PetscSpaceGetDimension(tens->spaces[s], &spdim);CHKERRQ(ierr);
+    if ((pdim % step) || (pdim % spdim))  SETERRQ6(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Bad tensor loop: Nv %d, Ns %D, pdim %D, s %D, step %D, spdim %D", Nv, Ns, pdim, s, step, spdim);
+    skip = pdim / (step * spdim);
     for (p = 0; p < npoints; ++p) {
-      for (i = 0; i < sd; i++) {
-        lpoints[p * sd + i] = points[p*Nv + d + i];
+      for (i = 0; i < sNv; i++) {
+        lpoints[p * sNv + i] = points[p*Nv + d + i];
       }
     }
     ierr = PetscSpaceEvaluate(tens->spaces[s], npoints, lpoints, sB, sD, sH);CHKERRQ(ierr);
-    if (sB) {
+    if (B) {
+      for (p = 0; p < npoints; p++) {
+        for (k = 0; k < skip; k++) {
+          for (si = 0; si < spdim; si++) {
+            for (j = 0; j < step; j++) {
+              i = (k * spdim + si) * step + j;
+              B[(pdim * p + i) * Nc * Nc] *= sB[spdim * p + si];
+            }
+          }
+        }
+      }
     }
-    d += sd;
-    pred *= sd / Nc;
+    if (D) {
+      for (p = 0; p < npoints; p++) {
+        for (k = 0; k < skip; k++) {
+          for (si = 0; si < spdim; si++) {
+            for (j = 0; j < step; j++) {
+              i = (k * spdim + si) * step + j;
+              for (der = 0; der < Nv; der++) {
+                if (der >= d && der < d + sNv) {
+                  D[(pdim * p + i) * Nc*Nc*Nv + der] *= sD[(spdim * p + si) * sNv + der - d];
+                } else {
+                  D[(pdim * p + i) * Nc*Nc*Nv + der] *= sB[spdim * p + si];
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    if (H) {
+      for (p = 0; p < npoints; p++) {
+        for (k = 0; k < skip; k++) {
+          for (si = 0; si < spdim; si++) {
+            for (j = 0; j < step; j++) {
+              i = (k * spdim + si) * step + j;
+              for (der = 0; der < Nv; der++) {
+                for (der2 = 0; der2 < Nv; der2++) {
+                  if (der >= d && der < d + sNv && der2 >= d && der2 < d + sNv) {
+                    H[((pdim * p + i) * Nc*Nc*Nv + der) * Nv + der2] *= sH[((spdim * p + si) * sNv + der - d) * sNv + der2 - d];
+                  } else if ((der >= d && der < d) || (der2 >= d && der2 < d + sNv)) {
+                    H[((pdim * p + i) * Nc*Nc*Nv + der) * Nv + der2] *= sD[(spdim * p + si) * sNv + der - d];
+                  } else {
+                    H[((pdim * p + i) * Nc*Nc*Nv + der) * Nv + der2] *= sB[spdim * p + si];
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    d += sNv;
+    step *= spdim;
   }
-  if (H) {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nc*Nv*Nv, MPIU_REAL, &sH);CHKERRQ(ierr);}
-  if (D) {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nc*Nv, MPIU_REAL, &sD);CHKERRQ(ierr);}
-  if (B) {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nc, MPIU_REAL, &sB);CHKERRQ(ierr);}
+  if (B && Nc > 1) {
+    /* Make direct sum basis for multicomponent space */
+    for (p = 0; p < npoints; ++p) {
+      for (i = 0; i < pdim; ++i) {
+        for (c = 1; c < Nc; ++c) {
+          B[(p*pdim*Nc + i*Nc + c)*Nc + c] = B[(p*pdim + i)*Nc*Nc];
+        }
+      }
+    }
+  }
+  if (D && Nc > 1) {
+    /* Make direct sum basis for multicomponent space */
+    for (p = 0; p < npoints; ++p) {
+      for (i = 0; i < pdim; ++i) {
+        for (c = 1; c < Nc; ++c) {
+          for (d = 0; d < Nv; ++d) {
+            D[((p*pdim*Nc + i*Nc + c)*Nc + c)*Nv + d] = D[(p*pdim + i)*Nc*Nc*Nv + d];
+          }
+        }
+      }
+    }
+  }
+  if (H && Nc > 1) {
+    /* Make direct sum basis for multicomponent space */
+    for (p = 0; p < npoints; ++p) {
+      for (i = 0; i < pdim; ++i) {
+        for (c = 1; c < Nc; ++c) {
+          for (d = 0; d < Nv; ++d) {
+            for (e = 0; e < Nv; ++e) {
+              H[(((p*pdim*Nc + i*Nc + c)*Nc + c)*Nv + d)*Nv + e] = H[((p*pdim + i)*Nc*Nc*Nv + d)*Nv + e];
+            }
+          }
+        }
+      }
+    }
+  }
+  if (H)           {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nv*Nv, MPIU_REAL, &sH);CHKERRQ(ierr);}
+  if (D || H)      {ierr = DMRestoreWorkArray(dm, npoints*pdim*Nv,    MPIU_REAL, &sD);CHKERRQ(ierr);}
+  if (B || H || B) {ierr = DMRestoreWorkArray(dm, npoints*pdim,       MPIU_REAL, &sB);CHKERRQ(ierr);}
   ierr = DMRestoreWorkArray(dm, npoints*Nv, MPIU_REAL, &lpoints);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -337,6 +441,8 @@ PetscErrorCode PetscSpaceTensorGetSubspace_Tensor(PetscSpace space, PetscInt s, 
 
 /*MC
   PETSCSPACETENSOR = "tensor" - A PetscSpace object that encapsulates a tensor product space.
+                     Subspaces are scalar spaces (num of componenents = 1), vector components
+                     are assumed to be identical.
 
   Level: intermediate
 
