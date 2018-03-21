@@ -1010,7 +1010,7 @@ PetscErrorCode VecScatterCreate(Vec xin,IS ix,Vec yin,IS iy,VecScatter *newctx)
 
   PetscFunctionBegin;
   if (!ix && !iy) SETERRQ(PetscObjectComm((PetscObject)xin),PETSC_ERR_SUP,"Cannot pass default in for both input and output indices");
-  
+
   /*
       Determine if the vectors are "parallel", ie. it shares a comm with other processors, or
       sequential (it does not share a comm). The difference is that parallel vectors treat the
@@ -1730,6 +1730,12 @@ PetscErrorCode  VecScatterBegin(VecScatter inctx,Vec x,Vec y,InsertMode addv,Sca
     inctx->inuse = PETSC_FALSE;
     ierr = (*inctx->ops->end)(inctx,x,y,addv,mode);CHKERRQ(ierr);
   }
+
+  if (inctx->is_nodereorged_Mvctx) {
+    ierr = VecGhostUpdateBegin(x,addv,mode);CHKERRQ(ierr);
+    ierr = VecGhostUpdateEnd(x,addv,mode);CHKERRQ(ierr);
+  }
+
   ierr = PetscLogEventBarrierEnd(VEC_ScatterBarrier,0,0,0,0,PetscObjectComm((PetscObject)inctx));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1980,7 +1986,7 @@ PetscErrorCode VecScatterGetTypes_Private(VecScatter scatter,VecScatterType *fro
   VecScatterIsSequential_Private - Returns true if the scatter is sequential.
 
   scatter - The scatter.
-  flag    - Upon exit flag is true if the scatter is of type VecScatter_Seq_General 
+  flag    - Upon exit flag is true if the scatter is of type VecScatter_Seq_General
             or VecScatter_Seq_Stride; otherwise flag is false.
 */
 PetscErrorCode VecScatterIsSequential_Private(VecScatter_Common *scatter,PetscBool *flag)

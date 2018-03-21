@@ -6,14 +6,104 @@
 #include <petsc/private/vecimpl.h>
 #include <petsc/private/isimpl.h>    /* needed because accesses data structure of ISLocalToGlobalMapping directly */
 
+/* Do node-reorganization of an MPI matrix, which moves on-node nonzeros of off-diag B to diag A.
+  Inpute Parameter:
+  +mat       - the matrix
+  .bnodecols - number of on-node nonzero columns of B
+  -neworder  - [] imagine nonzero columns of B are re-ordered such that the first nodecols columns are on node,
+               and the remaining are off-node, then neworder[] gives the ordering. The caller ensures neworder[]
+               has a proper size.
+  Notes:
+   One can think nodecols and neworder[] specify a node-reorg plan
+
+  .seealso PetscLayoutNodeReorderIndices()
+ */
+PetscErrorCode MatNodeReorg_MPIAIJ_Private(Mat mat,PetscInt bnodecols,const PetscInt *neworder)
+{
+  PetscErrorCode ierr;
+  Mat            Anew,Bnew;
+  Mat_MPIAIJ     *aij = (Mat_MPIAIJ*)mat->data;
+  Mat_SeqAIJ     *A   = (Mat_SeqAIJ*)(aij->A->data);
+  Mat_SeqAIJ     *B   = (Mat_SeqAIJ*)(aij->B->data);
+  PetscInt       m = mat->rmap->n,an,bn,*onnodenz,*offnodenz,newpos;
+  PetscInt       i,j,col,*Ai = A->i,*Aj = A->j,*Ailen = A->ilen,*Bi=B->i,*Bj = B->j,*Bilen = B->ilen;
+  PetscScalar    v,*Aa = A->a,*Ba = B->a;
+
+  PetscFunctionBegin;
+  /* return if none of B's columns is on node */
+  if (!bnodecols) PetscFunctionReturn(0);
+
+  /* count on/off-node nonzeros of rows of B, to be used in new matrices' preallocation */
+  ierr = PetscCalloc2(m,&onnodenz,m,&offnodenz);CHKERRQ(ierr);
+  for (i=0; i<m; i++) {
+    for (j=0; j<Bilen[i]; j++) {
+      if (neworder[Bj[Bi[i]]+j] < bnodecols) onnodenz[i]++;
+      else offnodenz[i]++;
+    }
+  }
+
+  /* create new A and new B */
+  for (i=0; i<m; i++) onnodenz[i] += Ailen[i]; /* add original nonzeros in A */
+  an   = aij->A->cmap->n + bnodecols;
+  ierr = MatCreate(PETSC_COMM_SELF,&Anew);CHKERRQ(ierr);
+  ierr = MatSetSizes(Anew,m,an,m,an);CHKERRQ(ierr);
+  ierr = MatSetBlockSizesFromMats(Anew,mat,mat);CHKERRQ(ierr);
+  ierr = MatSetType(Anew,((PetscObject)aij->A)->type_name);CHKERRQ(ierr);
+  ierr = MatSeqAIJSetPreallocation(Anew,0,onnodenz);CHKERRQ(ierr);
+
+  bn   = aij->B->cmap->n - bnodecols;
+  ierr = MatCreate(PETSC_COMM_SELF,&Bnew);CHKERRQ(ierr);
+  ierr = MatSetSizes(Bnew,m,bn,m,bn);CHKERRQ(ierr);
+  ierr = MatSetBlockSizesFromMats(Bnew,mat,mat);CHKERRQ(ierr);
+  ierr = MatSetType(Bnew,((PetscObject)aij->B)->type_name);CHKERRQ(ierr);
+  ierr = MatSeqAIJSetPreallocation(Bnew,0,offnodenz);CHKERRQ(ierr);
+
+  ((Mat_SeqAIJ*)Anew->data)->nonew = A->nonew;
+  ((Mat_SeqAIJ*)Bnew->data)->nonew = B->nonew;
+  Anew->nonzerostate               = aij->A->nonzerostate;
+  Bnew->nonzerostate               = aij->B->nonzerostate;
+
+  /* copy A to Anew */
+  for (i=0; i<m; i++) { ierr = MatSetValues(Anew,1,&i,Ailen[i],&Aj[Ai[i]],&Aa[Ai[i]],INSERT_VALUES);CHKERRQ(ierr); }
+
+  /* copy B's nonzeros to Anew or Bnew based on their new index */
+  for (i=0; i<m; i++) {
+    for (j=0; j<Bilen[i]; j++) {
+      newpos = neworder[Bj[Bi[i]+j]]; /* new order of the old column index in B */
+      v = Ba[Bi[i]+j];
+      if (newpos < bnodecols) {
+        col  = aij->A->cmap->n + newpos;
+        ierr = MatSetValues(Anew,1,&i,1,&col,&v,INSERT_VALUES);CHKERRQ(ierr);
+      } else {
+        col  = newpos - bnodecols;
+        ierr = MatSetValues(Bnew,1,&i,1,&col,&v,INSERT_VALUES);CHKERRQ(ierr);
+      }
+    }
+  }
+
+  /* destroy old and assign new */
+  ierr = PetscFree2(onnodenz,offnodenz);CHKERRQ(ierr);
+  ierr = MatDestroy(&aij->A);CHKERRQ(ierr);
+  ierr = PetscLogObjectParent((PetscObject)mat,(PetscObject)Anew);CHKERRQ(ierr);
+  ierr = MatDestroy(&aij->B);CHKERRQ(ierr);
+  ierr = PetscLogObjectParent((PetscObject)mat,(PetscObject)Bnew);CHKERRQ(ierr);
+
+  aij->A             = Anew;
+  aij->B             = Bnew;
+  aij->nodereorged   = PETSC_TRUE;
+  aij->nodecols      = bnodecols;
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode MatSetUpMultiply_MPIAIJ(Mat mat)
 {
   Mat_MPIAIJ     *aij = (Mat_MPIAIJ*)mat->data;
   Mat_SeqAIJ     *B   = (Mat_SeqAIJ*)(aij->B->data);
   PetscErrorCode ierr;
-  PetscInt       i,j,*aj = B->j,ec = 0,*garray;
+  PetscInt       i,j,*aj = B->j,bcols = 0,*earray,*neworder,acols,bnodecols,boffnodecols;
   IS             from,to;
   Vec            gvec;
+  PetscBool      matmult_nodereorg = PETSC_FALSE;
 #if defined(PETSC_USE_CTABLE)
   PetscTable         gid1_lid1;
   PetscTablePosition tpos;
@@ -32,23 +122,23 @@ PetscErrorCode MatSetUpMultiply_MPIAIJ(Mat mat)
       ierr = PetscTableFind(gid1_lid1,gid1,&data);CHKERRQ(ierr);
       if (!data) {
         /* one based table */
-        ierr = PetscTableAdd(gid1_lid1,gid1,++ec,INSERT_VALUES);CHKERRQ(ierr);
+        ierr = PetscTableAdd(gid1_lid1,gid1,++bcols,INSERT_VALUES);CHKERRQ(ierr);
       }
     }
   }
   /* form array of columns we need */
-  ierr = PetscMalloc1(ec+1,&garray);CHKERRQ(ierr);
+  ierr = PetscMalloc1(bcols+1,&earray);CHKERRQ(ierr);
   ierr = PetscTableGetHeadPosition(gid1_lid1,&tpos);CHKERRQ(ierr);
   while (tpos) {
     ierr = PetscTableGetNext(gid1_lid1,&tpos,&gid,&lid);CHKERRQ(ierr);
     gid--;
     lid--;
-    garray[lid] = gid;
+    earray[lid] = gid;
   }
-  ierr = PetscSortInt(ec,garray);CHKERRQ(ierr); /* sort, and rebuild */
+  ierr = PetscSortInt(bcols,earray);CHKERRQ(ierr); /* sort, and rebuild */
   ierr = PetscTableRemoveAll(gid1_lid1);CHKERRQ(ierr);
-  for (i=0; i<ec; i++) {
-    ierr = PetscTableAdd(gid1_lid1,garray[i]+1,i+1,INSERT_VALUES);CHKERRQ(ierr);
+  for (i=0; i<bcols; i++) {
+    ierr = PetscTableAdd(gid1_lid1,earray[i]+1,i+1,INSERT_VALUES);CHKERRQ(ierr);
   }
   /* compact out the extra columns in B */
   for (i=0; i<aij->B->rmap->n; i++) {
@@ -59,7 +149,7 @@ PetscErrorCode MatSetUpMultiply_MPIAIJ(Mat mat)
       aj[B->i[i] + j] = lid;
     }
   }
-  aij->B->cmap->n = aij->B->cmap->N = ec;
+  aij->B->cmap->n  = aij->B->cmap->N = bcols;
   aij->B->cmap->bs = 1;
 
   ierr = PetscLayoutSetUp((aij->B->cmap));CHKERRQ(ierr);
@@ -70,21 +160,21 @@ PetscErrorCode MatSetUpMultiply_MPIAIJ(Mat mat)
   ierr = PetscCalloc1(N+1,&indices);CHKERRQ(ierr);
   for (i=0; i<aij->B->rmap->n; i++) {
     for (j=0; j<B->ilen[i]; j++) {
-      if (!indices[aj[B->i[i] + j]]) ec++;
+      if (!indices[aj[B->i[i] + j]]) bcols++;
       indices[aj[B->i[i] + j]] = 1;
     }
   }
 
   /* form array of columns we need */
-  ierr = PetscMalloc1(ec+1,&garray);CHKERRQ(ierr);
-  ec   = 0;
+  ierr  = PetscMalloc1(bcols+1,&earray);CHKERRQ(ierr);
+  bcols = 0;
   for (i=0; i<N; i++) {
-    if (indices[i]) garray[ec++] = i;
+    if (indices[i]) earray[bcols++] = i;
   }
 
   /* make indices now point into garray */
-  for (i=0; i<ec; i++) {
-    indices[garray[i]] = i;
+  for (i=0; i<bcols; i++) {
+    indices[earray[i]] = i;
   }
 
   /* compact out the extra columns in B */
@@ -93,44 +183,69 @@ PetscErrorCode MatSetUpMultiply_MPIAIJ(Mat mat)
       aj[B->i[i] + j] = indices[aj[B->i[i] + j]];
     }
   }
-  aij->B->cmap->n = aij->B->cmap->N = ec;
+  aij->B->cmap->n  = aij->B->cmap->N = bcols;
   aij->B->cmap->bs = 1;
 
   ierr = PetscLayoutSetUp((aij->B->cmap));CHKERRQ(ierr);
   ierr = PetscFree(indices);CHKERRQ(ierr);
 #endif
 
-  if (!aij->lvec) {
-    /* create local vector that is used to scatter into */
-    ierr = VecCreateSeq(PETSC_COMM_SELF,ec,&aij->lvec);CHKERRQ(ierr);
-  } else {
-    ierr = VecGetSize(aij->lvec,&ec);CHKERRQ(ierr);
+  /* node-reorder earray and then use the output plan to node-reorg mat */
+  bnodecols         = 0; /* B's on-node cols */
+  matmult_nodereorg = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-matmult_nodereorg",&matmult_nodereorg,NULL);CHKERRQ(ierr);
+  if (matmult_nodereorg) {
+    ierr = PetscMalloc1(bcols,&neworder);CHKERRQ(ierr);
+    ierr = PetscLayoutNodeReorderIndices(PetscObjectComm((PetscObject)mat),mat->cmap,bcols,earray,&bnodecols,neworder);CHKERRQ(ierr);
+    ierr = MatNodeReorg_MPIAIJ_Private(mat,bnodecols,neworder);CHKERRQ(ierr);
+    ierr = PetscFree(neworder);CHKERRQ(ierr);
   }
 
-  /* create two temporary Index sets for build scatter gather */
-  ierr = ISCreateGeneral(((PetscObject)mat)->comm,ec,garray,PETSC_COPY_VALUES,&from);CHKERRQ(ierr);
+  /* set up farray & garray from earray */
+  acols        = mat->cmap->n;      /* A's cols (diag part) */
+  boffnodecols = bcols - bnodecols; /* B's off-node cols */
 
-  ierr = ISCreateStride(PETSC_COMM_SELF,ec,0,1,&to);CHKERRQ(ierr);
+  ierr = PetscMalloc1(acols+bnodecols+boffnodecols,&aij->farray);CHKERRQ(ierr);
+  aij->garray = aij->farray + acols + bnodecols;
+
+  for (i=0; i<acols; i++)        aij->farray[i]       = mat->cmap->rstart + i;
+  for (i=0; i<bnodecols; i++)    aij->farray[acols+i] = earray[i];
+  for (i=0; i<boffnodecols; i++) aij->garray[i]       = earray[bnodecols+i];
+
+  if (!aij->lvec) {
+    /* create local vector that is used to scatter into */
+    ierr = VecCreateSeq(PETSC_COMM_SELF,boffnodecols,&aij->lvec);CHKERRQ(ierr);
+  } else {
+    ierr = VecGetSize(aij->lvec,&boffnodecols);CHKERRQ(ierr);
+  }
+
+  /* build the on-node vecscatter context by building a node-ghosted vector */
+  if (matmult_nodereorg) {
+    ierr = VecDestroy(&aij->ngvec);CHKERRQ(ierr);
+    ierr = VecCreateGhost(PetscObjectComm((PetscObject)mat),mat->cmap->n,mat->cmap->N,bnodecols,&aij->farray[acols],&aij->ngvec);CHKERRQ(ierr);
+  }
+
+  /* build the off-node vecscatter context */
+  ierr = ISCreateGeneral(PetscObjectComm((PetscObject)mat),boffnodecols,earray,PETSC_COPY_VALUES,&from);CHKERRQ(ierr);
+  ierr = ISCreateStride(PETSC_COMM_SELF,boffnodecols,0,1,&to);CHKERRQ(ierr);
 
   /* create temporary global vector to generate scatter context */
   /* This does not allocate the array's memory so is efficient */
   ierr = VecCreateMPIWithArray(PetscObjectComm((PetscObject)mat),1,mat->cmap->n,mat->cmap->N,NULL,&gvec);CHKERRQ(ierr);
-
-  /* generate the scatter context */
   ierr = VecScatterDestroy(&aij->Mvctx);CHKERRQ(ierr);
   ierr = VecScatterCreate(gvec,from,aij->lvec,to,&aij->Mvctx);CHKERRQ(ierr);
+
+  if (matmult_nodereorg) aij->Mvctx->is_nodereorged_Mvctx = PETSC_TRUE;
+
   ierr = PetscLogObjectParent((PetscObject)mat,(PetscObject)aij->Mvctx);CHKERRQ(ierr);
   ierr = PetscLogObjectParent((PetscObject)mat,(PetscObject)aij->lvec);CHKERRQ(ierr);
-  ierr = PetscLogObjectMemory((PetscObject)mat,(ec+1)*sizeof(PetscInt));CHKERRQ(ierr);
-
-  aij->garray = garray;
-
-  ierr = PetscLogObjectParent((PetscObject)mat,(PetscObject)from);CHKERRQ(ierr);
-  ierr = PetscLogObjectParent((PetscObject)mat,(PetscObject)to);CHKERRQ(ierr);
+  ierr = PetscLogObjectParent((PetscObject)mat,(PetscObject)aij->ngvec);CHKERRQ(ierr);
+  ierr = PetscLogObjectMemory((PetscObject)mat,bcols*sizeof(PetscInt));CHKERRQ(ierr);
 
   ierr = ISDestroy(&from);CHKERRQ(ierr);
   ierr = ISDestroy(&to);CHKERRQ(ierr);
   ierr = VecDestroy(&gvec);CHKERRQ(ierr);
+  ierr = PetscFree(earray);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -143,13 +258,13 @@ PetscErrorCode MatSetUpMultiply_MPIAIJ(Mat mat)
    Kind of slow! But that's what application programmers get when
    they are sloppy.
 */
-PetscErrorCode MatDisAssemble_MPIAIJ(Mat A)
+PetscErrorCode MatDisAssemble_MPIAIJ(Mat mat)
 {
-  Mat_MPIAIJ     *aij  = (Mat_MPIAIJ*)A->data;
-  Mat            B     = aij->B,Bnew;
-  Mat_SeqAIJ     *Baij = (Mat_SeqAIJ*)B->data;
+  Mat_MPIAIJ     *aij  = (Mat_MPIAIJ*)mat->data;
+  Mat            A     = aij->A,B = aij->B,Bnew;
+  Mat_SeqAIJ     *Aaij = (Mat_SeqAIJ*)A->data,*Baij = (Mat_SeqAIJ*)B->data;
   PetscErrorCode ierr;
-  PetscInt       i,j,m = B->rmap->n,n = A->cmap->N,col,ct = 0,*garray = aij->garray,*nz,ec;
+  PetscInt       i,j,m = B->rmap->n,n = mat->cmap->N,col,ct = 0,*farray = aij->farray,*garray = aij->garray,*nz,ec,loc;
   PetscScalar    v;
 
   PetscFunctionBegin;
@@ -161,33 +276,45 @@ PetscErrorCode MatDisAssemble_MPIAIJ(Mat A)
     ierr = PetscTableDestroy(&aij->colmap);CHKERRQ(ierr);
 #else
     ierr = PetscFree(aij->colmap);CHKERRQ(ierr);
-    ierr = PetscLogObjectMemory((PetscObject)A,-aij->B->cmap->n*sizeof(PetscInt));CHKERRQ(ierr);
+    ierr = PetscLogObjectMemory((PetscObject)mat,-aij->B->cmap->n*sizeof(PetscInt));CHKERRQ(ierr);
 #endif
   }
 
-  /* make sure that B is assembled so we can access its values */
+  /* disassemble B first. Make sure that B is assembled so we can access its values */
   ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
-  /* invent new B and copy stuff over */
+  /* calculate new B's nz per row */
   ierr = PetscMalloc1(m+1,&nz);CHKERRQ(ierr);
   for (i=0; i<m; i++) {
     nz[i] = Baij->i[i+1] - Baij->i[i];
   }
+
+  /* also count off-diag nonzeros of A when mat is nodereorged */
+  if (aij->nodecols) {
+    for (i=0; i<m; i++) {
+      ierr = PetscFindInt(mat->cmap->n,Aaij->ilen[i],&Aaij->j[Aaij->i[i]],&loc);CHKERRQ(ierr); /* find loc splitting diag & off-diag */
+      if (loc < 0) loc = -loc - 1;
+      nz[i] += Aaij->ilen[i] - loc;
+    }
+  }
+
   ierr = MatCreate(PETSC_COMM_SELF,&Bnew);CHKERRQ(ierr);
   ierr = MatSetSizes(Bnew,m,n,m,n);CHKERRQ(ierr);
-  ierr = MatSetBlockSizesFromMats(Bnew,A,A);CHKERRQ(ierr);
+  ierr = MatSetBlockSizesFromMats(Bnew,mat,mat);CHKERRQ(ierr);
   ierr = MatSetType(Bnew,((PetscObject)B)->type_name);CHKERRQ(ierr);
   ierr = MatSeqAIJSetPreallocation(Bnew,0,nz);CHKERRQ(ierr);
+  ierr = PetscFree(nz);CHKERRQ(ierr);
 
+  /* move over B's stuff to new B */
   ((Mat_SeqAIJ*)Bnew->data)->nonew = Baij->nonew; /* Inherit insertion error options. */
+
   /*
    Ensure that B's nonzerostate is monotonically increasing.
    Or should this follow the MatSetValues() loop to preserve B's nonzerstate across a MatDisAssemble() call?
    */
   Bnew->nonzerostate = B->nonzerostate;
 
-  ierr = PetscFree(nz);CHKERRQ(ierr);
   for (i=0; i<m; i++) {
     for (j=Baij->i[i]; j<Baij->i[i+1]; j++) {
       col  = garray[Baij->j[ct]];
@@ -195,11 +322,27 @@ PetscErrorCode MatDisAssemble_MPIAIJ(Mat A)
       ierr = MatSetValues(Bnew,1,&i,1,&col,&v,B->insertmode);CHKERRQ(ierr);
     }
   }
-  ierr = PetscFree(aij->garray);CHKERRQ(ierr);
-  ierr = PetscLogObjectMemory((PetscObject)A,-ec*sizeof(PetscInt));CHKERRQ(ierr);
-  ierr = MatDestroy(&B);CHKERRQ(ierr);
-  ierr = PetscLogObjectParent((PetscObject)A,(PetscObject)Bnew);CHKERRQ(ierr);
 
+  /* disassemble A when needed. Do not need to create a new A. Moving off-diag & on-node part of A to B is enough */
+  if (aij->nodecols) { /* may be true when aij is nodereorged */
+    for (i=0; i<m; i++) {
+      ierr = PetscFindInt(mat->cmap->n,Aaij->ilen[i],&Aaij->j[Aaij->i[i]],&loc);CHKERRQ(ierr);
+      for (j=loc; j<Aaij->ilen[i]; j++) { /* move off-diag segment of the row to Bnew */
+        col  = farray[Aaij->j[Aaij->i[i]+j]];
+        v    = Aaij->a[Aaij->i[i]+j];
+        ierr = MatSetValues(Bnew,1,&i,1,&col,&v,B->insertmode);CHKERRQ(ierr);
+      }
+      Aaij->ilen[i] = loc; /* shrink the row */
+    }
+  }
+
+  ierr = PetscFree(aij->farray);CHKERRQ(ierr);
+  ierr = PetscLogObjectMemory((PetscObject)mat,-(mat->cmap->n+aij->nodecols+ec)*sizeof(PetscInt));CHKERRQ(ierr);
+  ierr = MatDestroy(&B);CHKERRQ(ierr);
+  ierr = PetscLogObjectParent((PetscObject)mat,(PetscObject)Bnew);CHKERRQ(ierr);
+
+  aij->nodecols    = 0;
+  aij->nodereorged = PETSC_FALSE;
   aij->B           = Bnew;
   A->was_assembled = PETSC_FALSE;
   PetscFunctionReturn(0);

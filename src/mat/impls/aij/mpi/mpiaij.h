@@ -51,9 +51,10 @@ typedef struct {
 #if defined(PETSC_USE_CTABLE)
   PetscTable colmap;
 #else
-  PetscInt *colmap;                     /* local col number of off-diag col */
+  PetscInt *colmap;                     /* local col number of external cols */
 #endif
-  PetscInt *garray;                     /* global index of all off-processor columns */
+  PetscInt *farray;                     /* global index of all internal cols */
+  PetscInt *garray;                     /* global index of all external cols */
 
   /* The following variables are used for matrix-vector products */
   Vec        lvec;                 /* local vector */
@@ -78,6 +79,10 @@ typedef struct {
   /* Used by MPICUSP and MPICUSPARSE classes */
   void * spptr;
 
+  /* Used when we do SMP-aware MatMult and re-organize A and B to take advantage of on-node shared memory */
+  PetscBool nodereorged;  /* true if the matrix is re-organized such that A is the on-node part and B is the off-node part */
+  PetscInt  nodecols;     /* if nodereorged, it is the number of cols on-node but off-diag; otherwise, 0 */
+  Vec       ngvec;        /* node-ghosted vec */
 } Mat_MPIAIJ;
 
 PETSC_EXTERN PetscErrorCode MatCreate_MPIAIJ(Mat);

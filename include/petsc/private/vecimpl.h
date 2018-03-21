@@ -320,6 +320,7 @@ struct _p_VecScatter {
   PetscBool      reproduce;            /* always receive the ghost points in the same order of processes */
   void           *fromdata,*todata;
   void           *spptr;
+  PetscBool      is_nodereorged_Mvctx; /* is it the Mvctx created with node-reorg enabled */
 };
 
 PETSC_EXTERN PetscErrorCode VecScatterCreate(Vec,IS,Vec,IS,VecScatter*);
