@@ -152,7 +152,7 @@ PetscErrorCode PetscDualSpaceView(PetscDualSpace sp, PetscViewer v)
 . sp - the PetscDualSpace object to set options for
 
   Options Database:
-. -petscspace_order the approximation order of the space
+. -petscspace_degree the approximation order of the space
 
   Level: developer
 
