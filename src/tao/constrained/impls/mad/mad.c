@@ -240,12 +240,12 @@ PetscErrorCode TaoMADComputeDiffMats(Tao tao)
     ierr = VecGetType(mad->dR[i-1], &kkt_type);CHKERRQ(ierr);
     /* apply the Hessian correction */
     if (kkt_type == VECNEST) {
-      Vec r_x, x_old;
+      Vec r_x, dx_old;
       ierr = VecNestGetSubVec(mad->dR[i-1], 0, &r_x);CHKERRQ(ierr);
-      ierr = VecNestGetSubVec(mad->Y[i-1], 0, &x_old);CHKERRQ(ierr);
-      ierr = VecAXPBY(r_x, mad->beta, 1.0, x_old);CHKERRQ(ierr);
+      ierr = VecNestGetSubVec(mad->dY[i-1], 0, &dx_old);CHKERRQ(ierr);
+      ierr = VecAXPBY(r_x, mad->beta, 1.0, dx_old);CHKERRQ(ierr);
     } else {
-      ierr = VecAXPBY(mad->dR[i-1], mad->beta, 1.0, mad->Y[i-1]);CHKERRQ(ierr);
+      ierr = VecAXPBY(mad->dR[i-1], mad->beta, 1.0, mad->dY[i-1]);CHKERRQ(ierr);
     }
   }
   PetscFunctionReturn(0);
