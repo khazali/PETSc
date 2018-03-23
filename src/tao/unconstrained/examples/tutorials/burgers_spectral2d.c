@@ -820,7 +820,8 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   VecDuplicate(globalout,&forcing); 
 
   ierr = DMDAVecGetArray(appctx->da,forcing,&ff);CHKERRQ(ierr);
-      
+     
+  /* 
   tt=t;
   for (ix=0; ix<appctx->param.lenx; ix++) 
     {for (jx=0; jx<appctx->param.leny; jx++) 
@@ -846,7 +847,7 @@ ff[jx][ix].v=PetscExpScalar(-appctx->param.mu*tt)* (((-0.1 + 0.1*xpy)*appctx->pa
      }
   ierr = DMDAVecRestoreArray(appctx->da,forcing,&ff);CHKERRQ(ierr);
   VecAXPY(globalout,1.0,forcing);
-
+  */
 
 
   ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
@@ -1315,11 +1316,6 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   ierr = PetscMalloc1(appctx->param.N,&wrk6);CHKERRQ(ierr);
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk6[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
-
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk7);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
 
 
   alpha = 1.0;
