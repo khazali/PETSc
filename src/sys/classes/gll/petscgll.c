@@ -422,7 +422,66 @@ PetscErrorCode PetscGLLElementGradientCreate(PetscGLL *gll,PetscReal ***AA, Pets
   *AA  = A;
   PetscFunctionReturn(0);
 }
+/*@C
+   PetscGLLdiscreteLegendre - computes the transform to be applied
 
+   Not Collective
+
+   Input Parameter:
+.  gll - the nodes
+
+   Output Parameter:
+.  AA - the Legrendre transform as applied to an element
+-  AAT - the transpose of AA (pass in NULL if you do not need this array)
+
+   Level: beginner
+
+   Notes: Destroy this with PetscGLLdiscreteLegendreDestroy()
+
+   You can access entries in these arrays with AA[i][j] but in memory it is stored in contiguous memory, row oriented
+
+.seealso: PetscGLL, PetscGLLDestroy(), PetscGLLView(), PetscGLLElementLaplacianDestroy()
+
+@*/
+PetscErrorCode PetscGLLdiscreteLegendre(PetscGLL *gll,PetscReal ***AA, PetscReal ***AAT)
+{
+  PetscReal        **A, **AT=NULL;
+  PetscErrorCode  ierr;
+  const PetscReal  *nodes = gll->nodes;
+  const PetscReal  *weights = gll->weights;
+  const PetscInt   n = gll->n;
+  PetscReal        q,qp,Li,Lj,ff;
+  PetscInt         i,j;
+
+  PetscFunctionBegin;
+  ierr = PetscMalloc1(n,&A);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n*n,&A[0]);CHKERRQ(ierr);
+  for (i=1; i<n; i++) A[i] = A[i-1]+n;
+
+  
+  if (AAT) {
+    ierr = PetscMalloc1(n,&AT);CHKERRQ(ierr);
+    ierr = PetscMalloc1(n*n,&AT[0]);CHKERRQ(ierr);
+    for (i=1; i<n; i++) AT[i] = AT[i-1]+n;
+  }
+
+  if (n==1) {A[0][0] = 0.;}
+   for  (i=0; i<n; i++) {
+    for  (j=0; j<n; j++) {
+      A[i][j] = 0.;
+      ff      =  (2.0*i+1.0)/2.0;
+      qAndLEvaluation(i,nodes[j],&q,&qp,&Li);
+      if (i==0) Li=1.0;  
+      //qAndLEvaluation(j,nodes[i],&q,&qp,&Lj);
+      A[i][j] = Li*weights[j];
+      if (i==(n-1)) ff=(n-1)/2.0;
+      if (AT) AT[j][i] = Li*ff;
+    }
+  }
+  if (AAT) *AAT = AT;
+  *AA  = A;
+  PetscFunctionReturn(0);
+}
 /*@C
    PetscGLLElementGradientDestroy - frees the gradient for a single 1d GLL element obtained with PetscGLLElementGradientCreate()
 
@@ -521,46 +580,20 @@ PetscErrorCode PetscGLLElementAdvectionDestroy(PetscGLL *gll,PetscReal ***AA)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PetscGLLElementMassCreate(PetscGLL *gll,PetscReal ***AA)
-{
-  PetscReal        **A;
-  PetscErrorCode  ierr;
-  const PetscReal  *weights = gll->weights;
-  const PetscInt   n = gll->n;
-  PetscInt         i,j;
 
-  PetscFunctionBegin;
-  ierr = PetscMalloc1(n,&A);CHKERRQ(ierr);
-  ierr = PetscMalloc1(n*n,&A[0]);CHKERRQ(ierr);
-  for (i=1; i<n; i++) A[i] = A[i-1]+n;
-  if (n==1) {A[0][0] = 0.;}
-  for  (i=0; i<n; i++) {
-    for  (j=0; j<n; j++) {
-      A[i][j] = 0.;
-      if (j==i)     A[i][j] = weights[i];
-    }
+PetscErrorCode PetscPointWiseMult(PetscInt Nl, PetscScalar *A, PetscScalar *B, PetscScalar *out) 
+  {                                                              
+    PetscErrorCode ierr; 
+    PetscInt i;
+
+    for (i=0; i<Nl; i++)
+     { out[i]=A[i]*B[i];
+     } 
+   
+   PetscFunctionReturn(0);
   }
-  *AA  = A;
-  PetscFunctionReturn(0);
-}
 
-  PetscErrorCode PetscGLLElementMassDestroy(PetscGLL *gll,PetscReal ***AA)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = PetscFree((*AA)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(*AA);CHKERRQ(ierr);
-  *AA  = NULL;
-  PetscFunctionReturn(0);
-}
-
-/* Implements a tensor product
-
-out=(A x B) u= A u B '
-
-*/
-
+/*
 PetscErrorCode Petsctensorprod(PetscInt Nl, PetscScalar *A, const PetscScalar *u, PetscScalar *B, PetscScalar *out) 
   {                                             
     PetscScalar   *Work;                        
@@ -577,5 +610,56 @@ PetscErrorCode Petsctensorprod(PetscInt Nl, PetscScalar *A, const PetscScalar *u
 
    PetscFunctionReturn(0);
   }
+*/
+PetscErrorCode PetscGLLElementMassCreate(PetscGLL *gll,PetscReal ***AA)
+{
+  PetscReal        **A;
+  PetscErrorCode  ierr;
+  const PetscReal  *weights = gll->weights;
+  const PetscInt   n = gll->n;
+  PetscInt         i,j;
 
+  PetscFunctionBegin;
+  ierr = PetscMalloc1(n,&A);CHKERRQ(ierr);
+  ierr = PetscMalloc1(n*n,&A[0]);CHKERRQ(ierr);
+  for (i=1; i<n; i++) A[i] = A[i-1]+n;
+
+  if (n==1) {A[0][0] = 0.;}
+  for  (i=0; i<n; i++) {
+    for  (j=0; j<n; j++) {
+      A[i][j] = 0.;
+      if (j==i)     A[i][j] = weights[i];
+    }
+  }
+
+  *AA  = A;
+  PetscFunctionReturn(0);
+}
+
+/*@C
+   PetscGLLElementGradientDestroy - frees the gradient for a single 1d GLL element obtained with PetscGLLElementGradientCreate()
+
+   Not Collective
+
+   Input Parameter:
++  gll - the nodes
+.  AA - the stiffness element
+-  AAT - the transpose of the element
+
+   Level: beginner
+
+.seealso: PetscGLL, PetscGLLDestroy(), PetscGLLView(), PetscGLLElementLaplacianCreate(), PetscGLLElementAdvectionCreate()
+
+@*/
+PetscErrorCode PetscGLLElementMassDestroy(PetscGLL *gll,PetscReal ***AA)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscFree((*AA)[0]);CHKERRQ(ierr);
+  ierr = PetscFree(*AA);CHKERRQ(ierr);
+  *AA  = NULL;
+  
+  PetscFunctionReturn(0);
+}
 
