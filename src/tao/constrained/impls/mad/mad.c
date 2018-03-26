@@ -18,6 +18,7 @@ PetscErrorCode TaoMADInitVecs(Tao tao)
   
   /* get index set of lower-bounded design vars */
   ierr = VecDuplicate(tao->solution, &xtmp);CHKERRQ(ierr);
+  mad->nlb=0;
   if (tao->XL) {
     ierr = VecSet(xtmp,PETSC_NINFINITY);CHKERRQ(ierr);
     ierr = VecWhichGreaterThan(tao->XL, xtmp, &mad->lb_idx);CHKERRQ(ierr);
@@ -31,11 +32,9 @@ PetscErrorCode TaoMADInitVecs(Tao tao)
     ierr = VecCopy(btmp, mad->lb);CHKERRQ(ierr);
     ierr = VecRestoreSubVector(tao->XL, mad->lb_idx, &btmp);CHKERRQ(ierr);
     ierr = VecDestroy(&btmp);CHKERRQ(ierr);
-  } else {
-    mad->nlb=0;
-  }
-  
+  } 
   /* get index set of upper-bounded design vars */
+  mad->nub=0;
   if (tao->XU) {
     ierr = VecSet(xtmp,PETSC_INFINITY);CHKERRQ(ierr);
     ierr = VecWhichLessThan(tao->XU, xtmp, &mad->ub_idx);CHKERRQ(ierr);
@@ -49,15 +48,13 @@ PetscErrorCode TaoMADInitVecs(Tao tao)
     ierr = VecCopy(btmp, mad->ub);CHKERRQ(ierr);
     ierr = VecRestoreSubVector(tao->XU, mad->ub_idx, &btmp);CHKERRQ(ierr);
     ierr = VecDestroy(&btmp);CHKERRQ(ierr);
-  } else {
-    mad->nub=0;
-  }
+  } 
   ierr = VecDestroy(&xtmp);CHKERRQ(ierr);
   
   /* create the composite bound vector */
   mad->nb = mad->nlb + mad->nub;
   if (mad->nb > 0) {
-    if (mad->cl && mad->cu) {
+    if (mad->nlb > 0 && mad->nub > 0) {
       Vec cb[2] = {mad->cl, mad->cu};
       ierr = VecCreateNest(comm, 2, NULL, cb, &mad->cb);CHKERRQ(ierr);
       Vec cb_work[2] = {mad->cl_work, mad->cu_work};
@@ -66,12 +63,12 @@ PetscErrorCode TaoMADInitVecs(Tao tao)
       ierr = VecCreateNest(comm, 2, NULL, mu_b, &mad->mu_b);CHKERRQ(ierr);
       Vec dmu_b[2] = {mad->dmu_lb, mad->dmu_ub};
       ierr = VecCreateNest(comm, 2, NULL, dmu_b, &mad->dmu_b);CHKERRQ(ierr);
-    } else if (mad->cl) {
+    } else if (mad->nlb > 0) {
       mad->cb = mad->cl;
       mad->cb_work = mad->cl_work;
       mad->mu_b = mad->mu_lb;
       mad->dmu_b = mad->dmu_lb;
-    } else if (mad->cu) {
+    } else if (mad->nub > 0) {
       mad->cb = mad->cu;
       mad->cb_work = mad->cu_work;
       mad->mu_b = mad->mu_ub;
@@ -161,6 +158,16 @@ PetscErrorCode TaoMADInitVecs(Tao tao)
   ierr = VecDuplicateVecs(mad->kkt, mad->q, &mad->R);CHKERRQ(ierr);
   ierr = VecDuplicateVecs(mad->sol, mad->q-1, &mad->dY);CHKERRQ(ierr);
   ierr = VecDuplicateVecs(mad->kkt, mad->q-1, &mad->dR);CHKERRQ(ierr);
+  
+  /* provide a printout of problem sizing */
+  ierr = PetscPrintf(comm, "Total # of variables: %i\n", mad->nkkt);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm, " - Design variables:  %i\n", mad->nd);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm, " - Equality cnstr:    %i\n", mad->nh);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm, " - Inquality cnstr:   %i\n", mad->ng);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm, "   + Explicit:        %i\n", mad->nineq);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm, "   + Bound:           %i\n", mad->nb);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm, "     * Lower:         %i\n", mad->nlb);CHKERRQ(ierr);
+  ierr = PetscPrintf(comm, "     * Upper:         %i\n", mad->nub);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -311,7 +318,7 @@ PetscErrorCode TaoMADSolveSubproblem(Tao tao, PetscScalar *gamma)
   /* compute SVD */
   LAPACKgesvd_("S", "S", &M, &N, dR, &LDA, S, U, &LDU, VT, &LDVT, work, &lwork, &info);
   if (info > 0) {
-    ierr = PetscInfo(mad, "SVD calculation failed to converge!\n");CHKERRQ(ierr);
+    ierr = PetscInfo(tao, "SVD calculation failed to converge!\n");CHKERRQ(ierr);
   }
   ierr = PetscFree(work);CHKERRQ(ierr);
   
@@ -327,7 +334,7 @@ PetscErrorCode TaoMADSolveSubproblem(Tao tao, PetscScalar *gamma)
     UTr[j] = 0.0;
     for (i=0; i<LDU; i++) UTr[j] += U[i*N + j] * kkt_tmp[i];
   }
-  ierr = VecRestoreArrayRead(mad->kkt, &rtmp);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(mad->kkt, &kkt_tmp);CHKERRQ(ierr);
   /* now we do sigma * (U^T * r) */
   for (j=0; j<N; j++) SUTr[j] = S[j]*UTr[j];
   /* finally hit this with V to compute gamma */
