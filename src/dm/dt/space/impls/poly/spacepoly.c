@@ -19,8 +19,9 @@ static PetscErrorCode PetscSpacePolynomialView_Ascii(PetscSpace sp, PetscViewer 
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
-  if (poly->tensor) {ierr = PetscViewerASCIIPrintf(viewer, "Tensor polynomial space of degree %D\n", sp->degree);CHKERRQ(ierr);}
-  else              {ierr = PetscViewerASCIIPrintf(viewer, "Polynomial space of degree %D\n", sp->degree);CHKERRQ(ierr);}
+  if (poly->polymax)     {ierr = PetscViewerASCIIPrintf(viewer, "Maximal degree polynomial space of degree %D\n", sp->degree);CHKERRQ(ierr);}
+  else if (poly->tensor) {ierr = PetscViewerASCIIPrintf(viewer, "Tensor polynomial space of degree %D\n", sp->degree);CHKERRQ(ierr);}
+  else                   {ierr = PetscViewerASCIIPrintf(viewer, "Polynomial space of degree %D\n", sp->degree);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -39,19 +40,32 @@ PetscErrorCode PetscSpaceView_Polynomial(PetscSpace sp, PetscViewer viewer)
 
 PetscErrorCode PetscSpaceSetUp_Polynomial(PetscSpace sp)
 {
-  PetscSpace_Poly *poly    = (PetscSpace_Poly *) sp->data;
-  PetscInt         ndegree = sp->degree+1;
+  PetscSpace_Poly *poly = (PetscSpace_Poly *) sp->data;
+  PetscInt         ndegree;
   PetscInt         deg;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
+  if (sp->degree < 0 && sp->maxDegree < 0) SETERRQ2(PetscObjectComm((PetscObject)sp), PETSC_ERR_ARG_WRONGSTATE, "One of degree (%D) and maxDegree (%D) must be non-negative", sp->degree, sp->maxDegree);
+  if (poly->polymax) {
+    if (sp->maxDegree < 0) SETERRQ(PetscObjectComm((PetscObject)sp), PETSC_ERR_ARG_WRONGSTATE, "Maximum degree must be set for polymax space");
+    sp->degree = -1;
+  } else if (poly->tensor) {
+    if (sp->degree >= 0) {
+      sp->maxDegree = sp->degree + PetscMax(sp->Nv - 1, 0);
+    } else {
+      sp->degree = sp->maxDegree - PetscMax(sp->Nv - 1, 0);
+    }
+  } else {
+    if (sp->degree >= 0) {
+      sp->maxDegree = sp->degree;
+    } else {
+      sp->degree = sp->maxDegree;
+    }
+  }
+  ndegree = sp->degree + 1;
   ierr = PetscMalloc1(ndegree, &poly->degrees);CHKERRQ(ierr);
   for (deg = 0; deg < ndegree; ++deg) poly->degrees[deg] = deg;
-  if (poly->tensor) {
-    sp->maxDegree = sp->degree + PetscMax(sp->Nv - 1,0);
-  } else {
-    sp->maxDegree = sp->degree;
-  }
   PetscFunctionReturn(0);
 }
 
@@ -81,7 +95,7 @@ PetscErrorCode PetscSpaceGetDimension_Polynomial(PetscSpace sp, PetscInt *dim)
 {
   PetscSpace_Poly *poly = (PetscSpace_Poly *) sp->data;
   PetscInt         deg  = sp->degree;
-  PetscInt         n    = sp->Nv, i;
+  PetscInt         n    = poly->polymax ? sp->Nv - 1 : sp->Nv, i;
   PetscReal        D    = 1.0;
 
   PetscFunctionBegin;
@@ -191,9 +205,12 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
   PetscReal       *lpoints, *tmp, *LB, *LD, *LH;
   PetscInt        *ind, *tup;
   PetscInt         c, pdim, d, e, der, der2, i, p, deg, o;
+  PetscInt         degMin, degMax;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
+  degMin = poly->polymax ? sp->maxDegree : 0;
+  degMax = sp->maxDegree;
   ierr = PetscSpaceGetDimension(sp, &pdim);CHKERRQ(ierr);
   pdim /= Nc;
   ierr = DMGetWorkArray(dm, npoints, MPIU_REAL, &lpoints);CHKERRQ(ierr);
@@ -235,7 +252,7 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
       }
     } else {
       i = 0;
-      for (o = 0; o <= sp->degree; ++o) {
+      for (o = degMin; o <= degMax; ++o) {
         ierr = PetscMemzero(ind, dim * sizeof(PetscInt));CHKERRQ(ierr);
         while (ind[0] >= 0) {
           ierr = LatticePoint_Internal(dim, o, ind, tup);CHKERRQ(ierr);
@@ -282,7 +299,7 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
       }
     } else {
       i = 0;
-      for (o = 0; o <= sp->degree; ++o) {
+      for (o = degMin; o <= degMax; ++o) {
         ierr = PetscMemzero(ind, dim * sizeof(PetscInt));CHKERRQ(ierr);
         while (ind[0] >= 0) {
           ierr = LatticePoint_Internal(dim, o, ind, tup);CHKERRQ(ierr);
@@ -348,7 +365,7 @@ PetscErrorCode PetscSpaceEvaluate_Polynomial(PetscSpace sp, PetscInt npoints, co
       }
     } else {
       i = 0;
-      for (o = 0; o <= sp->degree; ++o) {
+      for (o = degMin; o <= degMax; ++o) {
         ierr = PetscMemzero(ind, dim * sizeof(PetscInt));CHKERRQ(ierr);
         while (ind[0] >= 0) {
           ierr = LatticePoint_Internal(dim, o, ind, tup);CHKERRQ(ierr);
@@ -542,6 +559,37 @@ PETSC_EXTERN PetscErrorCode PetscSpaceCreate_Polynomial(PetscSpace sp)
 
   poly->symmetric    = PETSC_FALSE;
   poly->tensor       = PETSC_FALSE;
+  poly->degrees      = NULL;
+  poly->subspaces    = NULL;
+
+  ierr = PetscSpaceInitialize_Polynomial(sp);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*MC
+  PETSCSPACEPOLYMAX = "polymax" - A PetscSpace object that encapsulates a subspace of polynomials that
+                      contains only polynomials of maximal degree.  These are not homogeneous polynomials,
+                      but exist in one-to-one correspondence with them, and so can be used in many situations
+                      where homogeneous polynomials are used.
+
+  Level: intermediate
+
+.seealso: PetscSpaceType, PetscSpaceCreate(), PetscSpaceSetType()
+M*/
+
+PETSC_EXTERN PetscErrorCode PetscSpaceCreate_Polymax(PetscSpace sp)
+{
+  PetscSpace_Poly *poly;
+  PetscErrorCode   ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(sp, PETSCSPACE_CLASSID, 1);
+  ierr     = PetscNewLog(sp,&poly);CHKERRQ(ierr);
+  sp->data = poly;
+
+  poly->symmetric    = PETSC_FALSE;
+  poly->tensor       = PETSC_FALSE;
+  poly->polymax      = PETSC_TRUE;
   poly->degrees      = NULL;
   poly->subspaces    = NULL;
 

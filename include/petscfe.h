@@ -36,10 +36,11 @@ PETSC_EXTERN PetscClassId PETSCSPACE_CLASSID;
 .seealso: PetscSpaceSetType(), PetscSpace
 J*/
 typedef const char *PetscSpaceType;
-#define PETSCSPACEPOLYNOMIAL "poly"
-#define PETSCSPACETENSOR     "tensor"
-#define PETSCSPACEPOINT      "point"
-#define PETSCSPACESUBSPACE   "subspace"
+#define PETSCSPACEPOLYNOMIAL  "poly"
+#define PETSCSPACEPOLYMAX     "polymax"
+#define PETSCSPACETENSOR      "tensor"
+#define PETSCSPACEPOINT       "point"
+#define PETSCSPACESUBSPACE    "subspace"
 
 PETSC_EXTERN PetscFunctionList PetscSpaceList;
 PETSC_EXTERN PetscErrorCode PetscSpaceCreate(MPI_Comm, PetscSpace *);

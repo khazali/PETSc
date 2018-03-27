@@ -41,6 +41,7 @@ struct _p_PetscSpace {
 typedef struct {
   PetscBool   symmetric;    /* Use only symmetric polynomials */
   PetscBool   tensor;       /* Flag for tensor product */
+  PetscBool   polymax;      /* Flag for maximal degree polynomials */
   PetscInt   *degrees;      /* Degrees of single variable which we need to compute */
   PetscSpace *subspaces;    /* Subspaces for each dimension */
 } PetscSpace_Poly;
