@@ -4,7 +4,7 @@ FFLAGS	        =
 CPPFLAGS        =
 FPPFLAGS        =
 LOCDIR          = src/dm/dt/examples/tests/
-EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c
+EXAMPLESC       = ex1.c ex2.c ex3.c ex4.c ex5.c ex6.c
 EXAMPLESF       =
 MANSEC          = DM
 
@@ -26,5 +26,8 @@ ex4: ex4.o   chkopts
 ex5: ex5.o   chkopts
 	-${CLINKER} -o ex5 ex5.o  ${PETSC_DM_LIB}
 	${RM} -f ex5.o
+ex6: ex6.o   chkopts
+	-${CLINKER} -o ex6 ex6.o  ${PETSC_DM_LIB}
+	${RM} -f ex6.o
 
 include ${PETSC_DIR}/lib/petsc/conf/test

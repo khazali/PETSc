@@ -38,4 +38,92 @@ PETSC_EXTERN PetscErrorCode PetscDTTanhSinhTensorQuadrature(PetscInt, PetscInt, 
 PETSC_EXTERN PetscErrorCode PetscDTTanhSinhIntegrate(void (*)(PetscReal, PetscReal *), PetscReal, PetscReal, PetscInt, PetscReal *);
 PETSC_EXTERN PetscErrorCode PetscDTTanhSinhIntegrateMPFR(void (*)(PetscReal, PetscReal *), PetscReal, PetscReal, PetscInt, PetscReal *);
 
+/*S
+  PetscDTAltV - Alternating algebraic k-form calculations
+
+  Level: developer
+S*/
+typedef struct _n_PetscDTAltV *PetscDTAltV;
+
+PETSC_EXTERN PetscErrorCode PetscDTAltVCreate(PetscInt, PetscDTAltV *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVDestroy(PetscDTAltV *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVGetN(PetscDTAltV, PetscInt *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVGetSize(PetscDTAltV, PetscInt, PetscInt *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVApply(PetscDTAltV, PetscInt, const PetscReal *, const PetscReal *, PetscReal *);
+
+PETSC_STATIC_INLINE void PetscDTEnumPermWithSign(PetscInt n, PetscInt k, PetscInt *work, PetscInt *perm, PetscBool *isOdd)
+{
+  PetscBool odd = PETSC_FALSE;
+  PetscInt  i;
+  PetscInt *w = &work[n - 2];
+
+  PetscFunctionBeginHot;
+  i = 2;
+  for (i = 2; i <= n; i++) {
+    *(w--) = k % i;
+    k /= i;
+  }
+  for (i = 0; i < n; i++) perm[i] = i;
+  for (i = 0; i < n - 1; i++) {
+    PetscInt s = work[i];
+    PetscInt swap = perm[i];
+
+    perm[i] = perm[i + s];
+    perm[i + s] = swap;
+    odd ^= (!!s);
+  }
+  *isOdd = odd;
+  PetscFunctionReturnVoid();
+}
+
+PETSC_STATIC_INLINE void PetscDTEnumSubsetWithSign(PetscInt n, PetscInt k, PetscInt Nk, PetscInt j, PetscInt *subset, PetscBool *isOdd)
+{
+  PetscInt i, l;
+  PetscBool odd;
+
+  PetscFunctionBeginHot;
+  odd = PETSC_FALSE;
+  for (i = 0, l = 0; i < n && l < k; i++) {
+    PetscInt Nminuskminus = (Nk * (k - l)) / (n - i);
+    PetscInt Nminusk = Nk - Nminuskminus;
+
+    if (j < Nminuskminus) {
+      subset[l++] = i;
+      Nk = Nminuskminus;
+    } else {
+      j -= Nminuskminus;
+      odd ^= ((k - l) & 1);
+      Nk = Nminusk;
+    }
+  }
+  *isOdd = odd;
+  PetscFunctionReturnVoid();
+}
+
+PETSC_STATIC_INLINE void PetscDTSubsetIndexWithSign(PetscInt n, PetscInt k, PetscInt Nk, const PetscInt *subset, PetscInt *index, PetscBool *isOdd)
+{
+  PetscInt  j = 0;
+  PetscInt  i, l;
+  PetscBool odd;
+
+  PetscFunctionBeginHot;
+  odd = PETSC_FALSE;
+  for (i = 0, l = 0; i < n && l < k; i++) {
+    PetscInt Nminuskminus = (Nk * (k - l)) / (n - i);
+    PetscInt Nminusk = Nk - Nminuskminus;
+
+    if (subset[l] == i) {
+      l++;
+      Nk = Nminuskminus;
+    } else {
+      j += Nminuskminus;
+      odd ^= ((k - l) & 1);
+      Nk = Nminusk;
+    }
+  }
+  *index = j;
+  *isOdd = odd;
+  PetscFunctionReturnVoid();
+}
+
 #endif

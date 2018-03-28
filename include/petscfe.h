@@ -38,6 +38,7 @@ J*/
 typedef const char *PetscSpaceType;
 #define PETSCSPACEPOLYNOMIAL  "poly"
 #define PETSCSPACEPOLYMAX     "polymax"
+#define PETSCSPACEPMINUS      "pminus"
 #define PETSCSPACETENSOR      "tensor"
 #define PETSCSPACEPOINT       "point"
 #define PETSCSPACESUBSPACE    "subspace"

@@ -35,6 +35,7 @@ struct _p_PetscSpace {
   PetscInt                maxDegree;     /* The containing approximation order of the space */
   PetscInt                Nc;            /* The number of components */
   PetscInt                Nv;            /* The number of variables in the space, e.g. x and y */
+  PetscInt                dim;           /* The dimension of the space */
   DM                      dm;            /* Shell to use for temp allocation */
 };
 
@@ -47,9 +48,20 @@ typedef struct {
 } PetscSpace_Poly;
 
 typedef struct {
+  PetscSpace   pminus1;
+  PetscSpace   kplus1;
+  PetscInt   **ind;
+  PetscReal  **mul;
+  PetscInt     formDegree;   /* Use only symmetric polynomials */
+  PetscInt     Niter;
+  PetscInt     Nk;
+  PetscInt     Nkplus;
+  PetscBool    setupCalled;
+} PetscSpace_Pminus;
+
+typedef struct {
   PetscSpace *spaces;
   PetscInt    numSpaces;
-  PetscInt    dim;
   PetscBool   uniform;
   PetscBool   setupCalled;
 } PetscSpace_Tensor;
@@ -398,6 +410,25 @@ PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolateFieldAndGradient_Static(Pet
       }
     }
   }
+  PetscFunctionReturn(0);
+}
+
+PETSC_STATIC_INLINE PetscErrorCode PetscDTBinomial_Internal(PetscInt n, PetscInt k, PetscInt *factorial)
+{
+  PetscReal f = 1.0;
+  PetscReal g = 1.0;
+  PetscErrorCode ierr;
+  PetscInt  i;
+
+  PetscFunctionBegin;
+  if (n < 0 || k < 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Binomal arguments (%D %D) must be non-negative\n", n, k);
+  if (2 * k < n) {
+    ierr = PetscDTBinomial_Internal(n, n - k, factorial);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+  }
+  for (i = k + 1; i <= n; i++) f *= i;
+  for (i = 1; i <= n - k; i++) g *= i;
+  *factorial = (PetscInt) (f / g);
   PetscFunctionReturn(0);
 }
 

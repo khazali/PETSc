@@ -607,8 +607,6 @@ PetscErrorCode PetscDTGaussTensorQuadrature(PetscInt dim, PetscInt Nc, PetscInt 
   PetscFunctionReturn(0);
 }
 
-/* Evaluates the nth jacobi polynomial with weight parameters a,b at a point x.
-   Recurrence relations implemented from the pseudocode given in Karniadakis and Sherwin, Appendix B */
 PETSC_STATIC_INLINE PetscErrorCode PetscDTFactorial_Internal(PetscInt n, PetscReal *factorial)
 {
   PetscReal f = 1.0;
