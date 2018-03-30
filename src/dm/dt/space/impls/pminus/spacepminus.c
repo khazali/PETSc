@@ -50,7 +50,7 @@ static PetscErrorCode PetscSpaceSetUp_Pminus(PetscSpace sp)
   Nv = sp->Nv;
   /* get the number of forms */
   if (k < 0 || k >= Nv) SETERRQ2(PetscObjectComm((PetscObject)sp), PETSC_ERR_ARG_WRONG, "Form degree (%D) must be in [0,%D]\n", k, Nv);
-  ierr = PetscDTBinomial_Internal(Nv,k,&Nk);CHKERRQ(ierr);
+  ierr = PetscDTBinomial(Nv,k,&Nk);CHKERRQ(ierr);
   if (Nc < Nk || (Nk % Nc)) SETERRQ2(PetscObjectComm((PetscObject)sp), PETSC_ERR_ARG_WRONG, "Number of components (%D) must be a multiple of number of forms (%D)\n", Nc, Nk);
   if (sp->degree < 0 && sp->maxDegree < 0) SETERRQ2(PetscObjectComm((PetscObject)sp),PETSC_ERR_ARG_WRONGSTATE, "One of degree (%D) and maxDegree (%D) must be non-negative\n", sp->degree, sp->maxDegree);
   if (sp->maxDegree >= 0) {
@@ -71,7 +71,7 @@ static PetscErrorCode PetscSpaceSetUp_Pminus(PetscSpace sp)
   }
 
   pmin->Nk = Nk;
-  ierr = PetscDTBinomial_Internal(Nv,k + 1,&Nkplus);CHKERRQ(ierr);
+  ierr = PetscDTBinomial(Nv,k + 1,&Nkplus);CHKERRQ(ierr);
   pmin->Nkplus = Nkplus;
   ierr = PetscSpaceCreate(PetscObjectComm((PetscObject)sp), &pmin->pminus1);CHKERRQ(ierr);
   ierr = PetscSpaceSetType(pmin->pminus1, PETSCSPACEPOLYNOMIAL);CHKERRQ(ierr);
@@ -102,7 +102,7 @@ static PetscErrorCode PetscSpaceGetDimension_Pminus(PetscSpace sp, PetscInt *dim
   k   = pmin->formDegree;
   Nc  = sp->Nc;
   deg = sp->maxDegree;
-  ierr = PetscDTBinomial_Internal(Nv + deg, Nv, &Np);CHKERRQ(ierr); /* number of full polynomials */
+  ierr = PetscDTBinomial(Nv + deg, Nv, &Np);CHKERRQ(ierr); /* number of full polynomials */
   if ((Np * Nc * deg) % (deg + k)) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Not calculating Pminus dimension correctly");
   *dim = (Np * Nc * deg) / (deg + k);
   PetscFunctionReturn(0);

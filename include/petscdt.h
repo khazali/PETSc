@@ -50,6 +50,32 @@ PETSC_EXTERN PetscErrorCode PetscDTAltVDestroy(PetscDTAltV *);
 PETSC_EXTERN PetscErrorCode PetscDTAltVGetN(PetscDTAltV, PetscInt *);
 PETSC_EXTERN PetscErrorCode PetscDTAltVGetSize(PetscDTAltV, PetscInt, PetscInt *);
 PETSC_EXTERN PetscErrorCode PetscDTAltVApply(PetscDTAltV, PetscInt, const PetscReal *, const PetscReal *, PetscReal *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVWedge(PetscDTAltV, PetscInt, PetscInt, const PetscReal *, const PetscReal *, PetscReal *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVWedgeMatrix(PetscDTAltV, PetscInt, PetscInt, const PetscReal *, PetscReal *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVPullback(PetscDTAltV, PetscDTAltV, const PetscReal *, PetscInt, const PetscReal *, PetscReal *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVPullbackMatrix(PetscDTAltV, PetscDTAltV, const PetscReal *, PetscInt, PetscReal *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVInterior(PetscDTAltV, PetscInt, const PetscReal *, const PetscReal *, PetscReal *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVInteriorMatrix(PetscDTAltV, PetscInt, const PetscReal *, PetscReal *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVStar(PetscDTAltV, PetscInt, const PetscReal *, PetscReal *);
+
+PETSC_STATIC_INLINE PetscErrorCode PetscDTBinomial(PetscInt n, PetscInt k, PetscInt *binomial)
+{
+  PetscReal f = 1.0;
+  PetscReal g = 1.0;
+  PetscErrorCode ierr;
+  PetscInt  i;
+
+  PetscFunctionBegin;
+  if (n < 0 || k < 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Binomal arguments (%D %D) must be non-negative\n", n, k);
+  if (2 * k < n) {
+    ierr = PetscDTBinomial(n, n - k, binomial);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+  }
+  for (i = k + 1; i <= n; i++) f *= i;
+  for (i = 1; i <= n - k; i++) g *= i;
+  *binomial = (PetscInt) (f / g);
+  PetscFunctionReturn(0);
+}
 
 PETSC_STATIC_INLINE void PetscDTEnumPermWithSign(PetscInt n, PetscInt k, PetscInt *work, PetscInt *perm, PetscBool *isOdd)
 {
@@ -76,13 +102,11 @@ PETSC_STATIC_INLINE void PetscDTEnumPermWithSign(PetscInt n, PetscInt k, PetscIn
   PetscFunctionReturnVoid();
 }
 
-PETSC_STATIC_INLINE void PetscDTEnumSubsetWithSign(PetscInt n, PetscInt k, PetscInt Nk, PetscInt j, PetscInt *subset, PetscBool *isOdd)
+PETSC_STATIC_INLINE void PetscDTEnumSubset(PetscInt n, PetscInt k, PetscInt Nk, PetscInt j, PetscInt *subset)
 {
   PetscInt i, l;
-  PetscBool odd;
 
   PetscFunctionBeginHot;
-  odd = PETSC_FALSE;
   for (i = 0, l = 0; i < n && l < k; i++) {
     PetscInt Nminuskminus = (Nk * (k - l)) / (n - i);
     PetscInt Nminusk = Nk - Nminuskminus;
@@ -92,22 +116,47 @@ PETSC_STATIC_INLINE void PetscDTEnumSubsetWithSign(PetscInt n, PetscInt k, Petsc
       Nk = Nminuskminus;
     } else {
       j -= Nminuskminus;
+      Nk = Nminusk;
+    }
+  }
+  PetscFunctionReturnVoid();
+}
+
+PETSC_STATIC_INLINE void PetscDTEnumSplitWithSign(PetscInt n, PetscInt k, PetscInt Nk, PetscInt j, PetscInt *subset, PetscBool *isOdd)
+{
+  PetscInt i, l, m, *subcomp;
+  PetscBool odd;
+
+  PetscFunctionBeginHot;
+  odd = PETSC_FALSE;
+  subcomp = &subset[k];
+  for (i = 0, l = 0, m = 0; i < n && l < k; i++) {
+    PetscInt Nminuskminus = (Nk * (k - l)) / (n - i);
+    PetscInt Nminusk = Nk - Nminuskminus;
+
+    if (j < Nminuskminus) {
+      subset[l++] = i;
+      Nk = Nminuskminus;
+    } else {
+      subcomp[m++] = i;
+      j -= Nminuskminus;
       odd ^= ((k - l) & 1);
       Nk = Nminusk;
     }
+  }
+  for (; i < n; i++) {
+    subcomp[m++] = i;
   }
   *isOdd = odd;
   PetscFunctionReturnVoid();
 }
 
-PETSC_STATIC_INLINE void PetscDTSubsetIndexWithSign(PetscInt n, PetscInt k, PetscInt Nk, const PetscInt *subset, PetscInt *index, PetscBool *isOdd)
+PETSC_STATIC_INLINE void PetscDTSubsetIndex(PetscInt n, PetscInt k, PetscInt Nk, const PetscInt *subset, PetscInt *index)
 {
   PetscInt  j = 0;
   PetscInt  i, l;
-  PetscBool odd;
 
   PetscFunctionBeginHot;
-  odd = PETSC_FALSE;
   for (i = 0, l = 0; i < n && l < k; i++) {
     PetscInt Nminuskminus = (Nk * (k - l)) / (n - i);
     PetscInt Nminusk = Nk - Nminuskminus;
@@ -117,12 +166,10 @@ PETSC_STATIC_INLINE void PetscDTSubsetIndexWithSign(PetscInt n, PetscInt k, Pets
       Nk = Nminuskminus;
     } else {
       j += Nminuskminus;
-      odd ^= ((k - l) & 1);
       Nk = Nminusk;
     }
   }
   *index = j;
-  *isOdd = odd;
   PetscFunctionReturnVoid();
 }
 
