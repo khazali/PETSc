@@ -408,12 +408,15 @@ int main(int argc, char **argv)
         ierr = PetscFree3(wIntv0,wIntv0check,intv0mat);CHKERRQ(ierr);
       }
       if (k >= N - k) { /* Hodge star */
-        PetscReal *u, *starw, wu, starwdotu;
-        PetscReal diff;
+        PetscReal *u, *starw, *starstarw, wu, starwdotu;
+        PetscReal diff, norm;
+        PetscBool isOdd;
         PetscInt l;
 
-        ierr = PetscMalloc2(Nk, &u, Nk, &starw);CHKERRQ(ierr);
+        isOdd = ((k * (N - k)) & 1);
+        ierr = PetscMalloc3(Nk, &u, Nk, &starw, Nk, &starstarw);CHKERRQ(ierr);
         ierr = PetscDTAltVStar(altv, k, w, starw);CHKERRQ(ierr);
+        ierr = PetscDTAltVStar(altv, N-k, starw, starstarw);CHKERRQ(ierr);
         if (verbose) {
           ierr = PetscViewerASCIIPrintf(viewer, "star w:\n");CHKERRQ(ierr);
           ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
@@ -426,7 +429,17 @@ int main(int argc, char **argv)
         for (l = 0; l < Nk; l++) starwdotu += starw[l] * u[l];
         diff = PetscAbsReal(wu - starwdotu);
         if (diff > PETSC_SMALL * (PetscAbsReal(wu) + PetscAbsReal(starwdotu))) SETERRQ2(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "Hodge star check: (star w, u) (%g) != (w wedge u) (%g)", (double) starwdotu, (double) wu);
-        ierr = PetscFree2(u, starw);CHKERRQ(ierr);
+
+        diff = 0.;
+        norm = 0.;
+        for (l = 0; l < Nk; l++) {
+          diff += PetscSqr(w[l] - (isOdd ? -starstarw[l] : starstarw[l]));
+          norm += PetscSqr(w[l]) + PetscSqr(starstarw[l]);
+        }
+        diff = PetscSqrtReal(diff);
+        norm = PetscSqrtReal(norm);
+        if (diff > PETSC_SMALL * norm) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "Hodge star check: star(star(w)) != (-1)^(N*(N-k)) w");
+        ierr = PetscFree3(u, starw, starstarw);CHKERRQ(ierr);
       }
       ierr = PetscFree(v);CHKERRQ(ierr);
       ierr = PetscFree(w);CHKERRQ(ierr);
