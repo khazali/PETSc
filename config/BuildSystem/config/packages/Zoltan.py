@@ -38,7 +38,10 @@ class Configure(config.package.GNUPackage):
     libs = []
     for l in self.mpi.lib:
       ll = os.path.basename(l)
-      libs.append(ll[3:-2])
+      if ll.endswith('.a'): libs.append('-l'+ll[3:-2])
+      elif ll.endswith('.so'): libs.append('-l'+ll[3:-3])
+      elif ll.endswith('.dylib'): libs.append('-l'+ll[3:-6])
+      else: raise RuntimeError('Unknown suffix on library '+l)
     libs = ' '.join(libs)
     args.append('--with-mpi-libs="'+libs+'"')
     if hasattr(self.compilers, 'FC'):
