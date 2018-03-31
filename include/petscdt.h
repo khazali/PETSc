@@ -60,20 +60,14 @@ PETSC_EXTERN PetscErrorCode PetscDTAltVStar(PetscDTAltV, PetscInt, const PetscRe
 
 PETSC_STATIC_INLINE PetscErrorCode PetscDTBinomial(PetscInt n, PetscInt k, PetscInt *binomial)
 {
-  PetscReal f = 1.0;
-  PetscReal g = 1.0;
-  PetscErrorCode ierr;
+  PetscReal binom = 1;
   PetscInt  i;
 
-  PetscFunctionBegin;
+  PetscFunctionBeginHot;
+  k = PetscMin(k, n - k);
   if (n < 0 || k < 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Binomal arguments (%D %D) must be non-negative\n", n, k);
-  if (2 * k < n) {
-    ierr = PetscDTBinomial(n, n - k, binomial);CHKERRQ(ierr);
-    PetscFunctionReturn(0);
-  }
-  for (i = k + 1; i <= n; i++) f *= i;
-  for (i = 1; i <= n - k; i++) g *= i;
-  *binomial = (PetscInt) (f / g);
+  for (i = 0; i < k; i++) binom = (binom * (n - i)) / (i + 1);
+  *binomial = binom;
   PetscFunctionReturn(0);
 }
 
