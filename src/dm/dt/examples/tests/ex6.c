@@ -108,7 +108,7 @@ int main(int argc, char **argv)
         PetscBool isOdd;
         PetscInt  j;
 
-        PetscDTEnumPermWithSign(N, k, work, perm, &isOdd);CHKERRQ(ierr);
+        PetscDTEnumPerm(N, k, work, perm, &isOdd);CHKERRQ(ierr);
         ierr = PetscViewerASCIIPrintf(viewer, "%D:", k);CHKERRQ(ierr);
         for (j = 0; j < N; j++) {
           ierr = PetscPrintf(PETSC_COMM_WORLD, " %D", perm[j]);CHKERRQ(ierr);
@@ -134,7 +134,7 @@ int main(int argc, char **argv)
       for (j = 0; j < Nk; j++) {
         PetscBool isOdd;
         PetscInt  jCheck;
-        PetscDTEnumSplitWithSign(N, k, Nk, j, subset, &isOdd);
+        PetscDTEnumSplit(N, k, Nk, j, subset, &isOdd);
         if (verbose) {
           PetscInt l;
 
@@ -148,7 +148,7 @@ int main(int argc, char **argv)
           }
           ierr = PetscPrintf(PETSC_COMM_WORLD, ", %s\n", isOdd ? "odd" : "even");CHKERRQ(ierr);
         }
-        PetscDTSubsetIndex(N, k, Nk, subset, &jCheck);
+        PetscDTSubsetIndex(N, k, Nk, subset, &jCheck, NULL);
         if (jCheck != j) SETERRQ2(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "jCheck (%D) != j (%D)", jCheck, j);
       }
       ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
@@ -315,7 +315,7 @@ int main(int argc, char **argv)
           PetscReal ux, wx;
           PetscInt  m, p;
 
-          PetscDTEnumSplitWithSign(j+k, j, JKj, l, split, &isOdd);
+          PetscDTEnumSplit(j+k, j, JKj, l, split, &isOdd);
           for (m = 0; m < j+k; m++) {for (p = 0; p < N; p++) {xsplit[m * N + p] = x[split[m] * N + p];}}
           ierr = PetscDTAltVApply(altv, j, u, xsplit, &ux);CHKERRQ(ierr);
           ierr = PetscDTAltVApply(altv, k, w, &xsplit[j*N], &wx);CHKERRQ(ierr);
@@ -422,6 +422,11 @@ int main(int argc, char **argv)
           ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
           if (Nk) {ierr = PetscRealView(Nk, starw, viewer);CHKERRQ(ierr);}
           ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
+
+          ierr = PetscViewerASCIIPrintf(viewer, "star star w:\n");CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
+          if (Nk) {ierr = PetscRealView(Nk, starstarw, viewer);CHKERRQ(ierr);}
+          ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
         }
         for (l = 0; l < Nk; l++) {ierr = PetscRandomGetValueReal(rand,&u[l]);CHKERRQ(ierr);}
         ierr = PetscDTAltVWedge(altv, k, N - k, w, u, &wu);CHKERRQ(ierr);
@@ -457,4 +462,7 @@ int main(int argc, char **argv)
   test:
     suffix: 1234
     args: -verbose
+  test:
+    suffix: 56
+    args: -N 5,6
 TEST*/

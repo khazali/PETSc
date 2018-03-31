@@ -82,12 +82,19 @@ PetscErrorCode PetscDTAltVApply(PetscDTAltV alt, PetscInt k, const PetscReal *w,
 
     for (i = 0; i < Nk; i++) {
       PetscReal subsum = 0.;
+      PetscBool isOdd;
 
-      PetscDTEnumSubset(N, k, Nk, i, subset);
+      PetscDTEnumSubset(N, k, Nk, i, subset, &isOdd);
+      if ((k > N - k) && isOdd) {
+        PetscInt swap = subset[0];
+
+        subset[0] = subset[k-1];
+        subset[k-1] = swap;
+      }
       for (j = 0; j < Nf; j++) {
         PetscBool permOdd;
 
-        PetscDTEnumPermWithSign(k, j, work, perm, &permOdd);
+        PetscDTEnumPerm(k, j, work, perm, &permOdd);
         PetscReal prod = permOdd ? -1. : 1.;
         for (l = 0; l < k; l++) {
           prod *= v[perm[l] * N + subset[l]];
@@ -124,24 +131,27 @@ PetscErrorCode PetscDTAltVWedge(PetscDTAltV alt, PetscInt j, PetscInt k, const P
     for (i = 0; i < Njk; i++) {
       PetscReal sum = 0.;
       PetscInt  l;
+      PetscBool iOdd;
 
-      PetscDTEnumSubset(N, j+k, Njk, i, subset);
+      PetscDTEnumSubset(N, j+k, Njk, i, subset, &iOdd);
       for (l = 0; l < JKj; l++) {
-        PetscBool jkOdd;
+        PetscBool jkOdd, jOdd, kOdd;
         PetscInt  m, jInd, kInd;
 
-        PetscDTEnumSplitWithSign(j+k, j, JKj, l, subsetjk, &jkOdd);
+        PetscDTEnumSplit(j+k, j, JKj, l, subsetjk, &jkOdd);
         for (m = 0; m < j; m++) {
           subsetj[m] = subset[subsetjk[m]];
         }
         for (m = 0; m < k; m++) {
           subsetk[m] = subset[subsetjk[j+m]];
         }
-        PetscDTSubsetIndex(N, j, Nj, subsetj, &jInd);
-        PetscDTSubsetIndex(N, k, Nk, subsetk, &kInd);
+        PetscDTSubsetIndex(N, j, Nj, subsetj, &jInd, &jOdd);
+        if ((j > N - j) && jOdd) jkOdd = !jkOdd;
+        PetscDTSubsetIndex(N, k, Nk, subsetk, &kInd, &kOdd);
+        if ((k > N - k) && kOdd) jkOdd = !jkOdd;
         sum += jkOdd ? -(a[jInd] * b[kInd]) : (a[jInd] * b[kInd]);
       }
-      awedgeb[i] = sum;
+      awedgeb[i] = ((j+k > N -(j+k)) && iOdd) ? -sum : sum;
     }
   }
   PetscFunctionReturn(0);
@@ -170,21 +180,25 @@ PetscErrorCode PetscDTAltVWedgeMatrix(PetscDTAltV alt, PetscInt j, PetscInt k, c
     for (i = 0; i < Njk * Nk; i++) awedgeMat[i] = 0.;
     for (i = 0; i < Njk; i++) {
       PetscInt  l;
+      PetscBool iOdd;
 
-      PetscDTEnumSubset(N, j+k, Njk, i, subset);
+      PetscDTEnumSubset(N, j+k, Njk, i, subset, &iOdd);
       for (l = 0; l < JKj; l++) {
-        PetscBool jkOdd;
+        PetscBool jkOdd, jOdd, kOdd;
         PetscInt  m, jInd, kInd;
 
-        PetscDTEnumSplitWithSign(j+k, j, JKj, l, subsetjk, &jkOdd);
+        PetscDTEnumSplit(j+k, j, JKj, l, subsetjk, &jkOdd);
         for (m = 0; m < j; m++) {
           subsetj[m] = subset[subsetjk[m]];
         }
         for (m = 0; m < k; m++) {
           subsetk[m] = subset[subsetjk[j+m]];
         }
-        PetscDTSubsetIndex(N, j, Nj, subsetj, &jInd);
-        PetscDTSubsetIndex(N, k, Nk, subsetk, &kInd);
+        PetscDTSubsetIndex(N, j, Nj, subsetj, &jInd, &jOdd);
+        if ((j > N - j) && jOdd) jkOdd = !jkOdd;
+        PetscDTSubsetIndex(N, k, Nk, subsetk, &kInd, &kOdd);
+        if ((k > N - k) && kOdd) jkOdd = !jkOdd;
+        if (((j+k) > N - (j+k)) && iOdd) jkOdd = !jkOdd;
         awedgeMat[i * Nk + kInd] += jkOdd ? - a[jInd] : a[jInd];
       }
     }
@@ -217,14 +231,30 @@ PetscErrorCode PetscDTAltVPullback(PetscDTAltV altv, PetscDTAltV altw, const Pet
   ierr = PetscMalloc2(N * k, &Lw, k * k, &Lwv);CHKERRQ(ierr);
   for (i = 0; i < Nk; i++) Lstarw[i] = 0.;
   for (i = 0; i < Mk; i++) {
-    PetscDTEnumSubset(M, k, Mk, i, subsetw);
+    PetscBool iOdd;
+
+    PetscDTEnumSubset(M, k, Mk, i, subsetw, &iOdd);
+    if ((k > (M-k)) && iOdd) {
+      PetscInt swap = subsetw[0];
+
+      subsetw[0] = subsetw[k-1];
+      subsetw[k-1] = swap;
+    }
     for (j = 0; j < Nk; j++) {
-      PetscDTEnumSubset(N, k, Nk, j, subsetv);
+      PetscBool jOdd;
+
+      PetscDTEnumSubset(N, k, Nk, j, subsetv, &jOdd);
+      if ((k > (N-k)) && jOdd) {
+        PetscInt swap = subsetv[0];
+
+        subsetv[0] = subsetv[k-1];
+        subsetv[k-1] = swap;
+      }
       for (p = 0; p < Nf; p++) {
         PetscReal prod;
         PetscBool isOdd;
 
-        PetscDTEnumPermWithSign(k, p, work, perm, &isOdd);CHKERRQ(ierr);
+        PetscDTEnumPerm(k, p, work, perm, &isOdd);CHKERRQ(ierr);
         prod = isOdd ? -w[i] : w[i];
         for (l = 0; l < k; l++) {
           prod *= L[subsetw[perm[l]] * N + subsetv[l]];
@@ -261,14 +291,30 @@ PetscErrorCode PetscDTAltVPullbackMatrix(PetscDTAltV altv, PetscDTAltV altw, con
   ierr = PetscMalloc2(N * k, &Lw, k * k, &Lwv);CHKERRQ(ierr);
   for (i = 0; i < Nk * Mk; i++) Lstar[i] = 0.;
   for (i = 0; i < Mk; i++) {
-    PetscDTEnumSubset(M, k, Mk, i, subsetw);
+    PetscBool iOdd;
+
+    PetscDTEnumSubset(M, k, Mk, i, subsetw, &iOdd);
+    if ((k > (M-k)) && iOdd) {
+      PetscInt swap = subsetw[0];
+
+      subsetw[0] = subsetw[k-1];
+      subsetw[k-1] = swap;
+    }
     for (j = 0; j < Nk; j++) {
-      PetscDTEnumSubset(N, k, Nk, j, subsetv);
+      PetscBool jOdd;
+
+      PetscDTEnumSubset(N, k, Nk, j, subsetv, &jOdd);
+      if ((k > (N-k)) && jOdd) {
+        PetscInt swap = subsetv[0];
+
+        subsetv[0] = subsetv[k-1];
+        subsetv[k-1] = swap;
+      }
       for (p = 0; p < Nf; p++) {
         PetscReal prod;
         PetscBool isOdd;
 
-        PetscDTEnumPermWithSign(k, p, work, perm, &isOdd);CHKERRQ(ierr);
+        PetscDTEnumPerm(k, p, work, perm, &isOdd);CHKERRQ(ierr);
         prod = isOdd ? -1. : 1.;
         for (l = 0; l < k; l++) {
           prod *= L[subsetw[perm[l]] * N + subsetv[l]];
@@ -296,17 +342,22 @@ PetscErrorCode PetscDTAltVInterior(PetscDTAltV altv, PetscInt k, const PetscReal
   work = altv->work;
   for (i = 0; i < Nkm; i++) wIntv[i] = 0.;
   for (i = 0; i < Nk; i++) {
-    PetscInt j, l, m;
+    PetscInt  j, l, m;
+    PetscBool iOdd;
 
-    PetscDTEnumSubset(N, k, Nk, i, subset);
+    PetscDTEnumSubset(N, k, Nk, i, subset, &iOdd);
     for (j = 0; j < k; j++) {
-      PetscInt idx;
+      PetscInt  idx;
+      PetscBool jOdd;
+      PetscBool flip = (j & 1);
 
       for (l = 0, m = 0; l < k; l++) {
         if (l != j) work[m++] = subset[l];
       }
-      PetscDTSubsetIndex(N, k - 1, Nkm, work, &idx);
-      wIntv[idx] += (j & 1) ? -(w[i] * v[subset[j]]) :  (w[i] * v[subset[j]]);
+      PetscDTSubsetIndex(N, k - 1, Nkm, work, &idx, &jOdd);
+      if ((k > N - k) && iOdd) flip = !flip;
+      if ((k  - 1 > N - (k - 1)) && jOdd) flip = !flip;
+      wIntv[idx] += flip ? -(w[i] * v[subset[j]]) :  (w[i] * v[subset[j]]);
     }
   }
   PetscFunctionReturn(0);
@@ -327,17 +378,22 @@ PetscErrorCode PetscDTAltVInteriorMatrix(PetscDTAltV altv, PetscInt k, const Pet
   work = altv->work;
   for (i = 0; i < Nk * Nkm; i++) intvMat[i] = 0.;
   for (i = 0; i < Nk; i++) {
-    PetscInt j, l, m;
+    PetscInt  j, l, m;
+    PetscBool iOdd;
 
-    PetscDTEnumSubset(N, k, Nk, i, subset);
+    PetscDTEnumSubset(N, k, Nk, i, subset, &iOdd);
     for (j = 0; j < k; j++) {
-      PetscInt idx;
+      PetscInt  idx;
+      PetscBool jOdd;
+      PetscBool flip = (j & 1);
 
       for (l = 0, m = 0; l < k; l++) {
         if (l != j) work[m++] = subset[l];
       }
-      PetscDTSubsetIndex(N, k - 1, Nkm, work, &idx);
-      intvMat[idx * Nk + i] += (j & 1) ? -v[subset[j]] :  v[subset[j]];
+      PetscDTSubsetIndex(N, k - 1, Nkm, work, &idx, &jOdd);
+      if ((k > N - k) && iOdd) flip = !flip;
+      if ((k  - 1 > N - (k - 1)) && jOdd) flip = !flip;
+      intvMat[idx * Nk + i] += flip ? -v[subset[j]] :  v[subset[j]];
     }
   }
   PetscFunctionReturn(0);
@@ -355,12 +411,15 @@ PetscErrorCode PetscDTAltVStar(PetscDTAltV altv, PetscInt k, const PetscReal *w,
   if (k < 0 || k > N) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "invalid form degree");
   Nk = altv->Nk[k];
   for (i = 0; i < Nk; i++) {
-    PetscBool isOdd;
-    PetscInt  j;
+    PetscBool iOdd, sOdd, jOdd;
+    PetscInt  j, idx;
 
-    PetscDTEnumSplitWithSign(N, k, Nk, i, subset, &isOdd);
-    PetscDTSubsetIndex(N, N-k, Nk, &subset[k], &j);
-    starw[j] = isOdd ? -w[i] : w[i];
+    PetscDTEnumSplit(N, k, Nk, i, subset, &sOdd);
+    PetscDTSubsetIndex(N, k, Nk, subset, &idx, &iOdd);
+    if ((k > N - k) && iOdd) sOdd = !sOdd;
+    PetscDTSubsetIndex(N, N-k, Nk, &subset[k], &j, &jOdd);
+    if ((N - k > k) && jOdd) sOdd = !sOdd;
+    starw[j] = sOdd ? -w[idx] : w[idx];
   }
   PetscFunctionReturn(0);
 }
