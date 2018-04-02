@@ -3,10 +3,10 @@ static char help[] = "Tests exterior algebra.\n\n";
 #include <petscviewer.h>
 #include <petscdt.h>
 
-static PetscErrorCode CheckPullback(PetscDTAltV altv, PetscDTAltV altw, const PetscReal *L, PetscInt k,
+static PetscErrorCode CheckPullback(PetscInt N, PetscInt M, const PetscReal *L, PetscInt k,
                                     const PetscReal *w, PetscReal *x, PetscBool verbose, PetscViewer viewer)
 {
-  PetscInt        N, M, Nk, Mk, i, j, l;
+  PetscInt        Nk, Mk, i, j, l;
   PetscReal       *Lstarw, *Lx, *Lstar, *Lstarwcheck, wLx, Lstarwx;
   PetscReal       diff, diffMat, normMat;
   PetscReal       *walloc = NULL;
@@ -16,30 +16,28 @@ static PetscErrorCode CheckPullback(PetscDTAltV altv, PetscDTAltV altw, const Pe
 
   PetscFunctionBegin;
   k = PetscAbsInt(k);
-  ierr = PetscDTAltVGetN(altv, &N);CHKERRQ(ierr);
-  ierr = PetscDTAltVGetN(altw, &M);CHKERRQ(ierr);
   ierr = PetscDTBinomial(N, k, &Nk);CHKERRQ(ierr);
   ierr = PetscDTBinomial(M, k, &Mk);CHKERRQ(ierr);
   if (negative) {
     ierr = PetscMalloc1(Mk, &walloc);CHKERRQ(ierr);
-    ierr = PetscDTAltVStar(altw, M - k, 1, w, walloc);CHKERRQ(ierr);
+    ierr = PetscDTAltVStar(M, M - k, 1, w, walloc);CHKERRQ(ierr);
     ww = walloc;
   } else {
     ww = w;
   }
   ierr = PetscMalloc2(Nk, &Lstarw, (M*k), &Lx);CHKERRQ(ierr);
   ierr = PetscMalloc2(Nk * Mk, &Lstar, Nk, &Lstarwcheck);CHKERRQ(ierr);
-  ierr = PetscDTAltVPullback(altv, altw, L, negative ? -k : k, w, Lstarw);CHKERRQ(ierr);
-  ierr = PetscDTAltVPullbackMatrix(altv, altw, L, negative ? -k : k, Lstar);CHKERRQ(ierr);
+  ierr = PetscDTAltVPullback(N, M, L, negative ? -k : k, w, Lstarw);CHKERRQ(ierr);
+  ierr = PetscDTAltVPullbackMatrix(N, M, L, negative ? -k : k, Lstar);CHKERRQ(ierr);
   if (negative) {
     PetscReal *sLsw;
 
     ierr = PetscMalloc1(Nk, &sLsw);CHKERRQ(ierr);
-    ierr = PetscDTAltVStar(altv, N - k, 1, Lstarw, sLsw);CHKERRQ(ierr);
-    ierr = PetscDTAltVApply(altv, k, sLsw, x, &Lstarwx);CHKERRQ(ierr);
+    ierr = PetscDTAltVStar(N, N - k, 1, Lstarw, sLsw);CHKERRQ(ierr);
+    ierr = PetscDTAltVApply(N, k, sLsw, x, &Lstarwx);CHKERRQ(ierr);
     ierr = PetscFree(sLsw);CHKERRQ(ierr);
   } else {
-    ierr = PetscDTAltVApply(altv, k, Lstarw, x, &Lstarwx);CHKERRQ(ierr);
+    ierr = PetscDTAltVApply(N, k, Lstarw, x, &Lstarwx);CHKERRQ(ierr);
   }
   for (l = 0; l < k; l++) {
     for (i = 0; i < M; i++) {
@@ -78,7 +76,7 @@ static PetscErrorCode CheckPullback(PetscDTAltV altv, PetscDTAltV altw, const Pe
     if (Nk > 0) {ierr = PetscRealView(Nk, Lstarw, viewer);CHKERRQ(ierr);}
     ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
   }
-  ierr = PetscDTAltVApply(altw, k, ww, Lx, &wLx);CHKERRQ(ierr);
+  ierr = PetscDTAltVApply(M, k, ww, Lx, &wLx);CHKERRQ(ierr);
   diff = PetscAbsReal(wLx - Lstarwx);
   if (diff > PETSC_SMALL * (PetscAbsReal(wLx) + PetscAbsReal(Lstarwx))) SETERRQ2(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "pullback check: pullback does not commute with application: w(Lx)(%g) != (L* w)(x)(%g)", wLx, Lstarwx);
   if (diffMat > PETSC_SMALL * normMat) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "pullback check: pullback matrix does match matrix free result");
@@ -107,15 +105,11 @@ int main(int argc, char **argv)
   if (!numTests) numTests = 5;
   viewer = PETSC_VIEWER_STDOUT_(PETSC_COMM_WORLD);
   for (i = 0; i < numTests; i++) {
-    PetscDTAltV    altv;
-    PetscInt       k, N = n[i], m;
+    PetscInt       k, N = n[i];
 
     if (verbose) {ierr = PetscViewerASCIIPrintf(viewer, "N = %D:\n", N);CHKERRQ(ierr);}
     ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
 
-    ierr = PetscDTAltVCreate(N, &altv);CHKERRQ(ierr);
-    ierr = PetscDTAltVGetN(altv, &m);CHKERRQ(ierr);
-    if (m != N) SETERRQ2(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "AltV n set/get mismatch: %D != %D\n", N, m);
     if (verbose) {
       PetscInt *work, *perm;
       PetscInt fac = 1;
@@ -183,7 +177,7 @@ int main(int argc, char **argv)
       ierr = PetscMalloc1(N*k, &v);CHKERRQ(ierr);
       for (j = 0; j < N*k; j++) {ierr = PetscRandomGetValueReal(rand, &v[j]);CHKERRQ(ierr);}
 
-      ierr = PetscDTAltVApply(altv, k, w, v, &wv);CHKERRQ(ierr);
+      ierr = PetscDTAltVApply(N, k, w, v, &wv);CHKERRQ(ierr);
 
       if (verbose) {
         ierr = PetscViewerASCIIPrintf(viewer, "w:\n");CHKERRQ(ierr);
@@ -268,8 +262,8 @@ int main(int argc, char **argv)
           x[j * N + l] = val;
           axv[j * N + l] += alpha * val;
         }
-        ierr = PetscDTAltVApply(altv, k, w, x, &wx);CHKERRQ(ierr);
-        ierr = PetscDTAltVApply(altv, k, w, axv, &waxv);CHKERRQ(ierr);
+        ierr = PetscDTAltVApply(N, k, w, x, &wx);CHKERRQ(ierr);
+        ierr = PetscDTAltVApply(N, k, w, axv, &waxv);CHKERRQ(ierr);
         waxvcheck = alpha * wx + wv;
         diff = waxv - waxvcheck;
         if (PetscAbsReal(diff) > PETSC_SMALL * (PetscAbsReal(waxv) + PetscAbsReal(waxvcheck))) SETERRQ3(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "linearity check: component %D, waxvcheck (%g) != waxv (%g)", j, (double) waxvcheck, (double) waxv);
@@ -294,7 +288,7 @@ int main(int argc, char **argv)
           swapv[j * N + m] = v[l * N + m];
           swapv[l * N + m] = v[j * N + m];
         }
-        ierr = PetscDTAltVApply(altv, k, w, swapv, &wswapv);CHKERRQ(ierr);
+        ierr = PetscDTAltVApply(N, k, w, swapv, &wswapv);CHKERRQ(ierr);
         diff = PetscAbsReal(wswapv + wv);
         if (diff > PETSC_SMALL * (PetscAbsReal(wswapv) + PetscAbsReal(wv))) SETERRQ4(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "antisymmetry check: components %D & %D, wswapv (%g) != -wv (%g)", j, l, (double) wswapv, (double) wv);
         ierr = PetscFree(swapv);CHKERRQ(ierr);
@@ -312,8 +306,8 @@ int main(int argc, char **argv)
         ierr = PetscMalloc1(j+k,&split);CHKERRQ(ierr);
         for (l = 0; l < Nj; l++) {ierr = PetscRandomGetValueReal(rand, &u[l]);CHKERRQ(ierr);}
         for (l = 0; l < N*(j+k); l++) {ierr = PetscRandomGetValueReal(rand, &x[l]);CHKERRQ(ierr);}
-        ierr = PetscDTAltVWedge(altv, j, k, u, w, uWw);CHKERRQ(ierr);
-        ierr = PetscDTAltVApply(altv, j+k, uWw, x, &uWwx);CHKERRQ(ierr);
+        ierr = PetscDTAltVWedge(N, j, k, u, w, uWw);CHKERRQ(ierr);
+        ierr = PetscDTAltVApply(N, j+k, uWw, x, &uWwx);CHKERRQ(ierr);
         if (verbose) {
           ierr = PetscViewerASCIIPrintf(viewer, "u:\n");CHKERRQ(ierr);
           ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
@@ -339,15 +333,15 @@ int main(int argc, char **argv)
 
           ierr = PetscDTEnumSplit(j+k, j, l, split, &isOdd);CHKERRQ(ierr);
           for (m = 0; m < j+k; m++) {for (p = 0; p < N; p++) {xsplit[m * N + p] = x[split[m] * N + p];}}
-          ierr = PetscDTAltVApply(altv, j, u, xsplit, &ux);CHKERRQ(ierr);
-          ierr = PetscDTAltVApply(altv, k, w, &xsplit[j*N], &wx);CHKERRQ(ierr);
+          ierr = PetscDTAltVApply(N, j, u, xsplit, &ux);CHKERRQ(ierr);
+          ierr = PetscDTAltVApply(N, k, w, &xsplit[j*N], &wx);CHKERRQ(ierr);
           uWwxcheck += isOdd ? -(ux * wx) : (ux * wx);
         }
         diff = PetscAbsReal(uWwx - uWwxcheck);
         if (diff > PETSC_SMALL * (PetscAbsReal(uWwx) + PetscAbsReal(uWwxcheck))) SETERRQ4(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "wedge check: forms %D & %D, uWwxcheck (%g) != uWwx (%g)", j, k, (double) uWwxcheck, (double) uWwx);
         ierr = PetscFree(split);CHKERRQ(ierr);
         ierr = PetscMalloc2(Nk * Njk, &uWwmat, Njk, &uWwcheck);CHKERRQ(ierr);
-        ierr = PetscDTAltVWedgeMatrix(altv, j, k, u, uWwmat);CHKERRQ(ierr);
+        ierr = PetscDTAltVWedgeMatrix(N, j, k, u, uWwmat);CHKERRQ(ierr);
         if (verbose) {
           ierr = PetscViewerASCIIPrintf(viewer, "(u wedge):\n");CHKERRQ(ierr);
           ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
@@ -373,11 +367,9 @@ int main(int argc, char **argv)
         ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
       }
       for (M = PetscMax(1,k); M <= N; M++) { /* pullback */
-        PetscDTAltV  altu;
         PetscReal   *L, *u, *x;
         PetscInt     Mk, l;
 
-        ierr = PetscDTAltVCreate(M, &altu);CHKERRQ(ierr);
         ierr = PetscDTBinomial(M, k, &Mk);CHKERRQ(ierr);
         ierr = PetscMalloc3(M*N, &L, Mk, &u, M*k, &x);CHKERRQ(ierr);
         for (l = 0; l < M*N; l++) {ierr = PetscRandomGetValueReal(rand, &L[l]);CHKERRQ(ierr);}
@@ -385,18 +377,17 @@ int main(int argc, char **argv)
         for (l = 0; l < M*k; l++) {ierr = PetscRandomGetValueReal(rand, &x[l]);CHKERRQ(ierr);}
         if (verbose) {ierr = PetscViewerASCIIPrintf(viewer, "pullback M = %D:\n", M);CHKERRQ(ierr);}
         ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
-        ierr = CheckPullback(altu, altv, L, k, w, x, verbose, viewer);CHKERRQ(ierr);
-        if (M != N) {ierr = CheckPullback(altv, altu, L, k, u, v, PETSC_FALSE, viewer);CHKERRQ(ierr);}
+        ierr = CheckPullback(M, N, L, k, w, x, verbose, viewer);CHKERRQ(ierr);
+        if (M != N) {ierr = CheckPullback(N, M, L, k, u, v, PETSC_FALSE, viewer);CHKERRQ(ierr);}
         ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
         if ((k % N) && (N > 1)) {
           if (verbose) {ierr = PetscViewerASCIIPrintf(viewer, "negative pullback M = %D:\n", M);CHKERRQ(ierr);}
           ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
-          ierr = CheckPullback(altu, altv, L, -k, w, x, verbose, viewer);CHKERRQ(ierr);
-          if (M != N) {ierr = CheckPullback(altv, altu, L, -k, u, v, PETSC_FALSE, viewer);CHKERRQ(ierr);}
+          ierr = CheckPullback(M, N, L, -k, w, x, verbose, viewer);CHKERRQ(ierr);
+          if (M != N) {ierr = CheckPullback(N, M, L, -k, u, v, PETSC_FALSE, viewer);CHKERRQ(ierr);}
           ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
         }
         ierr = PetscFree3(L, u, x);CHKERRQ(ierr);
-        ierr = PetscDTAltVDestroy(&altu);CHKERRQ(ierr);
       }
       if (k > 0) { /* Interior */
         PetscInt  Nkm, l, m;
@@ -405,8 +396,8 @@ int main(int argc, char **argv)
 
         ierr = PetscDTBinomial(N, k-1, &Nkm);CHKERRQ(ierr);
         ierr = PetscMalloc3(Nkm, &wIntv0, Nkm, &wIntv0check, Nk * Nkm, &intv0mat);CHKERRQ(ierr);
-        ierr = PetscDTAltVInterior(altv, k, w, v, wIntv0);CHKERRQ(ierr);
-        ierr = PetscDTAltVInteriorMatrix(altv, k, v, intv0mat);CHKERRQ(ierr);
+        ierr = PetscDTAltVInterior(N, k, w, v, wIntv0);CHKERRQ(ierr);
+        ierr = PetscDTAltVInteriorMatrix(N, k, v, intv0mat);CHKERRQ(ierr);
         diffMat = 0.;
         normMat = 0.;
         for (l = 0; l < Nkm; l++) {
@@ -431,7 +422,7 @@ int main(int argc, char **argv)
           if (Nk * Nkm > 0) {ierr = PetscRealView(Nk * Nkm, intv0mat, viewer);CHKERRQ(ierr);}
           ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
         }
-        ierr = PetscDTAltVApply(altv, k - 1, wIntv0, &v[N], &wvcheck);CHKERRQ(ierr);
+        ierr = PetscDTAltVApply(N, k - 1, wIntv0, &v[N], &wvcheck);CHKERRQ(ierr);
         diff = PetscSqrtReal(PetscSqr(wvcheck - wv));CHKERRQ(ierr);
         if (diff >= PETSC_SMALL * (PetscAbsReal(wv) + PetscAbsReal(wvcheck))) SETERRQ2(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "Interior product check: (w Int v0)(v_rem) (%g) != w(v) (%g)", (double) wvcheck, (double) wv);
         ierr = PetscFree3(wIntv0,wIntv0check,intv0mat);CHKERRQ(ierr);
@@ -444,8 +435,8 @@ int main(int argc, char **argv)
 
         isOdd = ((k * (N - k)) & 1);
         ierr = PetscMalloc3(Nk, &u, Nk, &starw, Nk, &starstarw);CHKERRQ(ierr);
-        ierr = PetscDTAltVStar(altv, k, 1, w, starw);CHKERRQ(ierr);
-        ierr = PetscDTAltVStar(altv, N-k, 1, starw, starstarw);CHKERRQ(ierr);
+        ierr = PetscDTAltVStar(N, k, 1, w, starw);CHKERRQ(ierr);
+        ierr = PetscDTAltVStar(N, N-k, 1, starw, starstarw);CHKERRQ(ierr);
         if (verbose) {
           ierr = PetscViewerASCIIPrintf(viewer, "star w:\n");CHKERRQ(ierr);
           ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
@@ -458,7 +449,7 @@ int main(int argc, char **argv)
           ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
         }
         for (l = 0; l < Nk; l++) {ierr = PetscRandomGetValueReal(rand,&u[l]);CHKERRQ(ierr);}
-        ierr = PetscDTAltVWedge(altv, k, N - k, w, u, &wu);CHKERRQ(ierr);
+        ierr = PetscDTAltVWedge(N, k, N - k, w, u, &wu);CHKERRQ(ierr);
         starwdotu = 0.;
         for (l = 0; l < Nk; l++) starwdotu += starw[l] * u[l];
         diff = PetscAbsReal(wu - starwdotu);
@@ -479,7 +470,6 @@ int main(int argc, char **argv)
       ierr = PetscFree(w);CHKERRQ(ierr);
       ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
     }
-    ierr = PetscDTAltVDestroy(&altv);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
   }
   ierr = PetscRandomDestroy(&rand);CHKERRQ(ierr);
