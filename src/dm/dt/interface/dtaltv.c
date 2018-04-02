@@ -1,5 +1,6 @@
 #include <petscdt.h>
 #include <petsc/private/petscimpl.h>
+#include <petsc/private/dtimpl.h>
 
 struct _n_PetscDTAltV {
   PetscInt   N;
@@ -73,14 +74,14 @@ PetscErrorCode PetscDTAltVApply(PetscDTAltV alt, PetscInt k, const PetscReal *w,
   PetscValidPointer(alt, 1);
   if (k < 0 || k > N) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "invalid form degree");
   {
-    PetscInt Nk = alt->Nk[k]; /* number of subsets of size k */
-    PetscInt *subset = alt->subset;
-    PetscInt Nf = alt->fac[k];
+    PetscInt Nk, Nf;
+    PetscInt *subset, *work, *perm;
     PetscInt i, j, l;
-    PetscInt *work = alt->work;
-    PetscInt *perm = alt->perm;
     PetscReal sum = 0.;
 
+    ierr = PetscDTFactorialInt_Internal(k, &Nf);CHKERRQ(ierr);
+    ierr = PetscDTBinomial(N, k, &Nk);CHKERRQ(ierr);
+    ierr = PetscMalloc3(k, &subset, k, &work, k, &perm);CHKERRQ(ierr);
     for (i = 0; i < Nk; i++) {
       PetscReal subsum = 0.;
 
@@ -98,6 +99,7 @@ PetscErrorCode PetscDTAltVApply(PetscDTAltV alt, PetscInt k, const PetscReal *w,
       }
       sum += w[i] * subsum;
     }
+    ierr = PetscFree3(subset, work, perm);CHKERRQ(ierr);
     *wv = sum;
   }
   PetscFunctionReturn(0);
@@ -114,15 +116,14 @@ PetscErrorCode PetscDTAltVWedge(PetscDTAltV alt, PetscInt j, PetscInt k, const P
   if (j < 0 || k < 0) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "negative form degree");
   if (j + k > N) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Wedge greater than dimension");
   {
-    PetscInt  Njk = alt->Nk[j+k];
+    PetscInt  Njk;
     PetscInt  JKj;
-    PetscInt *subset   = alt->subset;
-    PetscInt *subsetjk = alt->work;
-    PetscInt *subsetj  = alt->perm;
-    PetscInt *subsetk  = &alt->perm[j];
+    PetscInt *subset, *subsetjk, *subsetj, *subsetk;
     PetscInt  i;
 
-    ierr = PetscDTBinomial(j+k,j,&JKj);CHKERRQ(ierr);
+    ierr = PetscDTBinomial(N, j+k, &Njk);CHKERRQ(ierr);
+    ierr = PetscDTBinomial(j+k, j, &JKj);CHKERRQ(ierr);
+    ierr = PetscMalloc4(j+k, &subset, j+k, &subsetjk, j, &subsetj, k, &subsetk);CHKERRQ(ierr);
     for (i = 0; i < Njk; i++) {
       PetscReal sum = 0.;
       PetscInt  l;
@@ -145,6 +146,7 @@ PetscErrorCode PetscDTAltVWedge(PetscDTAltV alt, PetscInt j, PetscInt k, const P
       }
       awedgeb[i] = sum;
     }
+    ierr = PetscFree4(subset, subsetjk, subsetj, subsetk);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -160,15 +162,15 @@ PetscErrorCode PetscDTAltVWedgeMatrix(PetscDTAltV alt, PetscInt j, PetscInt k, c
   if (j < 0 || k < 0) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "negative form degree");
   if (j + k > N) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Wedge greater than dimension");
   {
-    PetscInt  Njk = alt->Nk[j+k];
-    PetscInt  Nk = alt->Nk[k];
+    PetscInt  Njk;
+    PetscInt  Nk;
     PetscInt  JKj, i;
-    PetscInt *subset   = alt->subset;
-    PetscInt *subsetjk = alt->work;
-    PetscInt *subsetj  = alt->perm;
-    PetscInt *subsetk  = &alt->perm[j];
+    PetscInt *subset, *subsetjk, *subsetj, *subsetk;
 
-    ierr = PetscDTBinomial(j+k,j,&JKj);CHKERRQ(ierr);
+    ierr = PetscDTBinomial(N,   k,   &Nk);CHKERRQ(ierr);
+    ierr = PetscDTBinomial(N,   j+k, &Njk);CHKERRQ(ierr);
+    ierr = PetscDTBinomial(j+k, j,   &JKj);CHKERRQ(ierr);
+    ierr = PetscMalloc4(j+k, &subset, j+k, &subsetjk, j, &subsetj, k, &subsetk);CHKERRQ(ierr);
     for (i = 0; i < Njk * Nk; i++) awedgeMat[i] = 0.;
     for (i = 0; i < Njk; i++) {
       PetscInt  l;
@@ -190,6 +192,7 @@ PetscErrorCode PetscDTAltVWedgeMatrix(PetscDTAltV alt, PetscInt j, PetscInt k, c
         awedgeMat[i * Nk + kInd] += jkOdd ? - a[jInd] : a[jInd];
       }
     }
+    ierr = PetscFree4(subset, subsetjk, subsetj, subsetk);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -211,24 +214,20 @@ PetscErrorCode PetscDTAltVPullback(PetscDTAltV altv, PetscDTAltV altw, const Pet
   PetscValidPointer(altw, 2);
   N = altv->N;
   M = altw->N;
+  ierr = PetscDTBinomial(M, PetscAbsInt(k), &Mk);CHKERRQ(ierr);
+  ierr = PetscDTBinomial(N, PetscAbsInt(k), &Nk);CHKERRQ(ierr);
+  ierr = PetscDTFactorialInt_Internal(PetscAbsInt(k), &Nf);CHKERRQ(ierr);
   if (k < 0) {
     negative = PETSC_TRUE;
     k = -k;
-    ierr = PetscMalloc1(altw->Nk[k], &walloc);CHKERRQ(ierr);
+    ierr = PetscMalloc1(Mk, &walloc);CHKERRQ(ierr);
     ierr = PetscDTAltVStar(altw, M - k, 1, w, walloc);CHKERRQ(ierr);
     ww = walloc;
   } else {
     ww = w;
   }
   if (k > N || k > M) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "invalid form degree");
-  Mk = altw->Nk[k];
-  Nk = altv->Nk[k];
-  Nf = altv->fac[k];
-  subsetw = altw->subset;
-  subsetv = altv->subset;
-  work = altv->work;
-  perm = altv->perm;
-  ierr = PetscMalloc2(N * k, &Lw, k * k, &Lwv);CHKERRQ(ierr);
+  ierr = PetscMalloc6(k, &subsetw, k, &subsetv, k, &work, k, &perm, N * k, &Lw, k * k, &Lwv);CHKERRQ(ierr);
   for (i = 0; i < Nk; i++) Lstarw[i] = 0.;
   for (i = 0; i < Mk; i++) {
     ierr = PetscDTEnumSubset(M, k, i, subsetw);CHKERRQ(ierr);
@@ -255,7 +254,7 @@ PetscErrorCode PetscDTAltVPullback(PetscDTAltV altv, PetscDTAltV altw, const Pet
     for (i = 0; i < Nk; i++) Lstarw[i] = sLsw[i];
     ierr = PetscFree(sLsw);CHKERRQ(ierr);
   }
-  ierr = PetscFree2(Lw, Lwv);CHKERRQ(ierr);
+  ierr = PetscFree6(subsetw, subsetv, work, perm, Lw, Lwv);CHKERRQ(ierr);
   ierr = PetscFree(walloc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -279,14 +278,10 @@ PetscErrorCode PetscDTAltVPullbackMatrix(PetscDTAltV altv, PetscDTAltV altw, con
   N = altv->N;
   M = altw->N;
   if (k > N || k > M) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "invalid form degree");
-  Mk = altw->Nk[k];
-  Nk = altv->Nk[k];
-  Nf = altv->fac[k];
-  subsetw = altw->subset;
-  subsetv = altv->subset;
-  work = altv->work;
-  perm = altv->perm;
-  ierr = PetscMalloc2(N * k, &Lw, k * k, &Lwv);CHKERRQ(ierr);
+  ierr = PetscDTBinomial(M, PetscAbsInt(k), &Mk);CHKERRQ(ierr);
+  ierr = PetscDTBinomial(N, PetscAbsInt(k), &Nk);CHKERRQ(ierr);
+  ierr = PetscDTFactorialInt_Internal(PetscAbsInt(k), &Nf);CHKERRQ(ierr);
+  ierr = PetscMalloc6(M, &subsetw, N, &subsetv, k, &work, k, &perm, N * k, &Lw, k * k, &Lwv);CHKERRQ(ierr);
   for (i = 0; i < Nk * Mk; i++) Lstar[i] = 0.;
   for (i = 0; i < Mk; i++) {
     PetscBool iOdd;
@@ -315,7 +310,7 @@ PetscErrorCode PetscDTAltVPullbackMatrix(PetscDTAltV altv, PetscDTAltV altw, con
       }
     }
   }
-  ierr = PetscFree2(Lw, Lwv);CHKERRQ(ierr);
+  ierr = PetscFree6(subsetw, subsetv, work, perm, Lw, Lwv);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -329,10 +324,9 @@ PetscErrorCode PetscDTAltVInterior(PetscDTAltV altv, PetscInt k, const PetscReal
   PetscValidPointer(altv, 1);
   N = altv->N;
   if (k <= 0 || k > N) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "invalid form degree");
-  Nk = altv->Nk[k];
-  Nkm = altv->Nk[k-1];
-  subset = altv->subset;
-  work = altv->work;
+  ierr = PetscDTBinomial(N, k,   &Nk);CHKERRQ(ierr);
+  ierr = PetscDTBinomial(N, k-1, &Nkm);CHKERRQ(ierr);
+  ierr = PetscMalloc2(k, &subset, k, &work);CHKERRQ(ierr);
   for (i = 0; i < Nkm; i++) wIntv[i] = 0.;
   for (i = 0; i < Nk; i++) {
     PetscInt  j, l, m;
@@ -349,6 +343,7 @@ PetscErrorCode PetscDTAltVInterior(PetscDTAltV altv, PetscInt k, const PetscReal
       wIntv[idx] += flip ? -(w[i] * v[subset[j]]) :  (w[i] * v[subset[j]]);
     }
   }
+  ierr = PetscFree2(subset, work);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -362,10 +357,9 @@ PetscErrorCode PetscDTAltVInteriorMatrix(PetscDTAltV altv, PetscInt k, const Pet
   PetscValidPointer(altv, 1);
   N = altv->N;
   if (k <= 0 || k > N) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "invalid form degree");
-  Nk = altv->Nk[k];
-  Nkm = altv->Nk[k-1];
-  subset = altv->subset;
-  work = altv->work;
+  ierr = PetscDTBinomial(N, k,   &Nk);CHKERRQ(ierr);
+  ierr = PetscDTBinomial(N, k-1, &Nkm);CHKERRQ(ierr);
+  ierr = PetscMalloc2(k, &subset, k, &work);CHKERRQ(ierr);
   for (i = 0; i < Nk * Nkm; i++) intvMat[i] = 0.;
   for (i = 0; i < Nk; i++) {
     PetscInt  j, l, m;
@@ -382,6 +376,7 @@ PetscErrorCode PetscDTAltVInteriorMatrix(PetscDTAltV altv, PetscInt k, const Pet
       intvMat[idx * Nk + i] += flip ? -v[subset[j]] :  v[subset[j]];
     }
   }
+  ierr = PetscFree2(subset, work);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -394,9 +389,9 @@ PetscErrorCode PetscDTAltVStar(PetscDTAltV altv, PetscInt k, PetscInt pow, const
   PetscFunctionBegin;
   PetscValidPointer(altv, 1);
   N = altv->N;
-  subset = altv->subset;
   if (k < 0 || k > N) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "invalid form degree");
-  Nk = altv->Nk[k];
+  ierr = PetscDTBinomial(N, k, &Nk);CHKERRQ(ierr);
+  ierr = PetscMalloc1(N, &subset);CHKERRQ(ierr);
   pow = pow % 4;
   pow = (pow + 4) % 4; /* make non-negative */
   /* pow is now 0, 1, 2, 3 */
@@ -418,5 +413,6 @@ PetscErrorCode PetscDTAltVStar(PetscDTAltV altv, PetscInt k, PetscInt pow, const
   if (pow > 1 && (k * (N - k)) % 2) {
     for (i = 0; i < Nk; i++) starw[i] = -starw[i];
   }
+  ierr = PetscFree(subset);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

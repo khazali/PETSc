@@ -18,8 +18,8 @@ static PetscErrorCode CheckPullback(PetscDTAltV altv, PetscDTAltV altw, const Pe
   k = PetscAbsInt(k);
   ierr = PetscDTAltVGetN(altv, &N);CHKERRQ(ierr);
   ierr = PetscDTAltVGetN(altw, &M);CHKERRQ(ierr);
-  ierr = PetscDTAltVGetSize(altv, k, &Nk);CHKERRQ(ierr);
-  ierr = PetscDTAltVGetSize(altw, k, &Mk);CHKERRQ(ierr);
+  ierr = PetscDTBinomial(N, k, &Nk);CHKERRQ(ierr);
+  ierr = PetscDTBinomial(M, k, &Mk);CHKERRQ(ierr);
   if (negative) {
     ierr = PetscMalloc1(Mk, &walloc);CHKERRQ(ierr);
     ierr = PetscDTAltVStar(altw, M - k, 1, w, walloc);CHKERRQ(ierr);
@@ -144,7 +144,7 @@ int main(int argc, char **argv)
       PetscReal *w, *v, wv;
       PetscInt  *subset;
 
-      ierr = PetscDTAltVGetSize(altv, k, &Nk);CHKERRQ(ierr);
+      ierr = PetscDTBinomial(N, k, &Nk);CHKERRQ(ierr);
       if (verbose) {ierr = PetscViewerASCIIPrintf(viewer, "k = %D:\n", k);CHKERRQ(ierr);}
       ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
       if (verbose) {ierr = PetscViewerASCIIPrintf(viewer, "(%D choose %D): %D\n", N, k, Nk);CHKERRQ(ierr);}
@@ -306,8 +306,8 @@ int main(int argc, char **argv)
 
         if (verbose) {ierr = PetscViewerASCIIPrintf(viewer, "wedge j = %D:\n", j);CHKERRQ(ierr);}
         ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
-        ierr = PetscDTAltVGetSize(altv, j,   &Nj);CHKERRQ(ierr);
-        ierr = PetscDTAltVGetSize(altv, j+k, &Njk);CHKERRQ(ierr);
+        ierr = PetscDTBinomial(N, j,   &Nj);CHKERRQ(ierr);
+        ierr = PetscDTBinomial(N, j+k, &Njk);CHKERRQ(ierr);
         ierr = PetscMalloc4(Nj, &u, Njk, &uWw, N*(j+k), &x, N*(j+k), &xsplit);CHKERRQ(ierr);
         ierr = PetscMalloc1(j+k,&split);CHKERRQ(ierr);
         for (l = 0; l < Nj; l++) {ierr = PetscRandomGetValueReal(rand, &u[l]);CHKERRQ(ierr);}
@@ -378,7 +378,7 @@ int main(int argc, char **argv)
         PetscInt     Mk, l;
 
         ierr = PetscDTAltVCreate(M, &altu);CHKERRQ(ierr);
-        ierr = PetscDTAltVGetSize(altu, k, &Mk);CHKERRQ(ierr);
+        ierr = PetscDTBinomial(M, k, &Mk);CHKERRQ(ierr);
         ierr = PetscMalloc3(M*N, &L, Mk, &u, M*k, &x);CHKERRQ(ierr);
         for (l = 0; l < M*N; l++) {ierr = PetscRandomGetValueReal(rand, &L[l]);CHKERRQ(ierr);}
         for (l = 0; l < Mk; l++) {ierr = PetscRandomGetValueReal(rand, &u[l]);CHKERRQ(ierr);}
@@ -403,7 +403,7 @@ int main(int argc, char **argv)
         PetscReal *wIntv0, *wIntv0check, wvcheck, diff, diffMat, normMat;
         PetscReal *intv0mat;
 
-        ierr = PetscDTAltVGetSize(altv, k-1, &Nkm);CHKERRQ(ierr);
+        ierr = PetscDTBinomial(N, k-1, &Nkm);CHKERRQ(ierr);
         ierr = PetscMalloc3(Nkm, &wIntv0, Nkm, &wIntv0check, Nk * Nkm, &intv0mat);CHKERRQ(ierr);
         ierr = PetscDTAltVInterior(altv, k, w, v, wIntv0);CHKERRQ(ierr);
         ierr = PetscDTAltVInteriorMatrix(altv, k, v, intv0mat);CHKERRQ(ierr);
