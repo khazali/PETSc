@@ -11,13 +11,13 @@ static PetscErrorCode TaoSolve_BLMVM(Tao tao)
   TaoLineSearchConvergedReason ls_status = TAOLINESEARCH_CONTINUE_ITERATING;
   PetscReal                    f, fold, gdx, gnorm;
   PetscReal                    stepsize = 1.0,delta;
+  PetscBool                    recycle;
 
   PetscFunctionBegin;
   /*  Project initial point onto bounds */
   ierr = TaoComputeVariableBounds(tao);CHKERRQ(ierr);
   ierr = VecMedian(tao->XL,tao->solution,tao->XU,tao->solution);CHKERRQ(ierr);
   ierr = TaoLineSearchSetVariableBounds(tao->linesearch,tao->XL,tao->XU);CHKERRQ(ierr);
-
 
   /* Check convergence criteria */
   ierr = TaoComputeObjectiveAndGradient(tao, tao->solution,&f,blmP->unprojected_gradient);CHKERRQ(ierr);
@@ -41,9 +41,13 @@ static PetscErrorCode TaoSolve_BLMVM(Tao tao)
   ierr = MatLMVMSetDelta(blmP->M,delta);CHKERRQ(ierr);
   ierr = MatLMVMReset(blmP->M);CHKERRQ(ierr);
 
-  /* Set counter for gradient/reset steps */
-  blmP->grad = 0;
-  blmP->reset = 0;
+  /*  Set counter for gradient/reset steps */
+  ierr = MatLMVMGetRecycleFlag(blmP->M, &recycle);CHKERRQ(ierr);
+  if (!recycle) {
+    blmP->grad = 0;
+    blmP->reset = 0;
+    ierr = MatLMVMReset(blmP->M); CHKERRQ(ierr);
+  }
 
   /* Have not converged; continue with Newton method */
   while (tao->reason == TAO_CONTINUE_ITERATING) {
@@ -58,6 +62,7 @@ static PetscErrorCode TaoSolve_BLMVM(Tao tao)
       /* Step is not descent or solve was not successful
          Use steepest descent direction (scaled) */
       ++blmP->grad;
+      ++blmP->reset;
 
       if (f != 0.0) {
         delta = 2.0*PetscAbsScalar(f) / (gnorm*gnorm);
@@ -114,7 +119,6 @@ static PetscErrorCode TaoSolve_BLMVM(Tao tao)
     /* Check for converged */
     ierr = VecBoundGradientProjection(blmP->unprojected_gradient, tao->solution, tao->XL, tao->XU, tao->gradient);CHKERRQ(ierr);
     ierr = TaoGradientNorm(tao, tao->gradient, NORM_2, &gnorm);CHKERRQ(ierr);
-
 
     if (PetscIsInfOrNanReal(f) || PetscIsInfOrNanReal(gnorm)) SETERRQ(PETSC_COMM_SELF,1, "User provided compute function generated Not-a-Number");
     tao->niter++;

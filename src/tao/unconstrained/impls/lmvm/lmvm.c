@@ -222,14 +222,7 @@ static PetscErrorCode TaoDestroy_LMVM(Tao tao)
   PetscErrorCode ierr;
   PetscBool      recycle;
 
-  PetscFunctionBegin;
-  if (lmP->M) {
-    ierr = MatLMVMGetRecycleFlag(lmP->M, &recycle); CHKERRQ(ierr);
-    if (recycle) {
-      ierr = PetscInfo(tao, "WARNING: TaoDestroy() called when LMVM recycling is enabled!\n"); CHKERRQ(ierr);
-    }
-  }
-  
+  PetscFunctionBegin;  
   if (tao->setupcalled) {
     ierr = VecDestroy(&lmP->Xold);CHKERRQ(ierr);
     ierr = VecDestroy(&lmP->Gold);CHKERRQ(ierr);
