@@ -108,7 +108,7 @@ int main(int argc, char **argv)
         PetscBool isOdd;
         PetscInt  j;
 
-        PetscDTEnumPerm(N, k, work, perm, &isOdd);CHKERRQ(ierr);
+        ierr = PetscDTEnumPerm(N, k, work, perm, &isOdd);CHKERRQ(ierr);
         ierr = PetscViewerASCIIPrintf(viewer, "%D:", k);CHKERRQ(ierr);
         for (j = 0; j < N; j++) {
           ierr = PetscPrintf(PETSC_COMM_WORLD, " %D", perm[j]);CHKERRQ(ierr);
@@ -134,7 +134,8 @@ int main(int argc, char **argv)
       for (j = 0; j < Nk; j++) {
         PetscBool isOdd;
         PetscInt  jCheck;
-        PetscDTEnumSplit(N, k, Nk, j, subset, &isOdd);
+
+        ierr = PetscDTEnumSplit(N, k, j, subset, &isOdd);CHKERRQ(ierr);
         if (verbose) {
           PetscInt l;
 
@@ -148,7 +149,7 @@ int main(int argc, char **argv)
           }
           ierr = PetscPrintf(PETSC_COMM_WORLD, ", %s\n", isOdd ? "odd" : "even");CHKERRQ(ierr);
         }
-        PetscDTSubsetIndex(N, k, Nk, subset, &jCheck, NULL);
+        ierr = PetscDTSubsetIndex(N, k, subset, &jCheck);CHKERRQ(ierr);
         if (jCheck != j) SETERRQ2(PETSC_COMM_WORLD, PETSC_ERR_PLIB, "jCheck (%D) != j (%D)", jCheck, j);
       }
       ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
@@ -315,7 +316,7 @@ int main(int argc, char **argv)
           PetscReal ux, wx;
           PetscInt  m, p;
 
-          PetscDTEnumSplit(j+k, j, JKj, l, split, &isOdd);
+          ierr = PetscDTEnumSplit(j+k, j, l, split, &isOdd);CHKERRQ(ierr);
           for (m = 0; m < j+k; m++) {for (p = 0; p < N; p++) {xsplit[m * N + p] = x[split[m] * N + p];}}
           ierr = PetscDTAltVApply(altv, j, u, xsplit, &ux);CHKERRQ(ierr);
           ierr = PetscDTAltVApply(altv, k, w, &xsplit[j*N], &wx);CHKERRQ(ierr);
