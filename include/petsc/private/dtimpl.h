@@ -26,12 +26,18 @@ PETSC_STATIC_INLINE PetscErrorCode PetscDTFactorial_Internal(PetscInt n, PetscRe
 
 PETSC_STATIC_INLINE PetscErrorCode PetscDTFactorialInt_Internal(PetscInt n, PetscInt *factorial)
 {
-  PetscInt f = 1;
-  PetscInt i;
+  PetscFunctionBeginHot;
+  if (n <= 3) {
+    PetscInt facLookup[4] = {1, 1, 2, 6};
 
-  PetscFunctionBegin;
-  for (i = 1; i < n+1; ++i) f *= i;
-  *factorial = f;
+    *factorial = facLookup[n];
+  } else {
+    PetscInt f = 1;
+    PetscInt i;
+
+    for (i = 1; i < n+1; ++i) f *= i;
+    *factorial = f;
+  }
   PetscFunctionReturn(0);
 }
 
