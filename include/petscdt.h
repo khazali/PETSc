@@ -56,7 +56,7 @@ PETSC_EXTERN PetscErrorCode PetscDTAltVPullback(PetscDTAltV, PetscDTAltV, const 
 PETSC_EXTERN PetscErrorCode PetscDTAltVPullbackMatrix(PetscDTAltV, PetscDTAltV, const PetscReal *, PetscInt, PetscReal *);
 PETSC_EXTERN PetscErrorCode PetscDTAltVInterior(PetscDTAltV, PetscInt, const PetscReal *, const PetscReal *, PetscReal *);
 PETSC_EXTERN PetscErrorCode PetscDTAltVInteriorMatrix(PetscDTAltV, PetscInt, const PetscReal *, PetscReal *);
-PETSC_EXTERN PetscErrorCode PetscDTAltVStar(PetscDTAltV, PetscInt, const PetscReal *, PetscReal *);
+PETSC_EXTERN PetscErrorCode PetscDTAltVStar(PetscDTAltV, PetscInt, PetscInt, const PetscReal *, PetscReal *);
 
 PETSC_STATIC_INLINE PetscErrorCode PetscDTBinomial(PetscInt n, PetscInt k, PetscInt *binomial)
 {
