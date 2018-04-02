@@ -11,10 +11,12 @@ if test -d "${rundir}" && test -n "${rundir}"; then
   rm -f ${rundir}/*.tmp ${rundir}/*.err ${rundir}/*.out
 fi
 mkdir -p ${rundir}
-if test -d "${runfiles}"; then
-  cp -r ${runfiles} ${rundir}
-elif test -n "${runfiles}"; then
-  cp ${runfiles} ${rundir}
+if test -n "${runfiles}"; then
+  for runfile in ${runfiles}; do
+      subdir=`dirname ${runfile}`
+      mkdir -p ${rundir}/${subdir}
+      cp -r ${runfile} ${rundir}/${subdir}
+  done
 fi
 cd ${rundir}
 
@@ -118,33 +120,23 @@ function petsc_testrun() {
       cmd="$1 2>&1 | cat > $2"
     fi
   fi
+  # disable job_control on cygwin
+  if [[ `uname` =~ ^CYGWIN ]] ; then
+      job_control=false
+  fi
   echo "$cmd" > ${tlabel}.sh; chmod 755 ${tlabel}.sh
 
   if $job_control; then
     # The action:
-    eval "($cmd) &"
-    pid=$!
-    # Put a watcher process in that will kill a job that exceeds limit
-    $config_dir/watchtime.sh $pid $TIMEOUT &
-    watcher=$!
-
-    # See if the job we want finishes
-    wait $pid 2> /dev/null
+    ( ulimit -St $TIMEOUT && eval "$cmd" )
     cmd_res=$?
-    if ps -p $watcher > /dev/null; then
-      # Keep processes tidy by killing watcher
-      pkill -13 -P $watcher
-      wait $watcher 2>/dev/null  # Wait used here to capture the kill message
-    else
-      # Timeout
-      cmd_res=1
-      echo "Exceeded timeout limit of $TIMEOUT s" > $3
-    fi
+    # SIGXCPU=24, but some systems give our shell 128+24=152
+    test $cmd_res -eq 24 -o $cmd_res -eq 152 && echo "Exceeded timeout limit of $TIMEOUT s" >> $3
   else
     # The action -- assume no timeout needed
     eval "$cmd"
     # We are testing error codes so just make it pass
-    cmd_res=0
+    cmd_res=$?
   fi
 
   # Handle filters separately and assume no timeout check needed

@@ -71,8 +71,8 @@ PetscErrorCode  PetscOptionsCheckInitial_Components(void)
 #if defined(PETSC_USE_LOG)
     MPI_Comm comm = PETSC_COMM_WORLD;
     ierr = (*PetscHelpPrintf)(comm,"------Additional PETSc component options--------\n");CHKERRQ(ierr);
-    ierr = (*PetscHelpPrintf)(comm," -log_exclude: <vec,mat,pc.ksp,snes>\n");CHKERRQ(ierr);
-    ierr = (*PetscHelpPrintf)(comm," -info_exclude: <null,vec,mat,pc,ksp,snes,ts>\n");CHKERRQ(ierr);
+    ierr = (*PetscHelpPrintf)(comm," -log_exclude: <vec,mat,pc,ksp,snes,tao,ts>\n");CHKERRQ(ierr);
+    ierr = (*PetscHelpPrintf)(comm," -info_exclude: <null,vec,mat,pc,ksp,snes,tao,ts>\n");CHKERRQ(ierr);
     ierr = (*PetscHelpPrintf)(comm,"-----------------------------------------------\n");CHKERRQ(ierr);
 #endif
   }
@@ -780,7 +780,7 @@ PetscErrorCode  PetscInitialize(int *argc,char ***args,const char file[],const c
       flg = PETSC_FALSE;
       ierr = PetscStrstr(mpilibraryversion,"Open MPI",&ver);if (ierr) return ierr;
       if (ver) {
-        sprintf(bs,"v%d.%d",OMPI_MAJOR_VERSION,OMPI_MINOR_VERSION);
+        PetscSNPrintf(bs,32,"v%d.%d",OMPI_MAJOR_VERSION,OMPI_MINOR_VERSION);
         ierr = PetscStrstr(ver,bs,&bsf);if (ierr) return ierr;
         if (bsf) flg = PETSC_TRUE;
       }
@@ -1388,7 +1388,7 @@ PetscErrorCode  PetscFinalize(void)
     if (flg1 && fname[0]) {
       char sname[PETSC_MAX_PATH_LEN];
 
-      sprintf(sname,"%s_%d",fname,rank);
+      PetscSNPrintf(sname,PETSC_MAX_PATH_LEN,"%s_%d",fname,rank);
       fd   = fopen(sname,"w"); if (!fd) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_FILE_OPEN,"Cannot open log file: %s",sname);
       ierr = PetscMallocDump(fd);CHKERRQ(ierr);
       err  = fclose(fd);
