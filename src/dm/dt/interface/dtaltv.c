@@ -512,7 +512,7 @@ PetscErrorCode PetscDTAltVInteriorMatrix(PetscInt N, PetscInt k, const PetscReal
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PetscDTAltVInteriorPattern(PetscInt N, PetscInt k, PetscInt *indices[3])
+PetscErrorCode PetscDTAltVInteriorPattern(PetscInt N, PetscInt k, PetscInt (*indices)[3])
 {
   PetscInt        i, Nk, Nkm;
   PetscErrorCode  ierr;
@@ -529,20 +529,20 @@ PetscErrorCode PetscDTAltVInteriorPattern(PetscInt N, PetscInt k, PetscInt *indi
         indices[i][2] = i;
       }
     } else if (k == N) {
-      PetscBool flip[3] = {PETSC_FALSE, PETSC_TRUE, PETSC_FALSE};
+      PetscInt val[3] = {0, -2, 2};
 
       for (i = 0; i < N; i++) {
-        indices[i][0] = i;
+        indices[i][0] = N - 1 - i;
         indices[i][1] = 0;
-        indices[i][2] = flip ? -(i + 1) : i;
+        indices[i][2] = val[i];
       }
     } else {
       indices[0][0] = 0; indices[0][1] = 0; indices[0][2] = -(1 + 1);
       indices[1][0] = 0; indices[1][1] = 1; indices[1][2] = -(2 + 1);
       indices[2][0] = 1; indices[2][1] = 0; indices[2][2] = 0;
       indices[3][0] = 1; indices[3][1] = 2; indices[3][2] = -(2 + 1);
-      indices[4][0] = 2; indices[4][1] = 1; indices[3][2] = 0;
-      indices[5][0] = 2; indices[4][1] = 2; indices[3][2] = 1;
+      indices[4][0] = 2; indices[4][1] = 1; indices[4][2] = 0;
+      indices[5][0] = 2; indices[5][1] = 2; indices[5][2] = 1;
     }
   } else {
     PetscInt       *subset, *work;

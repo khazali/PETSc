@@ -50,10 +50,7 @@ typedef struct {
 typedef struct {
   PetscSpace   pminus1;
   PetscSpace   kplus1;
-  PetscInt   **ind;
-  PetscReal  **mul;
   PetscInt     formDegree;   /* Use only symmetric polynomials */
-  PetscInt     Niter;
   PetscInt     Nk;
   PetscInt     Nkplus;
   PetscBool    setupCalled;

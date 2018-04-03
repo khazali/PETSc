@@ -31,8 +31,6 @@ static PetscErrorCode PetscSpaceDestroy_Pminus(PetscSpace sp)
   PetscFunctionBegin;
   ierr = PetscSpaceDestroy(&pmin->pminus1);CHKERRQ(ierr);
   ierr = PetscSpaceDestroy(&pmin->kplus1);CHKERRQ(ierr);
-  ierr = PetscFree(pmin->ind);CHKERRQ(ierr);
-  ierr = PetscFree(pmin->mul);CHKERRQ(ierr);
   ierr = PetscFree(pmin);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -117,15 +115,12 @@ static PetscErrorCode PetscSpaceEvaluate_Pminus(PetscSpace sp, PetscInt npoints,
   PetscInt           k       = pmin->formDegree;
   PetscInt           Nk      = pmin->Nk;
   PetscInt           Nkplus  = pmin->Nkplus;
-  PetscInt           Niter   = pmin->Niter;
   PetscInt           Nf      = Nc / Nk;
   PetscReal         *pmB = NULL, *pmD = NULL, *pmH = NULL;
   PetscReal         *kpB = NULL, *kpD = NULL, *kpH = NULL;
   PetscInt           c, pdim, pmdim, kpdim, d, e, f, i, p;
   PetscReal         *intX;
   PetscInt          *intXindices;
-  PetscInt         **ind = pmin->ind;
-  PetscReal        **mul = pmin->mul;
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
@@ -150,6 +145,7 @@ static PetscErrorCode PetscSpaceEvaluate_Pminus(PetscSpace sp, PetscInt npoints,
   ierr = PetscSpaceEvaluate(pmin->kplus1,  npoints, points, kpB, kpD, kpH);CHKERRQ(ierr);
   ierr = DMGetWorkArray(dm, Nk*Nkplus, MPIU_REAL, &intX);CHKERRQ(ierr);
   ierr = DMGetWorkArray(dm, 3*Nkplus*Nv, MPIU_INT, &intXindices);CHKERRQ(ierr);
+  ierr = PetscDTAltVInteriorPattern(Nv, k+1, (PetscInt (*)[3]) intXindices);CHKERRQ(ierr);
   if (B) {
     for (i = 0; i < (pmdim * Nc + kpdim * Nkplus * Nf) * Nc; i++) B[i] = 0.;
     for (p = 0; p < npoints; ++p) {
@@ -185,10 +181,17 @@ static PetscErrorCode PetscSpaceEvaluate_Pminus(PetscSpace sp, PetscInt npoints,
         for (c = 0; c < Nkplus; c++) {
           for (d = 0; d < Nk; d++) {
             for (e = 0; e < Nv; e++) {
-              D[((p*pdim*Nf + pmdim*Nc + i*Nkplus*Nf + c)*Nc + d)*Nv + e] = intX[d * Nkplus + c] * kpD[(p*kpdim + i)*Nv + e] +
-                                                                            dintX[(d * Nkplus + c) * Nv + e] * kpB[p * kpdim + i];
+              D[((p*pdim*Nf + pmdim*Nc + i*Nkplus*Nf + c)*Nc + d)*Nv + e] = intX[d * Nkplus + c] * kpD[(p*kpdim + i)*Nv + e];
             }
           }
+        }
+        for (c = 0; c < Nkplus * (k + 1); c++) {
+          PetscInt row = intXindices[3 * c + 0];
+          PetscInt col = intXindices[3 * c + 1];
+          PetscInt x   = intXindices[3 * c + 2];
+
+          f = (x < 0) ? -(x + 1) : x;
+          D[((p*pdim*Nf + pmdim*Nc + i*Nkplus*Nf + row)*Nc + col)*Nv + f] += (x < 0 ? -1. : 1.) * kpB[p*kpdim + i];
         }
       }
     }
@@ -209,11 +212,20 @@ static PetscErrorCode PetscSpaceEvaluate_Pminus(PetscSpace sp, PetscInt npoints,
           for (d = 0; d < Nk; d++) {
             for (e = 0; e < Nv; e++) {
               for (f = 0; f < Nv; f++) {
-                H[((p*pdim*Nf + pmdim*Nc + i*Nkplus*Nf + c)*Nc + d)*Nv*Nv + e*Nv + f] = intX[d * Nkplus + c] * kpH[(p*kpdim + i)*Nv*Nv + e*Nv + f] +
-                                                                                        dintX[(d * Nkplus + c) * Nv + f] * kpD[(p * kpdim + i) * Nv + e] +
-                                                                                        dintX[(d * Nkplus + c) * Nv + e] * kpD[(p * kpdim + i) * Nv + f];
+                H[(((p*pdim*Nf + pmdim*Nc + i*Nkplus*Nf + c)*Nc + d)*Nv + e)*Nv + f] = intX[d * Nkplus + c] * kpH[(p*kpdim + i)*Nv*Nv + e*Nv + f];
               }
             }
+          }
+        }
+        for (c = 0; c < Nkplus * (k + 1); c++) {
+          PetscInt row = intXindices[3 * c + 0];
+          PetscInt col = intXindices[3 * c + 1];
+          PetscInt x   = intXindices[3 * c + 2];
+
+          f = (x < 0) ? -(x + 1) : x;
+          for (e = 0; e < Nv; e++) {
+            H[(((p*pdim*Nf + pmdim*Nc + i*Nkplus*Nf + row)*Nc + col)*Nv + e)*Nv + f] += (x < 0 ? -1. : 1.) * kpD[(p*kpdim + i)*Nv + e];
+            H[(((p*pdim*Nf + pmdim*Nc + i*Nkplus*Nf + row)*Nc + col)*Nv + f)*Nv + e] += (x < 0 ? -1. : 1.) * kpD[(p*kpdim + i)*Nv + e];
           }
         }
       }
@@ -222,9 +234,20 @@ static PetscErrorCode PetscSpaceEvaluate_Pminus(PetscSpace sp, PetscInt npoints,
   if (B && Nc > Nk) {
     /* Make direct sum basis for multicomponent space */
     for (p = 0; p < npoints; ++p) {
-      for (i = 0; i < pdim; ++i) {
-        for (c = 1; c < Nc; ++c) {
-          B[(p*pdim*Nc + i*Nc + c)*Nc + c] = B[(p*pdim + i)*Nc*Nc];
+      for (i = 0; i < pmdim; ++i) {
+        for (c = 1; c < Nf; ++c) {
+          for (d = 0; d < Nk; d++) {
+            B[(p*pdim*Nc + i*Nc + (c * Nk + d))*Nc + (c * Nk + d)] = B[(p*pmdim*Nc + i*Nc + d)*Nc + d];
+          }
+        }
+      }
+      for (i = 0; i < kpdim; i++) {
+        for (c = 1; c < Nf; c++) {
+          for (d = 0; d < Nkplus; d++) {
+            for (e = 0; e < Nk; e++) {
+              B[(p*pdim*Nc + pmdim*Nc + i*Nkplus*Nf + (c * Nkplus + d))*Nc + (c * Nk + e)] = B[(p*pmdim*Nc + pmdim*Nc + i*Nkplus*Nf + d)*Nc + e];
+            }
+          }
         }
       }
     }
@@ -232,10 +255,23 @@ static PetscErrorCode PetscSpaceEvaluate_Pminus(PetscSpace sp, PetscInt npoints,
   if (D && Nc > Nk) {
     /* Make direct sum basis for multicomponent space */
     for (p = 0; p < npoints; ++p) {
-      for (i = 0; i < pdim; ++i) {
-        for (c = 1; c < Nc; ++c) {
-          for (d = 0; d < Nv; ++d) {
-            D[((p*pdim*Nc + i*Nc + c)*Nc + c)*Nv + d] = D[(p*pdim + i)*Nc*Nc*Nv + d];
+      for (i = 0; i < pmdim; ++i) {
+        for (c = 1; c < Nf; ++c) {
+          for (d = 0; d < Nk; d++) {
+            for (e = 0; e < Nv; e++) {
+              D[((p*pdim*Nc + i*Nc + (c * Nk + d))*Nc + (c * Nk + d)) * Nv + e] = D[((p*pmdim*Nc + i*Nc + d)*Nc + d)*Nv + e];
+            }
+          }
+        }
+      }
+      for (i = 0; i < kpdim; i++) {
+        for (c = 1; c < Nf; c++) {
+          for (d = 0; d < Nkplus; d++) {
+            for (e = 0; e < Nk; e++) {
+              for (f = 0; f < Nv; f++) {
+                D[((p*pdim*Nc + pmdim*Nc + i*Nkplus*Nf + (c * Nkplus + d))*Nc + (c * Nk + e))*Nv + f] = D[((p*pmdim*Nc + pmdim*Nc + i*Nkplus*Nf + d)*Nc + e)*Nv + f];
+              }
+            }
           }
         }
       }
@@ -244,11 +280,22 @@ static PetscErrorCode PetscSpaceEvaluate_Pminus(PetscSpace sp, PetscInt npoints,
   if (H && Nc > Nk) {
     /* Make direct sum basis for multicomponent space */
     for (p = 0; p < npoints; ++p) {
-      for (i = 0; i < pdim; ++i) {
-        for (c = 1; c < Nc; ++c) {
-          for (d = 0; d < Nv; ++d) {
-            for (e = 0; e < Nv; ++e) {
-              H[(((p*pdim*Nc + i*Nc + c)*Nc + c)*Nv + d)*Nv + e] = H[((p*pdim + i)*Nc*Nc*Nv + d)*Nv + e];
+      for (i = 0; i < pmdim; ++i) {
+        for (c = 1; c < Nf; ++c) {
+          for (d = 0; d < Nk; d++) {
+            for (e = 0; e < Nv*Nv; e++) {
+              H[((p*pdim*Nc + i*Nc + (c * Nk + d))*Nc + (c * Nk + d)) * Nv *Nv + e] = H[((p*pmdim*Nc + i*Nc + d)*Nc + d)*Nv*Nv + e];
+            }
+          }
+        }
+      }
+      for (i = 0; i < kpdim; i++) {
+        for (c = 1; c < Nf; c++) {
+          for (d = 0; d < Nkplus; d++) {
+            for (e = 0; e < Nk; e++) {
+              for (f = 0; f < Nv*Nv; f++) {
+                H[((p*pdim*Nc + pmdim*Nc + i*Nkplus*Nf + (c * Nkplus + d))*Nc + (c * Nk + e))*Nv*Nv + f] = H[((p*pmdim*Nc + pmdim*Nc + i*Nkplus*Nf + d)*Nc + e)*Nv*Nv + f];
+              }
             }
           }
         }
