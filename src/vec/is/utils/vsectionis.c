@@ -62,6 +62,7 @@ PetscErrorCode PetscSectionCreate(MPI_Comm comm, PetscSection *s)
   (*s)->clSize             = 0;
   (*s)->clPerm             = NULL;
   (*s)->clInvPerm          = NULL;
+  (*s)->clCode             = NULL;
   PetscFunctionReturn(0);
 }
 
@@ -1807,6 +1808,7 @@ PetscErrorCode PetscSectionReset(PetscSection s)
   ierr = ISDestroy(&s->perm);CHKERRQ(ierr);
   ierr = PetscFree(s->clPerm);CHKERRQ(ierr);
   ierr = PetscFree(s->clInvPerm);CHKERRQ(ierr);
+  ierr = PetscFree(s->clCode);CHKERRQ(ierr);
   ierr = PetscSectionSymDestroy(&s->sym);CHKERRQ(ierr);
 
   s->pStart    = -1;
@@ -2295,7 +2297,11 @@ PetscErrorCode PetscSectionSetClosureIndex(PetscSection section, PetscObject obj
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  if (section->clObj != obj) {ierr = PetscFree(section->clPerm);CHKERRQ(ierr);ierr = PetscFree(section->clInvPerm);CHKERRQ(ierr);}
+  if (section->clObj != obj) {
+    ierr = PetscFree(section->clPerm);CHKERRQ(ierr);
+    ierr = PetscFree(section->clInvPerm);CHKERRQ(ierr);
+    ierr = PetscFree(section->clCode);CHKERRQ(ierr);
+  }
   section->clObj     = obj;
   ierr = PetscSectionDestroy(&section->clSection);CHKERRQ(ierr);
   ierr = ISDestroy(&section->clPoints);CHKERRQ(ierr);
@@ -2347,6 +2353,7 @@ PetscErrorCode PetscSectionSetClosurePermutation_Internal(PetscSection section, 
   section->clObj  = obj;
   ierr = PetscFree(section->clPerm);CHKERRQ(ierr);
   ierr = PetscFree(section->clInvPerm);CHKERRQ(ierr);
+  ierr = PetscFree(section->clCode);CHKERRQ(ierr);
   section->clSize = clSize;
   if (mode == PETSC_COPY_VALUES) {
     ierr = PetscMalloc1(clSize, &section->clPerm);CHKERRQ(ierr);
@@ -2356,7 +2363,14 @@ PetscErrorCode PetscSectionSetClosurePermutation_Internal(PetscSection section, 
     section->clPerm = clPerm;
   } else SETERRQ(PetscObjectComm(obj), PETSC_ERR_SUP, "Do not support borrowed arrays");
   ierr = PetscMalloc1(clSize, &section->clInvPerm);CHKERRQ(ierr);
+  ierr = PetscMalloc1(clSize, &section->clCode);CHKERRQ(ierr);
   for (i = 0; i < clSize; ++i) section->clInvPerm[section->clPerm[i]] = i;
+  for (i = clSize - 1; i >= 0; i--) {
+    PetscInt j = section->clPerm[i];
+
+    if (j < i) j = section->clCode[j];
+    section->clCode[i] = j;
+  }
   PetscFunctionReturn(0);
 }
 
@@ -2448,6 +2462,19 @@ PetscErrorCode PetscSectionGetClosureInversePermutation_Internal(PetscSection se
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode PetscSectionGetClosurePermutationCode_Internal(PetscSection section, PetscObject obj, PetscInt *size, const PetscInt *code[])
+{
+  PetscFunctionBegin;
+  if (section->clObj == obj) {
+    if (size) *size = section->clSize;
+    if (code) *code = section->clCode;
+  } else {
+    if (size) *size = 0;
+    if (code) *code = NULL;
+  }
+  PetscFunctionReturn(0);
+}
+
 /*@
   PetscSectionGetClosureInversePermutation - Get the inverse dof permutation for the closure of each cell in the section, meaning clPerm[oldIndex] = newIndex.
 
@@ -2488,7 +2515,7 @@ PetscErrorCode PetscSectionGetClosureInversePermutation(PetscSection section, Pe
 - field - The field number
 
   Output Parameter:
-. subs  - The subsection for the given field
+. subs  - The subsection for the given field.  The reference count is not incremented, and the user should not destroy it.
 
   Level: intermediate
 
@@ -2496,13 +2523,10 @@ PetscErrorCode PetscSectionGetClosureInversePermutation(PetscSection section, Pe
 @*/
 PetscErrorCode PetscSectionGetField(PetscSection s, PetscInt field, PetscSection *subs)
 {
-  PetscErrorCode ierr;
-
   PetscFunctionBegin;
   PetscValidHeaderSpecific(s,PETSC_SECTION_CLASSID,1);
   PetscValidPointer(subs,3);
   if ((field < 0) || (field >= s->numFields)) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Section field %d should be in [%d, %d)", field, 0, s->numFields);
-  ierr = PetscObjectReference((PetscObject) s->field[field]);CHKERRQ(ierr);
   *subs = s->field[field];
   PetscFunctionReturn(0);
 }
@@ -2649,7 +2673,7 @@ PetscErrorCode PetscSectionSymDestroy(PetscSectionSym *sym)
   if ((*sym)->workout) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Work array still checked out");
   for (link=(*sym)->workin; link; link=next) {
     next = link->next;
-    ierr = PetscFree2(*(PetscInt***)&link->perms,*(PetscScalar***)&link->rots);CHKERRQ(ierr);
+    ierr = PetscFree3(link->nnzs, *(PetscInt(***)[2])&link->ijs,*(PetscScalar***)&link->vals);CHKERRQ(ierr);
     ierr = PetscFree(link);CHKERRQ(ierr);
   }
   (*sym)->workin = NULL;
@@ -2854,7 +2878,7 @@ PetscErrorCode PetscSectionGetFieldSym(PetscSection section, PetscInt field, Pet
 
 .seealso: PetscSectionRestorePointSyms(), PetscSectionSymCreate(), PetscSectionSetSym(), PetscSectionGetSym()
 @*/
-PetscErrorCode PetscSectionGetPointSyms(PetscSection section, PetscInt numPoints, const PetscInt *points, const PetscInt ***perms, const PetscScalar ***rots)
+PetscErrorCode PetscSectionGetPointSyms(PetscSection section, PetscInt numPoints, const PetscInt *points, const PetscInt **nnzs, const PetscInt (***ijs)[2], const PetscScalar ***vals)
 {
   PetscSectionSym sym;
   PetscErrorCode  ierr;
@@ -2862,10 +2886,11 @@ PetscErrorCode PetscSectionGetPointSyms(PetscSection section, PetscInt numPoints
   PetscFunctionBegin;
   PetscValidHeaderSpecific(section,PETSC_SECTION_CLASSID,1);
   if (numPoints) PetscValidIntPointer(points,3);
-  if (perms) *perms = NULL;
-  if (rots)  *rots  = NULL;
+  if (nnzs) *nnzs = NULL;
+  if (ijs)   *ijs = NULL;
+  if (vals) *vals = NULL;
   sym = section->sym;
-  if (sym && (perms || rots)) {
+  if (sym && (nnzs || ijs || vals)) {
     SymWorkLink link;
 
     if (sym->workin) {
@@ -2875,17 +2900,19 @@ PetscErrorCode PetscSectionGetPointSyms(PetscSection section, PetscInt numPoints
       ierr = PetscNewLog(sym,&link);CHKERRQ(ierr);
     }
     if (numPoints > link->numPoints) {
-      ierr = PetscFree2(*(PetscInt***)&link->perms,*(PetscScalar***)&link->rots);CHKERRQ(ierr);
-      ierr = PetscMalloc2(numPoints,(PetscInt***)&link->perms,numPoints,(PetscScalar***)&link->rots);CHKERRQ(ierr);
+      ierr = PetscFree3(link->nnzs, *(PetscInt(***)[2])&link->ijs,*(PetscScalar***)&link->vals);CHKERRQ(ierr);
+      ierr = PetscMalloc3(numPoints,&nnzs,numPoints,(PetscInt(***)[2])&link->ijs,numPoints,(PetscScalar***)&link->vals);CHKERRQ(ierr);
       link->numPoints = numPoints;
     }
     link->next   = sym->workout;
     sym->workout = link;
-    ierr = PetscMemzero((void *) link->perms,numPoints * sizeof(const PetscInt *));CHKERRQ(ierr);
-    ierr = PetscMemzero((void *) link->rots,numPoints * sizeof(const PetscScalar *));CHKERRQ(ierr);
-    ierr = (*sym->ops->getpoints) (sym, section, numPoints, points, link->perms, link->rots);CHKERRQ(ierr);
-    if (perms) *perms = link->perms;
-    if (rots)  *rots  = link->rots;
+    ierr = PetscMemzero((void *) link->nnzs,numPoints * sizeof(PetscInt));CHKERRQ(ierr);
+    ierr = PetscMemzero((void *) link->ijs,numPoints * sizeof(const PetscInt (*)[2]));CHKERRQ(ierr);
+    ierr = PetscMemzero((void *) link->vals,numPoints * sizeof(const PetscScalar *));CHKERRQ(ierr);
+    ierr = (*sym->ops->getpoints) (sym, section, numPoints, points, link->nnzs, link->ijs, link->vals);CHKERRQ(ierr);
+    if (nnzs) *nnzs = link->nnzs;
+    if (ijs)  *ijs  = link->ijs;
+    if (vals) *vals = link->vals;
   }
   PetscFunctionReturn(0);
 }
@@ -2910,23 +2937,24 @@ PetscErrorCode PetscSectionGetPointSyms(PetscSection section, PetscInt numPoints
 
 .seealso: PetscSectionGetPointSyms(), PetscSectionSymCreate(), PetscSectionSetSym(), PetscSectionGetSym()
 @*/
-PetscErrorCode PetscSectionRestorePointSyms(PetscSection section, PetscInt numPoints, const PetscInt *points, const PetscInt ***perms, const PetscScalar ***rots)
+PetscErrorCode PetscSectionRestorePointSyms(PetscSection section, PetscInt numPoints, const PetscInt *points, const PetscInt **nnzs, const PetscInt (***ijs)[2], const PetscScalar ***vals)
 {
   PetscSectionSym sym;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(section,PETSC_SECTION_CLASSID,1);
   sym = section->sym;
-  if (sym && (perms || rots)) {
+  if (sym && (nnzs || ijs || vals)) {
     SymWorkLink *p,link;
 
     for (p=&sym->workout; (link=*p); p=&link->next) {
-      if ((perms && link->perms == *perms) || (rots && link->rots == *rots)) {
+      if ((nnzs && link->nnzs == *nnzs) || (ijs && link->ijs == *ijs) || (vals && link->vals == *vals)) {
         *p          = link->next;
         link->next  = sym->workin;
         sym->workin = link;
-        if (perms) *perms = NULL;
-        if (rots)  *rots  = NULL;
+        if (nnzs) *nnzs = NULL;
+        if (ijs)  *ijs  = NULL;
+        if (vals) *vals = NULL;
         PetscFunctionReturn(0);
       }
     }
@@ -2957,14 +2985,14 @@ PetscErrorCode PetscSectionRestorePointSyms(PetscSection section, PetscInt numPo
 
 .seealso: PetscSectionGetPointSyms(), PetscSectionRestoreFieldPointSyms()
 @*/
-PetscErrorCode PetscSectionGetFieldPointSyms(PetscSection section, PetscInt field, PetscInt numPoints, const PetscInt *points, const PetscInt ***perms, const PetscScalar ***rots)
+PetscErrorCode PetscSectionGetFieldPointSyms(PetscSection section, PetscInt field, PetscInt numPoints, const PetscInt *points, const PetscInt **nnzs, const PetscInt (***ijs)[2], const PetscScalar ***vals)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(section,PETSC_SECTION_CLASSID,1);
   if (field > section->numFields) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"field %D greater than number of fields (%D) in section",field,section->numFields);
-  ierr = PetscSectionGetPointSyms(section->field[field],numPoints,points,perms,rots);CHKERRQ(ierr);
+  ierr = PetscSectionGetPointSyms(section->field[field],numPoints,points,nnzs,ijs,vals);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2989,13 +3017,280 @@ PetscErrorCode PetscSectionGetFieldPointSyms(PetscSection section, PetscInt fiel
 
 .seealso: PetscSectionRestorePointSyms(), petscSectionGetFieldPointSyms(), PetscSectionSymCreate(), PetscSectionSetSym(), PetscSectionGetSym()
 @*/
-PetscErrorCode PetscSectionRestoreFieldPointSyms(PetscSection section, PetscInt field, PetscInt numPoints, const PetscInt *points, const PetscInt ***perms, const PetscScalar ***rots)
+PetscErrorCode PetscSectionRestoreFieldPointSyms(PetscSection section, PetscInt field, PetscInt numPoints, const PetscInt *points, const PetscInt **nnzs, const PetscInt (***ijs)[2], const PetscScalar ***vals)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(section,PETSC_SECTION_CLASSID,1);
   if (field > section->numFields) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"field %D greater than number of fields (%D) in section",field,section->numFields);
-  ierr = PetscSectionRestorePointSyms(section->field[field],numPoints,points,perms,rots);CHKERRQ(ierr);
+  ierr = PetscSectionRestorePointSyms(section->field[field],numPoints,points,nnzs,ijs,vals);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+#define PetscSectionGetBySymLoop(section, numPoints, points, nnzs, ijs, vals, s, l, o) \
+  do {                                                                           \
+    PetscInt i, j;                                                               \
+    PetscInt pS = section->pStart;                                               \
+    for (i = 0; i < numPoints; i++) {                                            \
+      PetscInt           p      = points[i][0];                                  \
+      PetscInt           nnz    = nnzs ? nnzs[p] : 0;                            \
+      const PetscInt   (*ij)[2] = ijs ? ijs[p] : NULL;                           \
+      const PetscScalar *val    = vals ? vals[p] : NULL;                         \
+      PetscInt           dof    = section->atlasDof[p - pS];                     \
+      PetscInt           off    = section->atlasOff[p - pS];                     \
+      if (val) {                                                                 \
+        for (j = 0; j < dof; j++) l[o + j] = 0;                                  \
+        for (j = 0; j < nnz; j++) l[o + ij[j][0]] += s[off + ij[j][1]] * val[j]; \
+      } else {                                                                   \
+        if (ij) for (j = 0; j < dof; j++) l[o + ij[j][0]] = s[off + ij[j][1]];   \
+        else    for (j = 0; j < dof; j++) l[o +    j    ] = s[off +    j    ];   \
+      }                                                                          \
+      o += dof;                                                                  \
+    }                                                                            \
+  } while (0)
+
+PetscErrorCode PetscSectionGetBySym_Internal(PetscSection section, PetscInt numPoints, const PetscInt (*points)[2], PetscDataType type, const void *secArray, void * locArray, PetscInt *clSize)
+{
+  PetscInt            p;
+  const PetscInt     *nnzs;
+  const PetscInt   (**ijs)[2];
+  const PetscScalar **vals;
+  PetscInt            size = 0;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBeginHot;
+  ierr = PetscSectionGetPointSyms(section, numPoints, (const PetscInt *) &(points[0][0]), &nnzs, &ijs, &vals);CHKERRQ(ierr);
+  switch (type) {
+  case PETSC_BOOL:
+    if (vals) {
+      for (p = 0; p < numPoints; p++) if (vals[p]) break;
+      if (p < numPoints) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Symmetry is not a permutation: boolean type cannot be got");
+    }
+    PetscSectionGetBySymLoop(section, numPoints, points, nnzs, ijs, vals, ((const PetscBool *)    secArray), ((PetscBool *)    locArray), size);
+    break;
+  case PETSC_INT:
+    if (vals) {
+      for (p = 0; p < numPoints; p++) if (vals[p]) break;
+      if (p < numPoints) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Symmetry is not a permutation: integer type cannot be got");
+    }
+    PetscSectionGetBySymLoop(section, numPoints, points, nnzs, ijs, vals, ((const PetscInt *)     secArray), ((PetscInt *)     locArray), size);
+    break;
+  case PETSC_REAL:
+    PetscSectionGetBySymLoop(section, numPoints, points, nnzs, ijs, vals, ((const PetscReal *)    secArray), ((PetscReal *)    locArray), size);
+    break;
+#if defined(PETSC_HAVE_COMPLEX)
+  case PETSC_COMPLEX:
+    PetscSectionGetBySymLoop(section, numPoints, points, nnzs, ijs, vals, ((const PetscComplex *) secArray), ((PetscComplex *) locArray), size);
+    break;
+#endif
+  default: SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unsupported PetscDataType");
+  }
+  ierr = PetscSectionRestorePointSyms(section, numPoints, (const PetscInt *) &(points[0][0]), &nnzs, &ijs, &vals);CHKERRQ(ierr);
+  if (clSize) *clSize = size;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode PetscSectionGetBySym(PetscSection section, PetscInt numPoints, const PetscInt (*points)[2], PetscDataType type, const void *secArray, void * locArray, PetscInt *clSize)
+{
+  PetscInt       i, f, Nf, offset;
+  size_t         dsize;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginHot;
+  PetscValidHeaderSpecific(section,PETSC_SECTION_CLASSID,1);
+  if (!numPoints) PetscFunctionReturn(0);
+  PetscValidIntPointer(points,3);
+  PetscValidPointer(secArray,5);
+  PetscValidPointer(locArray,6);
+#if defined(PETSC_USE_DEBUG)
+  for (i = 0; i < numPoints; i++) if (points[i][0] < section->pStart || points[i][0] >= section->pEnd) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Point %D not in chart [%D,%D)", points[i][0], section->pStart, section->pEnd);
+#endif
+  Nf = section->numFields;
+  ierr = PetscDataTypeGetSize(type, &dsize);CHKERRQ(ierr);
+  for (f = 0, offset = 0; f < PetscMax(1, Nf); f++) {
+    PetscInt size;
+
+    ierr = PetscSectionGetBySym_Internal(Nf ? section->field[f] : section, numPoints, points, type, secArray, &(((char *)locArray)[offset * dsize]), &size);CHKERRQ(ierr);
+    offset += size;
+  }
+  if (clSize) *clSize = offset;
+  PetscFunctionReturn(0);
+}
+
+#define opSum(a,b) a += b
+#define opEq(a,b) a = b
+
+#define PetscSectionSetBySymLoop(section, bcSection, bcIndices, numPoints, points, nnzs, ijs, vals, s, l, op, isSum, setB, setI, o) \
+  do {                                                                              \
+    PetscInt i, j, k;                                                               \
+    PetscInt pS = section->pStart;                                                  \
+    for (i = 0; i < numPoints; i++) {                                               \
+      PetscInt           p      = points[i][0];                                     \
+      PetscInt           nnz    = nnzs ? nnzs[p] : 0;                               \
+      const PetscInt   (*ij)[2] = ijs ? ijs[p] : NULL;                              \
+      const PetscScalar *val    = vals ? vals[p] : NULL;                            \
+      PetscInt           dof    = section->atlasDof[p - pS];                        \
+      PetscInt           cdof   = bcSection ? bcSection->atlasDof[p - pS] : 0;      \
+      PetscInt           coff   = bcSection ? bcSection->atlasOff[p - pS] : 0;      \
+      const PetscInt    *cons   = cdof ? &bcIndices[coff] : NULL;                   \
+      PetscInt           off    = section->atlasOff[p - pS];                        \
+      if (val) {                                                                    \
+        if (!isSum) for (j = 0; j < dof; j++) s[off + j] = 0;                       \
+        if (setB && setI) {                                                         \
+          for (j = 0; j < nnz; j++)  l[o + ij[j][0]] += s[off + ij[j][1]] * val[j]; \
+        } else if (setB) {                                                          \
+          for (j = 0; j < nnz; j++) {                                               \
+            for (k = 0; k < cdof; k++) {                                            \
+              if (cons[k] == ij[j][0]) {                                            \
+                s[off + ij[j][1]] += l[o + ij[j][0]] * val[j];                      \
+                break;                                                              \
+              }                                                                     \
+            }                                                                       \
+          }                                                                         \
+        } else {                                                                    \
+          for (j = 0; j < nnz; j++) {                                               \
+            for (k = 0; k < cdof; k++) {                                            \
+              if (cons[k] == ij[j][0]) break;                                       \
+            }                                                                       \
+            if (k == cdof) {                                                        \
+              s[off + ij[j][1]] += l[o + ij[j][0]] * val[j];                        \
+            }                                                                       \
+          }                                                                         \
+        }                                                                           \
+      } else {                                                                      \
+        if (ij) {                                                                   \
+          if (setB && setI) {                                                       \
+            for (j = 0; j < dof; j++) op(l[o + ij[j][0]],s[off + ij[j][1]]);        \
+          } else if (setB) {                                                        \
+            for (j = 0; j < dof; j++) {                                             \
+              for (k = 0; k < cdof; k++) {                                          \
+                if (cons[k] == ij[j][0]) {                                          \
+                  op(s[off + ij[j][1]],l[o + ij[j][0]]);                            \
+                  break;                                                            \
+                }                                                                   \
+              }                                                                     \
+            }                                                                       \
+          } else {                                                                  \
+            for (j = 0; j < dof; j++) {                                             \
+              for (k = 0; k < cdof; k++) {                                          \
+                if (cons[k] == ij[j][0]) break;                                     \
+              }                                                                     \
+              if (k == cdof) {                                                      \
+                op(s[off + ij[j][1]],l[o + ij[j][0]]);                              \
+              }                                                                     \
+            }                                                                       \
+          }                                                                         \
+        } else {                                                                    \
+          if (setB && setI) {                                                       \
+            for (j = 0; j < dof; j++) op(l[o + j],s[off + j]);                      \
+          } else if (setB) {                                                        \
+            for (j = 0; j < cdof; j++) op(l[o + cons[j]],s[off + cons[j]]);         \
+          } else {                                                                  \
+            for (j = 0, k = 0; j < dof; j++) {                                      \
+              if (k < cdof && j == cons[k]) k++;                                    \
+              else op(l[o + j],s[off + j]);                                         \
+            }                                                                       \
+          }                                                                         \
+        }                                                                           \
+      }                                                                             \
+      o += dof;                                                                     \
+    }                                                                               \
+  } while (0)
+
+PetscErrorCode PetscSectionSetBySym_Internal(PetscSection section, PetscInt numPoints, const PetscInt (*points)[2], PetscDataType type, void *secArray, const void * locArray, InsertMode mode, PetscInt *clSize)
+{
+  PetscInt            p;
+  const PetscInt     *nnzs;
+  const PetscInt   (**ijs)[2];
+  const PetscScalar **vals;
+  PetscSection        bcSection = section->bc;
+  const PetscInt     *bcIndices = section->bcIndices;
+  PetscBool           setB = (mode == INSERT_ALL_VALUES || mode == INSERT_BC_VALUES || mode == ADD_ALL_VALUES || mode == ADD_BC_VALUES) ? PETSC_TRUE : PETSC_FALSE;
+  PetscBool           setI = (mode == INSERT_ALL_VALUES || mode == INSERT_VALUES || mode == ADD_ALL_VALUES || mode == ADD_VALUES) ? PETSC_TRUE : PETSC_FALSE;
+  PetscBool           isSum = (mode == ADD_ALL_VALUES || mode == ADD_VALUES || mode == ADD_BC_VALUES) ? PETSC_TRUE : PETSC_FALSE;
+  PetscInt            size = 0;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBeginHot;
+  ierr = PetscSectionGetPointSyms(section, numPoints, (const PetscInt *) &(points[0][0]), &nnzs, &ijs, &vals);CHKERRQ(ierr);
+  switch (type) {
+  case PETSC_BOOL:
+    if (vals) {
+      for (p = 0; p < numPoints; p++) if (vals[p]) break;
+      if (p < numPoints) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Symmetry is not a permutation: boolean type cannot be set");
+    }
+    if (isSum) {
+      PetscSectionSetBySymLoop(section, bcSection, bcIndices, numPoints, points, nnzs, ijs, vals,
+                               ((PetscBool *) secArray), ((PetscBool *) locArray), opSum, PETSC_TRUE, setB, setI, size);
+    } else {
+      PetscSectionSetBySymLoop(section, bcSection, bcIndices, numPoints, points, nnzs, ijs, vals,
+                               ((PetscBool *) secArray), ((PetscBool *) locArray), opEq, PETSC_FALSE, setB, setI, size);
+    }
+    break;
+  case PETSC_INT:
+    if (vals) {
+      for (p = 0; p < numPoints; p++) if (vals[p]) break;
+      if (p < numPoints) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Symmetry is not a permutation: integer type cannot be set");
+    }
+    if (isSum) {
+      PetscSectionSetBySymLoop(section, bcSection, bcIndices, numPoints, points, nnzs, ijs, vals,
+                               ((PetscInt *) secArray), ((PetscInt *) locArray), opSum, PETSC_TRUE, setB, setI, size);
+    } else {
+      PetscSectionSetBySymLoop(section, bcSection, bcIndices, numPoints, points, nnzs, ijs, vals,
+                               ((PetscInt *) secArray), ((PetscInt *) locArray), opEq, PETSC_FALSE, setB, setI, size);
+    }
+    break;
+  case PETSC_REAL:
+    if (isSum) {
+      PetscSectionSetBySymLoop(section, bcSection, bcIndices, numPoints, points, nnzs, ijs, vals,
+                               ((PetscReal *) secArray), ((PetscReal *) locArray), opSum, PETSC_TRUE, setB, setI, size);
+    } else {
+      PetscSectionSetBySymLoop(section, bcSection, bcIndices, numPoints, points, nnzs, ijs, vals,
+                               ((PetscReal *) secArray), ((PetscReal *) locArray), opEq, PETSC_FALSE, setB, setI, size);
+    }
+    break;
+#if defined(PETSC_HAVE_COMPLEX)
+  case PETSC_COMPLEX:
+    if (isSum) {
+      PetscSectionSetBySymLoop(section, bcSection, bcIndices, numPoints, points, nnzs, ijs, vals,
+                               ((PetscComplex *) secArray), ((PetscComplex *) locArray), opSum, PETSC_TRUE, setB, setI, size);
+    } else {
+      PetscSectionSetBySymLoop(section, bcSection, bcIndices, numPoints, points, nnzs, ijs, vals,
+                               ((PetscComplex *) secArray), ((PetscComplex *) locArray), opEq, PETSC_FALSE, setB, setI, size);
+    }
+    break;
+#endif
+  default: SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unsupported PetscDataType");
+  }
+  ierr = PetscSectionRestorePointSyms(section, numPoints, (const PetscInt *) &(points[0][0]), &nnzs, &ijs, &vals);CHKERRQ(ierr);
+  if (clSize) *clSize = size;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode PetscSectionSetBySym(PetscSection section, PetscInt numPoints, const PetscInt (*points)[2], PetscDataType type, void *secArray, const void * locArray,
+                                    InsertMode mode)
+{
+  PetscInt       i, f, Nf, offset;
+  size_t         dsize;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginHot;
+  PetscValidHeaderSpecific(section,PETSC_SECTION_CLASSID,1);
+  if (!numPoints) PetscFunctionReturn(0);
+  PetscValidIntPointer(points,3);
+  PetscValidPointer(secArray,5);
+  PetscValidPointer(locArray,6);
+#if defined(PETSC_USE_DEBUG)
+  for (i = 0; i < numPoints; i++) if (points[i][0] < section->pStart || points[i][0] >= section->pEnd) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Point %D not in chart [%D,%D)", points[i][0], section->pStart, section->pEnd);
+#endif
+  Nf = section->numFields;
+  ierr = PetscDataTypeGetSize(type, &dsize);CHKERRQ(ierr);
+  for (f = 0, offset = 0; f < PetscMax(1, Nf); f++) {
+    PetscInt size;
+
+    ierr = PetscSectionSetBySym_Internal(Nf ? section->field[f] : section, numPoints, points, type, secArray, &(((char *) locArray)[offset * dsize]), mode, &size);CHKERRQ(ierr);
+    offset += size;
+  }
   PetscFunctionReturn(0);
 }

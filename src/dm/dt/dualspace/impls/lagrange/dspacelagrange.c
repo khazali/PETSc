@@ -80,7 +80,7 @@ static PetscErrorCode TensorPointLexicographic_Internal(PetscInt len, PetscInt m
 
 #define CartIndex(perEdge,a,b) (perEdge*(a)+b)
 
-static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, const PetscInt ****perms, const PetscScalar ****flips)
+static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, const PetscInt ***symnnzs, const PetscInt (****ijs)[2], const PetscScalar ****vals)
 {
 
   PetscDualSpace_Lag *lag = (PetscDualSpace_Lag *) sp->data;
@@ -93,13 +93,14 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
   ierr = DMGetDimension(sp->dm,&dim);CHKERRQ(ierr);
   if (!dim || !lag->continuous || order < 3) PetscFunctionReturn(0);
   if (dim > 3) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Lagrange symmetries not implemented for dim = %D > 3",dim);
-  if (!lag->symmetries) { /* store symmetries */
+  if (!lag->symmetryijs) { /* store symmetries */
     PetscDualSpace hsp;
     DM             K;
     PetscInt       numPoints = 1, d;
     PetscInt       numFaces;
-    PetscInt       ***symmetries;
-    const PetscInt ***hsymmetries;
+    PetscInt       (***symmetries)[2];
+    PetscInt       **nnzs;
+    const PetscInt (***hsymmetries)[2];
 
     if (lag->simplexCell) {
       numFaces = 1 + dim;
@@ -109,25 +110,28 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
       numPoints = PetscPowInt(3,dim);
       numFaces  = 2 * dim;
     }
-    ierr = PetscCalloc1(numPoints,&symmetries);CHKERRQ(ierr);
+    ierr = PetscCalloc2(numPoints,&symmetries,numPoints,&nnzs);CHKERRQ(ierr);
     if (0 < dim && dim < 3) { /* compute self symmetries */
-      PetscInt **cellSymmetries;
+      PetscInt (**cellSymmetries)[2];
+      PetscInt *cellNNZs;
 
       lag->numSelfSym = 2 * numFaces;
       lag->selfSymOff = numFaces;
-      ierr = PetscCalloc1(2*numFaces,&cellSymmetries);CHKERRQ(ierr);
+      ierr = PetscCalloc2(2*numFaces,&cellSymmetries,2*numFaces,&cellNNZs);CHKERRQ(ierr);
       /* we want to be able to index symmetries directly with the orientations, which range from [-numFaces,numFaces) */
       symmetries[0] = &cellSymmetries[numFaces];
+      nnzs[0] = &cellNNZs[numFaces];
       if (dim == 1) {
         PetscInt dofPerEdge = order - 1;
 
         if (dofPerEdge > 1) {
-          PetscInt i, j, *reverse;
+          PetscInt i, j, (*reverse)[2];
 
           ierr = PetscMalloc1(dofPerEdge*Nc,&reverse);CHKERRQ(ierr);
           for (i = 0; i < dofPerEdge; i++) {
             for (j = 0; j < Nc; j++) {
-              reverse[i*Nc + j] = Nc * (dofPerEdge - 1 - i) + j;
+              reverse[i*Nc + j][0] = Nc * (dofPerEdge - 1 - i) + j;
+              reverse[i*Nc + j][1] = j;
             }
           }
           symmetries[0][-2] = reverse;
@@ -136,7 +140,8 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
           ierr = PetscMalloc1(dofPerEdge*Nc,&reverse);CHKERRQ(ierr);
           for (i = 0; i < dofPerEdge; i++) {
             for (j = 0; j < Nc; j++) {
-              reverse[i*Nc + j] = Nc * (dofPerEdge - 1 - i) + j;
+              reverse[i*Nc + j][0] = Nc * (dofPerEdge - 1 - i) + j;
+              reverse[i*Nc + j][1] = j;
             }
           }
           symmetries[0][1] = reverse;
@@ -147,7 +152,7 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
 
         if (dofPerEdge > 1) {
           for (s = -numFaces; s < numFaces; s++) {
-            PetscInt *sym, i, j, k, l;
+            PetscInt (*sym)[2], i, j, k, l;
 
             if (!s) continue;
             if (lag->simplexCell) {
@@ -158,19 +163,24 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
                   i = dofPerEdge - 1 - j - k;
                   switch (s) {
                   case -3:
-                    sym[Nc*l] = BaryIndex(dofPerEdge,i,k,j);
+                    sym[Nc*l][0] = BaryIndex(dofPerEdge,i,k,j);
+                    sym[Nc*l][1] = l;
                     break;
                   case -2:
-                    sym[Nc*l] = BaryIndex(dofPerEdge,j,i,k);
+                    sym[Nc*l][0] = BaryIndex(dofPerEdge,j,i,k);
+                    sym[Nc*l][1] = l;
                     break;
                   case -1:
-                    sym[Nc*l] = BaryIndex(dofPerEdge,k,j,i);
+                    sym[Nc*l][0] = BaryIndex(dofPerEdge,k,j,i);
+                    sym[Nc*l][1] = l;
                     break;
                   case 1:
-                    sym[Nc*l] = BaryIndex(dofPerEdge,k,i,j);
+                    sym[Nc*l][0] = BaryIndex(dofPerEdge,k,i,j);
+                    sym[Nc*l][1] = l;
                     break;
                   case 2:
-                    sym[Nc*l] = BaryIndex(dofPerEdge,j,k,i);
+                    sym[Nc*l][0] = BaryIndex(dofPerEdge,j,k,i);
+                    sym[Nc*l][1] = l;
                     break;
                   }
                 }
@@ -182,34 +192,43 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
                 for (k = 0; k < dofPerEdge; k++, l++) {
                   switch (s) {
                   case -4:
-                    sym[Nc*l] = CartIndex(dofPerEdge,k,j);
+                    sym[Nc*l][0] = CartIndex(dofPerEdge,k,j);
+                    sym[Nc*l][1] = l;
                     break;
                   case -3:
-                    sym[Nc*l] = CartIndex(dofPerEdge,(dofPerEdge - 1 - j),k);
+                    sym[Nc*l][0] = CartIndex(dofPerEdge,(dofPerEdge - 1 - j),k);
+                    sym[Nc*l][1] = l;
                     break;
                   case -2:
-                    sym[Nc*l] = CartIndex(dofPerEdge,(dofPerEdge - 1 - k),(dofPerEdge - 1 - j));
+                    sym[Nc*l][0] = CartIndex(dofPerEdge,(dofPerEdge - 1 - k),(dofPerEdge - 1 - j));
+                    sym[Nc*l][1] = l;
                     break;
                   case -1:
-                    sym[Nc*l] = CartIndex(dofPerEdge,j,(dofPerEdge - 1 - k));
+                    sym[Nc*l][0] = CartIndex(dofPerEdge,j,(dofPerEdge - 1 - k));
+                    sym[Nc*l][1] = l;
                     break;
                   case 1:
-                    sym[Nc*l] = CartIndex(dofPerEdge,(dofPerEdge - 1 - k),j);
+                    sym[Nc*l][0] = CartIndex(dofPerEdge,(dofPerEdge - 1 - k),j);
+                    sym[Nc*l][1] = l;
                     break;
                   case 2:
-                    sym[Nc*l] = CartIndex(dofPerEdge,(dofPerEdge - 1 - j),(dofPerEdge - 1 - k));
+                    sym[Nc*l][0] = CartIndex(dofPerEdge,(dofPerEdge - 1 - j),(dofPerEdge - 1 - k));
+                    sym[Nc*l][1] = l;
                     break;
                   case 3:
-                    sym[Nc*l] = CartIndex(dofPerEdge,k,(dofPerEdge - 1 - j));
+                    sym[Nc*l][0] = CartIndex(dofPerEdge,k,(dofPerEdge - 1 - j));
+                    sym[Nc*l][1] = l;
                     break;
                   }
                 }
               }
             }
             for (i = 0; i < dofPerFace; i++) {
-              sym[Nc*i] *= Nc;
+              sym[Nc*i][0] *= Nc;
+              sym[Nc*i][1] *= Nc;
               for (j = 1; j < Nc; j++) {
-                sym[Nc*i+j] = sym[Nc*i] + j;
+                sym[Nc*i+j][0] = sym[Nc*i][0] + j;
+                sym[Nc*i+j][1] = sym[Nc*i][1] + j;
               }
             }
             symmetries[0][s] = sym;
@@ -218,7 +237,7 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
       }
     }
     ierr = PetscDualSpaceGetHeightSubspace(sp,1,&hsp);CHKERRQ(ierr);
-    ierr = PetscDualSpaceGetSymmetries(hsp,&hsymmetries,NULL);CHKERRQ(ierr);
+    ierr = PetscDualSpaceGetSymmetries(hsp,NULL,&hsymmetries,NULL);CHKERRQ(ierr);
     if (hsymmetries) {
       PetscBool      *seen;
       const PetscInt *cone;
@@ -240,7 +259,7 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
               if (Kclosure[2 * r] == point) break;
             }
             seen[point] = PETSC_TRUE;
-            symmetries[r] = (PetscInt **) hsymmetries[q];
+            symmetries[r] = (PetscInt (**)[2]) hsymmetries[q];
           }
         }
         ierr = DMPlexRestoreTransitiveClosure(K,cone[p],PETSC_TRUE,&closureSize,&closure);CHKERRQ(ierr);
@@ -248,9 +267,12 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
       ierr = DMPlexRestoreTransitiveClosure(K,0,PETSC_TRUE,&KclosureSize,&Kclosure);CHKERRQ(ierr);
       ierr = PetscFree(seen);CHKERRQ(ierr);
     }
-    lag->symmetries = symmetries;
+    lag->symmetryijs = symmetries;
+    lag->symmetrynnzs = nnzs;
   }
-  if (perms) *perms = (const PetscInt ***) lag->symmetries;
+  if (symnnzs) *symnnzs = (const PetscInt **) lag->symmetrynnzs;
+  if (ijs)     *ijs     = (const PetscInt (***)[2]) lag->symmetryijs;
+  if (vals)    *vals    = NULL;
   PetscFunctionReturn(0);
 }
 
@@ -274,22 +296,26 @@ $ flips[p][ornt][dof # on point] = reversal or not
 
 .seealso: PetscDualSpaceSetSymmetries()
 @*/
-PetscErrorCode PetscDualSpaceGetSymmetries(PetscDualSpace sp, const PetscInt ****perms, const PetscScalar ****flips)
+PetscErrorCode PetscDualSpaceGetSymmetries(PetscDualSpace sp, const PetscInt ***nnzs, const PetscInt (****ijs)[2], const PetscScalar ****vals)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(sp,PETSCDUALSPACE_CLASSID,1);
-  if (perms) {
-    PetscValidPointer(perms,2);
-    *perms = NULL;
+  if (nnzs) {
+    PetscValidPointer(nnzs,2);
+    *nnzs = NULL;
   }
-  if (flips) {
-    PetscValidPointer(flips,3);
-    *flips = NULL;
+  if (ijs) {
+    PetscValidPointer(ijs,3);
+    *ijs = NULL;
+  }
+  if (vals) {
+    PetscValidPointer(vals,4);
+    *vals = NULL;
   }
   if (sp->ops->getsymmetries) {
-    ierr = (sp->ops->getsymmetries)(sp,perms,flips);CHKERRQ(ierr);
+    ierr = (sp->ops->getsymmetries)(sp,nnzs,ijs,vals);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -594,18 +620,27 @@ PetscErrorCode PetscDualSpaceDestroy_Lagrange(PetscDualSpace sp)
   PetscErrorCode      ierr;
 
   PetscFunctionBegin;
-  if (lag->symmetries) {
-    PetscInt **selfSyms = lag->symmetries[0];
+  if (lag->symmetryijs) {
+    PetscInt (**selfSyms)[2] = lag->symmetryijs[0];
 
     if (selfSyms) {
-      PetscInt i, **allocated = &selfSyms[-lag->selfSymOff];
+      PetscInt i, (**allocated)[2] = &selfSyms[-lag->selfSymOff];
 
       for (i = 0; i < lag->numSelfSym; i++) {
         ierr = PetscFree(allocated[i]);CHKERRQ(ierr);
       }
       ierr = PetscFree(allocated);CHKERRQ(ierr);
     }
-    ierr = PetscFree(lag->symmetries);CHKERRQ(ierr);
+    ierr = PetscFree(lag->symmetryijs);CHKERRQ(ierr);
+  }
+  if (lag->symmetrynnzs) {
+    PetscInt *selfnnzs = lag->symmetrynnzs[0];
+
+    if (selfnnzs) {
+      PetscInt *allocated = &selfnnzs[-lag->selfSymOff];
+      ierr = PetscFree(allocated);CHKERRQ(ierr);
+    }
+    ierr = PetscFree(lag->symmetrynnzs);CHKERRQ(ierr);
   }
   for (i = 0; i < lag->height; i++) {
     ierr = PetscDualSpaceDestroy(&lag->subspaces[i]);CHKERRQ(ierr);

@@ -79,7 +79,7 @@ struct _PetscDualSpaceOps {
   PetscErrorCode (*getnumdof)(PetscDualSpace,const PetscInt**);
   PetscErrorCode (*getheightsubspace)(PetscDualSpace,PetscInt,PetscDualSpace *);
   PetscErrorCode (*getpointsubspace)(PetscDualSpace,PetscInt,PetscDualSpace *);
-  PetscErrorCode (*getsymmetries)(PetscDualSpace,const PetscInt****,const PetscScalar****);
+  PetscErrorCode (*getsymmetries)(PetscDualSpace,const PetscInt***,const PetscInt(****)[2],const PetscScalar****);
   PetscErrorCode (*apply)(PetscDualSpace, PetscInt, PetscReal, PetscFEGeom *, PetscInt, PetscErrorCode (*)(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *), void *, PetscScalar *);
   PetscErrorCode (*applyall)(PetscDualSpace, const PetscScalar *, PetscScalar *);
   PetscErrorCode (*createallpoints)(PetscDualSpace, PetscQuadrature *);
@@ -103,7 +103,9 @@ typedef struct {
   PetscBool       continuous;
   PetscInt        height;
   PetscDualSpace *subspaces;
-  PetscInt     ***symmetries;
+  PetscInt      **symmetrynnzs;
+  PetscInt    (***symmetryijs)[2];
+  PetscScalar  ***symmetryvals;
   PetscInt        numSelfSym;
   PetscInt        selfSymOff;
 } PetscDualSpace_Lag;

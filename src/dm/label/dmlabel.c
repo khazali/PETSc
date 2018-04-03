@@ -1458,13 +1458,14 @@ PetscErrorCode PetscSectionCreateGlobalSectionLabel(PetscSection s, PetscSF sf, 
 
 typedef struct _n_PetscSectionSym_Label
 {
-  DMLabel           label;
-  PetscCopyMode     *modes;
-  PetscInt          *sizes;
-  const PetscInt    ***perms;
-  const PetscScalar ***rots;
-  PetscInt          (*minMaxOrients)[2];
-  PetscInt          numStrata; /* numStrata is only increasing, functions as a state */
+  DMLabel               label;
+  PetscCopyMode        *modes;
+  PetscInt             *sizes;
+  const PetscInt      **nnzs;
+  const PetscInt    (***ijs)[2];
+  const PetscScalar  ***vals;
+  PetscInt            (*minMaxOrients)[2];
+  PetscInt              numStrata; /* numStrata is only increasing, functions as a state */
 } PetscSectionSym_Label;
 
 static PetscErrorCode PetscSectionSymLabelReset(PetscSectionSym sym)
@@ -1477,22 +1478,27 @@ static PetscErrorCode PetscSectionSymLabelReset(PetscSectionSym sym)
   for (i = 0; i <= sl->numStrata; i++) {
     if (sl->modes[i] == PETSC_OWN_POINTER || sl->modes[i] == PETSC_COPY_VALUES) {
       for (j = sl->minMaxOrients[i][0]; j < sl->minMaxOrients[i][1]; j++) {
-        if (sl->perms[i]) {ierr = PetscFree(sl->perms[i][j]);CHKERRQ(ierr);}
-        if (sl->rots[i]) {ierr = PetscFree(sl->rots[i][j]);CHKERRQ(ierr);}
+        if (sl->ijs[i]) {ierr = PetscFree(sl->ijs[i][j]);CHKERRQ(ierr);}
+        if (sl->vals[i]) {ierr = PetscFree(sl->vals[i][j]);CHKERRQ(ierr);}
       }
-      if (sl->perms[i]) {
-        const PetscInt **perms = &sl->perms[i][sl->minMaxOrients[i][0]];
+      if (sl->nnzs[i]) {
+        const PetscInt *nnzs = &sl->nnzs[i][sl->minMaxOrients[i][0]];
 
-        ierr = PetscFree(perms);CHKERRQ(ierr);
+        ierr = PetscFree(nnzs);CHKERRQ(ierr);
       }
-      if (sl->rots[i]) {
-        const PetscScalar **rots = &sl->rots[i][sl->minMaxOrients[i][0]];
+      if (sl->ijs[i]) {
+        const PetscInt (**ijs)[2] = &sl->ijs[i][sl->minMaxOrients[i][0]];
 
-        ierr = PetscFree(rots);CHKERRQ(ierr);
+        ierr = PetscFree(ijs);CHKERRQ(ierr);
+      }
+      if (sl->vals[i]) {
+        const PetscScalar **vals = &sl->vals[i][sl->minMaxOrients[i][0]];
+
+        ierr = PetscFree(vals);CHKERRQ(ierr);
       }
     }
   }
-  ierr = PetscFree5(sl->modes,sl->sizes,sl->perms,sl->rots,sl->minMaxOrients);CHKERRQ(ierr);
+  ierr = PetscFree6(sl->modes,sl->sizes,sl->nnzs,sl->ijs,sl->vals,sl->minMaxOrients);CHKERRQ(ierr);
   ierr = DMLabelDestroy(&sl->label);CHKERRQ(ierr);
   sl->numStrata = 0;
   PetscFunctionReturn(0);
@@ -1538,41 +1544,21 @@ static PetscErrorCode PetscSectionSymView_Label(PetscSectionSym sym, PetscViewer
     for (i = 0; i <= sl->numStrata; i++) {
       PetscInt value = i < sl->numStrata ? label->stratumValues[i] : label->defaultValue;
 
-      if (!(sl->perms[i] || sl->rots[i])) {
+      if (!(sl->nnzs[i])) {
         ierr = PetscViewerASCIIPrintf(viewer, "Symmetry for stratum value %D (%D dofs per point): no symmetries\n", value, sl->sizes[i]);CHKERRQ(ierr);
       } else {
-      ierr = PetscViewerASCIIPrintf(viewer, "Symmetry for stratum value %D (%D dofs per point):\n", value, sl->sizes[i]);CHKERRQ(ierr);
+        ierr = PetscViewerASCIIPrintf(viewer, "Symmetry for stratum value %D (%D dofs per point):\n", value, sl->sizes[i]);CHKERRQ(ierr);
         ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
         ierr = PetscViewerASCIIPrintf(viewer, "Orientation range: [%D, %D)\n", sl->minMaxOrients[i][0], sl->minMaxOrients[i][1]);CHKERRQ(ierr);
         if (format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
           ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
           for (j = sl->minMaxOrients[i][0]; j < sl->minMaxOrients[i][1]; j++) {
-            if (!((sl->perms[i] && sl->perms[i][j]) || (sl->rots[i] && sl->rots[i][j]))) {
+            if (!(sl->nnzs[i][j])) {
               ierr = PetscViewerASCIIPrintf(viewer, "Orientation %D: identity\n",j);CHKERRQ(ierr);
             } else {
-              PetscInt tab;
-
               ierr = PetscViewerASCIIPrintf(viewer, "Orientation %D:\n",j);CHKERRQ(ierr);
               ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
-              ierr = PetscViewerASCIIGetTab(viewer,&tab);CHKERRQ(ierr);
-              if (sl->perms[i] && sl->perms[i][j]) {
-                ierr = PetscViewerASCIIPrintf(viewer,"Permutation:");CHKERRQ(ierr);
-                ierr = PetscViewerASCIISetTab(viewer,0);CHKERRQ(ierr);
-                for (k = 0; k < sl->sizes[i]; k++) {ierr = PetscViewerASCIIPrintf(viewer," %D",sl->perms[i][j][k]);CHKERRQ(ierr);}
-                ierr = PetscViewerASCIIPrintf(viewer,"\n");CHKERRQ(ierr);
-                ierr = PetscViewerASCIISetTab(viewer,tab);CHKERRQ(ierr);
-              }
-              if (sl->rots[i] && sl->rots[i][j]) {
-                ierr = PetscViewerASCIIPrintf(viewer,"Rotations:  ");CHKERRQ(ierr);
-                ierr = PetscViewerASCIISetTab(viewer,0);CHKERRQ(ierr);
-#if defined(PETSC_USE_COMPLEX)
-                for (k = 0; k < sl->sizes[i]; k++) {ierr = PetscViewerASCIIPrintf(viewer," %+f+i*%+f",PetscRealPart(sl->rots[i][j][k]),PetscImaginaryPart(sl->rots[i][j][k]));CHKERRQ(ierr);}
-#else
-                for (k = 0; k < sl->sizes[i]; k++) {ierr = PetscViewerASCIIPrintf(viewer," %+f",sl->rots[i][j][k]);CHKERRQ(ierr);}
-#endif
-                ierr = PetscViewerASCIIPrintf(viewer,"\n");CHKERRQ(ierr);
-                ierr = PetscViewerASCIISetTab(viewer,tab);CHKERRQ(ierr);
-              }
+              for (k = 0; k < sl->nnzs[i][j]; k++) {ierr = PetscViewerASCIIPrintf(viewer," [%D, %D] = %g",sl->ijs[i][j][k][0], sl->ijs[i][j][k][1], sl->vals[i][j] ? sl->vals[i][j][k] : 1.);CHKERRQ(ierr);}
               ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
             }
           }
@@ -1612,11 +1598,12 @@ PetscErrorCode PetscSectionSymLabelSetLabel(PetscSectionSym sym, DMLabel label)
     label->refct++;
     sl->label = label;
     ierr = DMLabelGetNumValues(label,&sl->numStrata);CHKERRQ(ierr);
-    ierr = PetscMalloc5(sl->numStrata+1,&sl->modes,sl->numStrata+1,&sl->sizes,sl->numStrata+1,&sl->perms,sl->numStrata+1,&sl->rots,sl->numStrata+1,&sl->minMaxOrients);CHKERRQ(ierr);
+    ierr = PetscMalloc6(sl->numStrata+1,&sl->modes,sl->numStrata+1,&sl->sizes,sl->numStrata+1,&sl->nnzs,sl->numStrata+1,&sl->ijs,sl->numStrata+1,&sl->vals,sl->numStrata+1,&sl->minMaxOrients);CHKERRQ(ierr);
     ierr = PetscMemzero((void *) sl->modes,(sl->numStrata+1)*sizeof(PetscCopyMode));CHKERRQ(ierr);
     ierr = PetscMemzero((void *) sl->sizes,(sl->numStrata+1)*sizeof(PetscInt));CHKERRQ(ierr);
-    ierr = PetscMemzero((void *) sl->perms,(sl->numStrata+1)*sizeof(const PetscInt **));CHKERRQ(ierr);
-    ierr = PetscMemzero((void *) sl->rots,(sl->numStrata+1)*sizeof(const PetscScalar **));CHKERRQ(ierr);
+    ierr = PetscMemzero((void *) sl->nnzs,(sl->numStrata+1)*sizeof(const PetscInt *));CHKERRQ(ierr);
+    ierr = PetscMemzero((void *) sl->ijs,(sl->numStrata+1)*sizeof(const PetscInt (**)[2]));CHKERRQ(ierr);
+    ierr = PetscMemzero((void *) sl->vals,(sl->numStrata+1)*sizeof(const PetscScalar **));CHKERRQ(ierr);
     ierr = PetscMemzero((void *) sl->minMaxOrients,(sl->numStrata+1)*sizeof(PetscInt[2]));CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -1641,7 +1628,7 @@ PetscErrorCode PetscSectionSymLabelSetLabel(PetscSectionSym sym, DMLabel label)
 
 .seealso: PetscSectionSymCreate(), PetscSectionSetSym(), PetscSectionGetPointSyms(), PetscSectionSymCreateLabel()
 @*/
-PetscErrorCode PetscSectionSymLabelSetStratum(PetscSectionSym sym, PetscInt stratum, PetscInt size, PetscInt minOrient, PetscInt maxOrient, PetscCopyMode mode, const PetscInt **perms, const PetscScalar **rots)
+PetscErrorCode PetscSectionSymLabelSetStratum(PetscSectionSym sym, PetscInt stratum, PetscInt size, PetscInt minOrient, PetscInt maxOrient, PetscCopyMode mode, const PetscInt *nnzs, const PetscInt (**ijs)[2], const PetscScalar **vals)
 {
   PetscInt       i, j, k;
   PetscSectionSym_Label *sl;
@@ -1662,38 +1649,44 @@ PetscErrorCode PetscSectionSymLabelSetStratum(PetscSectionSym sym, PetscInt stra
   sl->minMaxOrients[i][0] = minOrient;
   sl->minMaxOrients[i][1] = maxOrient;
   if (mode == PETSC_COPY_VALUES) {
-    if (perms) {
-      PetscInt    **ownPerms;
+    PetscScalar *ownNNZs;
 
-      ierr = PetscCalloc1(maxOrient - minOrient,&ownPerms);CHKERRQ(ierr);
+    ierr = PetscMalloc1(maxOrient - minOrient,&ownNNZs);CHKERRQ(ierr);
+    for (j = 0; j < maxOrient-minOrient; j++) {ownNNZs[j] = nnzs[j];}
+    sl->nnzs[i] = (const PetscInt *) &ownNNZs[-minOrient];
+    if (ijs) {
+      PetscInt    (**ownIJs)[2];
+
+      ierr = PetscCalloc1(maxOrient - minOrient,&ownIJs);CHKERRQ(ierr);
       for (j = 0; j < maxOrient-minOrient; j++) {
-        if (perms[j]) {
-          ierr = PetscMalloc1(size,&ownPerms[j]);CHKERRQ(ierr);
-          for (k = 0; k < size; k++) {ownPerms[j][k] = perms[j][k];}
+        if (nnzs[j]) {
+          ierr = PetscMalloc1(nnzs[j],&ownIJs[j]);CHKERRQ(ierr);
+          for (k = 0; k < nnzs[j]; k++) {ownIJs[j][k][0] = ijs[j][k][0]; ownIJs[j][k][1] = ijs[j][k][1];}
         }
       }
-      sl->perms[i] = (const PetscInt **) &ownPerms[-minOrient];
+      sl->ijs[i] = (const PetscInt (**)[2]) &ownIJs[-minOrient];
     }
-    if (rots) {
-      PetscScalar **ownRots;
+    if (vals) {
+      PetscScalar **ownVals;
 
-      ierr = PetscCalloc1(maxOrient - minOrient,&ownRots);CHKERRQ(ierr);
+      ierr = PetscCalloc1(maxOrient - minOrient,&ownVals);CHKERRQ(ierr);
       for (j = 0; j < maxOrient-minOrient; j++) {
-        if (rots[j]) {
-          ierr = PetscMalloc1(size,&ownRots[j]);CHKERRQ(ierr);
-          for (k = 0; k < size; k++) {ownRots[j][k] = rots[j][k];}
+        if (nnzs[j] && vals[j]) {
+          ierr = PetscMalloc1(nnzs[j],&ownVals[j]);CHKERRQ(ierr);
+          for (k = 0; k < nnzs[j]; k++) {ownVals[j][k] = vals[j][k];}
         }
       }
-      sl->rots[i] = (const PetscScalar **) &ownRots[-minOrient];
+      sl->vals[i] = (const PetscScalar **) &ownVals[-minOrient];
     }
   } else {
-    sl->perms[i] = perms ? &perms[-minOrient] : NULL;
-    sl->rots[i]  = rots ? &rots[-minOrient] : NULL;
+    sl->nnzs[i]  = nnzs;
+    sl->ijs[i]   = ijs ? &ijs[-minOrient] : NULL;
+    sl->vals[i]  = vals ? &vals[-minOrient] : NULL;
   }
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode PetscSectionSymGetPoints_Label(PetscSectionSym sym, PetscSection section, PetscInt numPoints, const PetscInt *points, const PetscInt **perms, const PetscScalar **rots)
+static PetscErrorCode PetscSectionSymGetPoints_Label(PetscSectionSym sym, PetscSection section, PetscInt numPoints, const PetscInt *points, PetscInt *nnzs, const PetscInt (**ijs)[2], const PetscScalar **vals)
 {
   PetscInt              i, j, numStrata;
   PetscSectionSym_Label *sl;
@@ -1722,8 +1715,9 @@ static PetscErrorCode PetscSectionSymGetPoints_Label(PetscSectionSym sym, PetscS
       }
     }
     if ((sl->minMaxOrients[j][1] > sl->minMaxOrients[j][0]) && (ornt < sl->minMaxOrients[j][0] || ornt >= sl->minMaxOrients[j][1])) SETERRQ5(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"point %D orientation %D not in range [%D, %D) for stratum %D",point,ornt,sl->minMaxOrients[j][0],sl->minMaxOrients[j][1],j < numStrata ? label->stratumValues[j] : label->defaultValue);
-    if (perms) {perms[i] = sl->perms[j] ? sl->perms[j][ornt] : NULL;}
-    if (rots) {rots[i]  = sl->rots[j] ? sl->rots[j][ornt] : NULL;}
+    if (nnzs) {nnzs[i] = sl->nnzs[j][ornt];}
+    if (ijs)  {ijs[i]  = sl->ijs[j] ? sl->ijs[j][ornt] : NULL;}
+    if (vals) {vals[i] = sl->vals[j] ? sl->vals[j][ornt] : NULL;}
   }
   PetscFunctionReturn(0);
 }
