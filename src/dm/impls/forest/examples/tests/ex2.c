@@ -37,6 +37,13 @@ static PetscErrorCode CreateAdaptivityLabel(DM forest,DMLabel *adaptLabel)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode ConstantFunction(PetscInt dim,PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx)
+{
+  PetscFunctionBeginUser;
+  u[0] = 1138.42;
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode LinearFunction(PetscInt dim,PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx)
 {
   PetscFunctionBeginUser;
@@ -83,6 +90,7 @@ int main(int argc, char **argv)
   const PetscInt cells[] = {3, 3, 3};
   PetscReal      diff, tol = PETSC_SMALL;
   PetscBool      linear = PETSC_FALSE;
+  PetscBool      constant = PETSC_FALSE;
   PetscBool      useFV = PETSC_FALSE;
   PetscDS        ds;
   bc_func_ctx    bcCtx;
@@ -94,11 +102,14 @@ int main(int argc, char **argv)
   ierr = PetscOptionsBegin(comm, "", "DMForestTransferVec() Test Options", "DMFOREST");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-dim", "The dimension (2 or 3)", "ex2.c", dim, &dim, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-linear","Transfer a simple linear function", "ex2.c", linear, &linear, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-constant","Transfer a constant function", "ex2.c", constant, &constant, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_fv","Use a finite volume approximation", "ex2.c", useFV, &useFV, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   if (linear) {
     funcs[0] = LinearFunction;
+  } else if (constant) {
+    funcs[0] = ConstantFunction;
   }
 
   bcCtx.func = funcs[0];
