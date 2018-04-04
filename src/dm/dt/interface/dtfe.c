@@ -3317,8 +3317,10 @@ PetscErrorCode PetscFEDestroy(PetscFE *fem)
 
   if ((*fem)->subspaces) {
     PetscInt dim, d;
+    DM       K;
 
-    ierr = PetscDualSpaceGetDimension((*fem)->dualSpace, &dim);CHKERRQ(ierr);
+    ierr = PetscDualSpaceGetDM((*fem)->dualSpace, &K);CHKERRQ(ierr);
+    ierr = DMGetDimension(K, &dim);CHKERRQ(ierr);
     for (d = 0; d < dim; ++d) {ierr = PetscFEDestroy(&(*fem)->subspaces[d]);CHKERRQ(ierr);}
   }
   ierr = PetscFree((*fem)->subspaces);CHKERRQ(ierr);
@@ -6600,8 +6602,9 @@ PetscErrorCode PetscFEGetHeightSubspace(PetscFE fe, PetscInt height, PetscFE *su
   PetscDualSpace  Q, subQ;
   PetscQuadrature subq;
   PetscFEType     fetype;
-  PetscInt        dim, Nc;
+  PetscInt        dim, Nc, d;
   DM              K;
+  PetscBool       hasDofs = PETSC_FALSE;
   const PetscInt *numDof;
   PetscErrorCode  ierr;
 
@@ -6617,7 +6620,13 @@ PetscErrorCode PetscFEGetHeightSubspace(PetscFE fe, PetscInt height, PetscFE *su
   ierr = DMGetDimension(K, &dim);CHKERRQ(ierr);
   if (height > dim || height < 0) {SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Asked for space at height %D for dimension %D space", height, dim);}
   ierr = PetscDualSpaceGetNumDof(Q, &numDof);CHKERRQ(ierr);
-  if (!numDof[height]) {
+  for (d = 0; d <= dim - height; d++) {
+    if (numDof[d]) {
+      hasDofs = PETSC_TRUE;
+      break;
+    }
+  }
+  if (!hasDofs) {
     *subfe = NULL;
     PetscFunctionReturn(0);
   }
