@@ -1109,7 +1109,7 @@ PetscErrorCode DMPlexComputeGradientClementInterpolant(DM dm, Vec locX, Vec locC
           if (id == PETSCFE_CLASSID)      {ierr = PetscFEInterpolateGradient_Static((PetscFE) obj, &x[fieldOffset], coordDim, invJ, NULL, q, interpolant);CHKERRQ(ierr);}
           else SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", field);
           for (fc = 0; fc < Nc; ++fc) {
-            const PetscReal wt = quadWeights[q*qNc+qc+fc];
+            const PetscReal wt = quadWeights[q*qNc+(qNc == 1 ? 0 : qc+fc)];
 
             for (d = 0; d < coordDim; ++d) grad[fc*coordDim+d] += interpolant[fc*dim+d]*wt*detJ[q];
           }
@@ -1149,7 +1149,7 @@ PetscErrorCode DMPlexComputeGradientClementInterpolant(DM dm, Vec locX, Vec locC
 static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cStart, PetscInt cEnd, PetscScalar *cintegral, void *user)
 {
   DM                 dmAux = NULL;
-  PetscDS            prob,    probAux;
+  PetscDS            prob,    probAux = NULL;
   PetscSection       section, sectionAux;
   Vec                locX,    locA;
   PetscInt           dim, numCells = cEnd - cStart, cell, c, f;
