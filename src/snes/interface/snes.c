@@ -4093,12 +4093,14 @@ PetscErrorCode  SNESReasonView(SNES snes,PetscViewer viewer)
   PetscViewerFormat format;
   PetscBool         isAscii;
   PetscErrorCode    ierr;
+  PetscInt          tablevel;
 
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isAscii);CHKERRQ(ierr);
   if (isAscii) {
     ierr = PetscViewerGetFormat(viewer, &format);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIAddTab(viewer,((PetscObject)snes)->tablevel);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIGetTab(viewer, &tablevel);CHKERRQ(ierr);
+    ierr = PetscViewerASCIISetTab(viewer,((PetscObject)snes)->tablevel);CHKERRQ(ierr);
     if (format == PETSC_VIEWER_ASCII_INFO_DETAIL) {
       DM                dm;
       Vec               u;
@@ -4131,7 +4133,7 @@ PetscErrorCode  SNESReasonView(SNES snes,PetscViewer viewer)
         ierr = PetscViewerASCIIPrintf(viewer,"Nonlinear solve did not converge due to %s iterations %D\n",SNESConvergedReasons[snes->reason],snes->iter);CHKERRQ(ierr);
       }
     }
-    ierr = PetscViewerASCIISubtractTab(viewer,((PetscObject)snes)->tablevel);CHKERRQ(ierr);
+    ierr = PetscViewerASCIISetTab(viewer, tablevel);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
