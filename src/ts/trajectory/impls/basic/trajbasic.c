@@ -53,6 +53,16 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   ierr = TSGetPrevTime(ts,&tprev);CHKERRQ(ierr);
   ierr = PetscViewerBinaryWrite(viewer,&tprev,1,PETSC_REAL,PETSC_FALSE);CHKERRQ(ierr);
 
+  /* Tangent linear sensitivities needed by second-order adjoint */
+  if (ts->forward_solve) {
+    Mat A,*S;
+    ierr = TSForwardGetSensitivities(ts,NULL,&A);CHKERRQ(ierr);
+    ierr = MatView(A,viewer);CHKERRQ(ierr);
+    ierr = TSForwardGetStages(ts,&ns,&S);CHKERRQ(ierr);
+    for (i=0;i<ns;i++) {
+      ierr = MatView(S[i],viewer);CHKERRQ(ierr);
+    }
+  }
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -60,7 +70,7 @@ static PetscErrorCode TSTrajectorySet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
 static PetscErrorCode TSTrajectoryGet_Basic(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal *t)
 {
   Vec            Sol,*Y;
-  PetscInt       Nr,i;
+  PetscInt       ns,i;
   PetscViewer    viewer;
   PetscReal      timepre;
   char           filename[PETSC_MAX_PATH_LEN];
@@ -76,12 +86,23 @@ static PetscErrorCode TSTrajectoryGet_Basic(TSTrajectory tj,TS ts,PetscInt stepn
   ierr = PetscViewerBinaryRead(viewer,t,1,NULL,PETSC_REAL);CHKERRQ(ierr);
 
   if (stepnum != 0) {
-    ierr = TSGetStages(ts,&Nr,&Y);CHKERRQ(ierr);
-    for (i=0;i<Nr ;i++) {
+    ierr = TSGetStages(ts,&ns,&Y);CHKERRQ(ierr);
+    for (i=0;i<ns;i++) {
       ierr = VecLoad(Y[i],viewer);CHKERRQ(ierr);
     }
     ierr = PetscViewerBinaryRead(viewer,&timepre,1,NULL,PETSC_REAL);CHKERRQ(ierr);
     ierr = TSSetTimeStep(ts,-(*t)+timepre);CHKERRQ(ierr);
+
+    /* Tangent linear sensitivities needed by second-order adjoint */
+    if (ts->forward_solve) {
+      Mat A,*S;
+      ierr = TSForwardGetSensitivities(ts,NULL,&A);CHKERRQ(ierr);
+      ierr = MatLoad(A,viewer);CHKERRQ(ierr);
+      ierr = TSForwardGetStages(ts,&ns,&S);CHKERRQ(ierr);
+      for (i=0;i<ns;i++) {
+        ierr = MatLoad(S[i],viewer);CHKERRQ(ierr);
+      }
+    }
   }
 
   ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
