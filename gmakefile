@@ -7,7 +7,7 @@ include ./lib/petsc/conf/variables
 OBJDIR := $(PETSC_ARCH)/obj
 LIBDIR := $(PETSC_ARCH)/lib
 
-pkgs := sys vec mat dm ksp snes ts tao
+pkgs := tao ts snes ksp dm mat vec sys
 
 # $(call SONAME_FUNCTION,libfoo,abiversion)
 SONAME_FUNCTION ?= $(1).$(SL_LINKER_SUFFIX).$(2)
@@ -66,29 +66,27 @@ endif
 
 langs := F cu cxx c
 concatlang = $(foreach lang, $(langs), $(srcs-$(1).$(lang):src/%.$(lang)=$(OBJDIR)/%.o))
-srcs.o := $(foreach pkg, $(pkgs), $(call concatlang,$(pkg)))
+srcs-.o := $(foreach pkg, $(pkgs), $(call concatlang,$(pkg)))
 
 define SHARED_RECIPE_DLL
   @$(RM) $@ dllcmd.${PETSC_ARCH}
-  @cygpath -w $^ > dllcmd.${PETSC_ARCH}
+  @cygpath -w $^ $(if $(RELINK),,$(libdep)) > dllcmd.${PETSC_ARCH}
   $(call quiet,CLINKER) $(sl_linker_args) -o $@ @dllcmd.${PETSC_ARCH} $(PETSC_EXTERNAL_LIB_BASIC)
   @$(RM) dllcmd.${PETSC_ARCH}
 endef
 
 define SHARED_RECIPE_DEFAULT
-  $(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(PETSC_EXTERNAL_LIB_BASIC)
+  $(call quiet,CLINKER) $(sl_linker_args) -o $@ $^ $(if $(RELINK),,$(libdep)) $(PETSC_EXTERNAL_LIB_BASIC)
 endef
 
 SHARED_RECIPE = $(if $(findstring -LD,$(SL_LINKER_FUNCTION)),$(SHARED_RECIPE_DLL),$(SHARED_RECIPE_DEFAULT))
 
 # with-single-library=1 (default)
-$(libpetsc_libname) : $(srcs.o) | $$(@D)/.DIR
+$(libpetsc_libname) : $(srcs-.o) | $$(@D)/.DIR
 	$(SHARED_RECIPE)
 ifneq ($(DSYMUTIL),true)
 	$(call quiet,DSYMUTIL) $@
 endif
-
-$(libpetsc_static) : obj := $(srcs.o)
 
 define ARCHIVE_RECIPE_WIN32FE_LIB
   @$(RM) $@ $@.args
@@ -103,16 +101,12 @@ define ARCHIVE_RECIPE_DEFAULT
   $(call quiet,RANLIB) $@
 endef
 
-%.$(AR_LIB_SUFFIX) : $$(obj) | $$(@D)/.DIR
+$(libpetscall_static) : $(LIBDIR)/libpetsc%.$(AR_LIB_SUFFIX) : $$(call concatlang,%) | $$(@D)/.DIR
 	$(if $(findstring win32fe lib,$(AR)),$(ARCHIVE_RECIPE_WIN32FE_LIB),$(ARCHIVE_RECIPE_DEFAULT))
 
 # with-single-library=0
 libpkg = $(foreach pkg, $1, $(LIBDIR)/libpetsc$(pkg).$(SL_LINKER_SUFFIX))
-define pkg_template
-  $(LIBDIR)/libpetsc$(1).$(AR_LIB_SUFFIX)  : $(call concatlang,$(1))
-  $(call libname_function,$(LIBDIR)/libpetsc$(1)) : $(call concatlang,$(1))
-endef
-$(foreach pkg,$(pkgs),$(eval $(call pkg_template,$(pkg))))
+$(call libname_function,$(LIBDIR)/libpetscsys)  : libdep :=
 $(call libname_function,$(LIBDIR)/libpetscvec)  : libdep := $(call libpkg,sys)
 $(call libname_function,$(LIBDIR)/libpetscmat)  : libdep := $(call libpkg,vec sys)
 $(call libname_function,$(LIBDIR)/libpetscdm)   : libdep := $(call libpkg,mat vec sys)
@@ -125,14 +119,14 @@ $(call libname_function,$(LIBDIR)/libpetsctao)  : libdep := $(call libpkg,snes k
 # ABI changes like new or removed symbols requires relinking the dependent libraries.  ABI should
 # only occur when a header is changed, which would trigger recompilation and relinking anyway.
 # RELINK=1 causes dependent libraries to be relinked anyway.
-ifeq ($(RELINK),1)
+ifneq ($(RELINK),)
   libdep_true = $$(libdep)
   libdep_order =
 else
   libdep_true =
   libdep_order = $$(libdep)
 endif
-$(libpetscpkgs_libname) : $(libdep_true) | $(libdep_order) $$(@D)/.DIR
+$(libpetscpkgs_libname) : $(call libname_function,$(LIBDIR)/libpetsc%) : $$(call concatlang,%) $(libdep_true) | $(libdep_order) $$(@D)/.DIR
 	$(SHARED_RECIPE)
 ifneq ($(DSYMUTIL),true)
 	$(call quiet,DSYMUTIL) $@
@@ -190,14 +184,14 @@ $(OBJDIR)/sys/objects/f2003-foptionenum.o   : $(OBJDIR)/sys/f90-mod/petscsysmod.
 $(OBJDIR)/sys/classes/bag/f2003-src/fsrc/bagenum.o  : $(OBJDIR)/sys/f90-mod/petscsysmod.o
 
 # all sources should get recompiled when petscvariables changes (i.e when configure is rerun or when petscvariables is manually edited.)
-$(srcs.o) : $(petscvariables)
+$(srcs-.o) : $(petscvariables)
 
 .PHONY: clean all 
 
 clean: 
 	${RM} -r $(OBJDIR) $(LIBDIR)/libpetsc* $(MODDIR)/petsc*.mod $(MPIUNI_MOD) $(generated)
 
-allobj.d := $(srcs.o:%.o=%.d)
+allobj.d := $(srcs-.o:%.o=%.d)
 # Tell make that allobj.d are all up to date.  Without this, the include
 # below has quadratic complexity, taking more than one second for a
 # do-nothing build of PETSc (much worse for larger projects)
