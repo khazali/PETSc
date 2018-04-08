@@ -5066,9 +5066,9 @@ PetscErrorCode DMPlexMatSetClosure(DM dm, PetscSection section, PetscSection glo
   PetscInt            offsets[32];
   PetscInt            numFields, numPoints, newNumPoints, numIndices, newNumIndices, dof, off, globalOff, p, f;
   PetscScalar        *newValues;
-  PetscScalar        *vAlloc = NULL;
-  const PetscScalar  *vArray = NULL;
-  PetscScalar        *valCopy;
+  PetscScalar        *vAlloc  = NULL;
+  PetscScalar        *vAlloc2 = NULL;
+  const PetscScalar  *vArray  = NULL;
   PetscErrorCode      ierr;
 
   PetscFunctionBegin;
@@ -5096,11 +5096,12 @@ PetscErrorCode DMPlexMatSetClosure(DM dm, PetscSection section, PetscSection glo
 
   if (numFields && offsets[numFields] != numIndices) SETERRQ2(PetscObjectComm((PetscObject)dm), PETSC_ERR_PLIB, "Invalid size for closure %D should be %D", offsets[numFields], numIndices);
   vArray = values;
-  if (values) {
+  if (vArray) {
     PetscInt        clSize;
     const PetscInt *clPerm;
-    ierr = PetscSectionGetClosureInversePermutation_Internal(section, (PetscObject) dm, &clSize, &clPerm);CHKERRQ(ierr);
+    PetscBool       anySym = PETSC_FALSE;
 
+    ierr = PetscSectionGetClosureInversePermutation_Internal(section, (PetscObject) dm, &clSize, &clPerm);CHKERRQ(ierr);
     if (clPerm) { /* Apply permutation */
       PetscInt i, j;
 
@@ -5109,7 +5110,7 @@ PetscErrorCode DMPlexMatSetClosure(DM dm, PetscSection section, PetscSection glo
 
       for (i = 0; i < numIndices; i++) {
         for (j = 0; j < numIndices; j++) {
-          vAlloc[i * numIndices + j] = values[clPerm[i] * numIndices + clPerm[j]];
+          vAlloc[i * numIndices + j] = vArray[clPerm[i] * numIndices + clPerm[j]];
         }
       }
       vArray = vAlloc;
@@ -5119,79 +5120,38 @@ PetscErrorCode DMPlexMatSetClosure(DM dm, PetscSection section, PetscSection glo
       const PetscInt     *nnzs;
       const PetscInt   (**ijs)[2];
       const PetscScalar **vals;
-      PetscInt            i, j, k, l;
-      PetscBool           anySymmetry = PETSC_FALSE;
-      PetscScalar        *vtmp = NULL;
+      PetscInt            i;
 
       if (numFields) {ierr = PetscSectionGetFieldPointSyms(section,f,numPoints,points,&nnzs,&ijs,&vals);CHKERRQ(ierr);}
       else           {ierr = PetscSectionGetPointSyms(section,numPoints,points,&nnzs,&ijs,&vals);CHKERRQ(ierr);}
       if (nnzs) { /* may need to apply sign changes to the element matrix */
         for (i = 0; i < numPoints; i++) {
           if (nnzs[i]) {
-            anySymmetry = PETSC_TRUE;
+            anySym = PETSC_TRUE;
             break;
           }
         }
-        if (anySymmetry) {
-          PetscInt ioff, joff;
-
-          if (!vtmp) {
-            ierr = DMGetWorkArray(dm, numIndices * numIndices, MPIU_SCALAR, &vtmp);CHKERRQ(ierr);
-            for (i = 0; i < numIndices * numIndices; i++) vtmp[i] = 0.;
-          }
-          for (i = 0, ioff = 0; i < numPoints; i++) {
-            PetscInt idof;
-
-
-            for (j = 0, joff = 0; j < numPoints; j++) {
-            }
-          }
-        }
       }
-#if 0
-        PetscInt foffset = offsets[f];
-
-        for (p = 0; p < numPoints; p++) {
-          PetscInt point          = points[2*p], fdof;
-          const PetscScalar *flip = flips[f] ? flips[f][p] : NULL;
-
-          if (!numFields) {
-            ierr = PetscSectionGetDof(section,point,&fdof);CHKERRQ(ierr);
-          } else {
-            ierr = PetscSectionGetFieldDof(section,point,f,&fdof);CHKERRQ(ierr);
-          }
-          if (flip) {
-            PetscInt i, j, k;
-
-            if (!valCopy) {
-              ierr = DMGetWorkArray(dm,numIndices*numIndices,MPIU_SCALAR,&valCopy);CHKERRQ(ierr);
-              for (j = 0; j < numIndices * numIndices; j++) valCopy[j] = values[j];
-              values = valCopy;
-            }
-            for (i = 0; i < fdof; i++) {
-              PetscScalar fval = flip[i];
-
-              for (k = 0; k < numIndices; k++) {
-                valCopy[numIndices * (foffset + i) + k] *= fval;
-                valCopy[numIndices * k + (foffset + i)] *= fval;
-              }
-            }
-          }
-          foffset += fdof;
-        }
-#endif
-      }
-  }
-  ierr = DMPlexAnchorsModifyMat(dm,section,numPoints,numIndices,points,values,&newNumPoints,&newNumIndices,&newPoints,&newValues,offsets,PETSC_TRUE);CHKERRQ(ierr);
-  if (newNumPoints) {
-    if (valCopy) {
-      ierr = DMRestoreWorkArray(dm,numIndices*numIndices,MPIU_SCALAR,&valCopy);CHKERRQ(ierr);
+      if (numFields) {ierr = PetscSectionRestoreFieldPointSyms(section,f,numPoints,points,&nnzs,&ijs,&vals);CHKERRQ(ierr);}
+      else           {ierr = PetscSectionRestorePointSyms(section,numPoints,points,&nnzs,&ijs,&vals);CHKERRQ(ierr);}
+      if (anySym) break;
     }
+    if (anySym) {
+      ierr = DMGetWorkArray(dm, numIndices * numIndices, MPIU_SCALAR, &vAlloc2);CHKERRQ(ierr);
+      ierr = PetscSectionSymMatSTAS(section, numPoints, (const PetscInt (*)[2]) points, MPIU_SCALAR, vArray, numIndices, vAlloc2, numIndices);CHKERRQ(ierr);
+      vArray = vAlloc2;
+      if (vAlloc) {ierr = DMRestoreWorkArray(dm, numIndices * numIndices, MPIU_SCALAR, &vAlloc);CHKERRQ(ierr);}
+    }
+  }
+  ierr = DMPlexAnchorsModifyMat(dm,section,numPoints,numIndices,points,vArray,&newNumPoints,&newNumIndices,&newPoints,&newValues,offsets,PETSC_TRUE);CHKERRQ(ierr);
+  if (newNumPoints) {
+    if (vAlloc2) {ierr = DMRestoreWorkArray(dm,numIndices*numIndices,MPIU_SCALAR,&vAlloc2);CHKERRQ(ierr);}
+    if (vAlloc)  {ierr = DMRestoreWorkArray(dm,numIndices*numIndices,MPIU_SCALAR,&vAlloc);CHKERRQ(ierr);}
     ierr = DMPlexRestoreCompressedClosure(dm,section,point,&numPoints,&points,&clSection,&clPoints,&clp);CHKERRQ(ierr);
     numPoints  = newNumPoints;
     numIndices = newNumIndices;
     points     = newPoints;
-    values     = newValues;
+    vArray     = newValues;
   }
   ierr = DMGetWorkArray(dm, numIndices, MPIU_INT, &indices);CHKERRQ(ierr);
   if (numFields) {
@@ -5205,8 +5165,8 @@ PetscErrorCode DMPlexMatSetClosure(DM dm, PetscSection section, PetscSection glo
       DMPlexGetIndicesPoint_Internal(section, points[2*p], globalOff < 0 ? -(globalOff+1) : globalOff, &off, PETSC_FALSE, indices);
     }
   }
-  if (mesh->printSetValues) {ierr = DMPlexPrintMatSetValues(PETSC_VIEWER_STDOUT_SELF, A, point, numIndices, indices, 0, NULL, values);CHKERRQ(ierr);}
-  ierr = MatSetValues(A, numIndices, indices, numIndices, indices, values, mode);
+  if (mesh->printSetValues) {ierr = DMPlexPrintMatSetValues(PETSC_VIEWER_STDOUT_SELF, A, point, numIndices, indices, 0, NULL, vArray);CHKERRQ(ierr);}
+  ierr = MatSetValues(A, numIndices, indices, numIndices, indices, vArray, mode);
   if (mesh->printFEM > 1) {
     PetscInt i;
     ierr = PetscPrintf(PETSC_COMM_SELF, "  Indices:");CHKERRQ(ierr);
@@ -5223,17 +5183,16 @@ PetscErrorCode DMPlexMatSetClosure(DM dm, PetscSection section, PetscSection glo
     ierr2 = DMRestoreWorkArray(dm, numIndices, MPIU_INT, &indices);CHKERRQ(ierr2);
     CHKERRQ(ierr);
   }
+  ierr = DMRestoreWorkArray(dm, numIndices, MPIU_INT, &indices);CHKERRQ(ierr);
   if (newNumPoints) {
     ierr = DMRestoreWorkArray(dm,newNumIndices*newNumIndices,MPIU_SCALAR,&newValues);CHKERRQ(ierr);
     ierr = DMRestoreWorkArray(dm,2*newNumPoints,MPIU_INT,&newPoints);CHKERRQ(ierr);
   }
   else {
-    if (valCopy) {
-      ierr = DMRestoreWorkArray(dm,numIndices*numIndices,MPIU_SCALAR,&valCopy);CHKERRQ(ierr);
-    }
+    if (vAlloc2) {ierr = DMRestoreWorkArray(dm,numIndices*numIndices,MPIU_SCALAR,&vAlloc2);CHKERRQ(ierr);}
+    if (vAlloc)  {ierr = DMRestoreWorkArray(dm,numIndices*numIndices,MPIU_SCALAR,&vAlloc);CHKERRQ(ierr);}
     ierr = DMPlexRestoreCompressedClosure(dm,section,point,&numPoints,&points,&clSection,&clPoints,&clp);CHKERRQ(ierr);
   }
-  ierr = DMRestoreWorkArray(dm, numIndices, MPIU_INT, &indices);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

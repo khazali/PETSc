@@ -119,6 +119,8 @@ PETSC_EXTERN PetscErrorCode PetscSectionGetBySym(PetscSection, PetscInt, const P
 PETSC_EXTERN PetscErrorCode PetscSectionSetBySym(PetscSection, PetscInt, const PetscInt (*)[2], PetscDataType, void *, const void *, InsertMode);
 PETSC_EXTERN PetscErrorCode PetscSectionGetBySym_Internal(PetscSection, PetscInt, const PetscInt (*)[2], PetscDataType, const void *, void *, PetscInt *);
 PETSC_EXTERN PetscErrorCode PetscSectionSetBySym_Internal(PetscSection, PetscInt, const PetscInt (*)[2], PetscDataType, void *, const void *, InsertMode, PetscInt *);
+PETSC_EXTERN PetscErrorCode PetscSectionSymMatSTAS(PetscSection, PetscInt, const PetscInt (*)[2], PetscDataType, const void *, PetscInt, void *, PetscInt);
+PETSC_EXTERN PetscErrorCode PetscSectionSymMatAS(PetscSection, PetscInt, const PetscInt (*)[2], PetscDataType, PetscInt, const void *, PetscInt, void *, PetscInt);
 
 struct _PetscSectionSymOps {
   PetscErrorCode (*getpoints)(PetscSectionSym,PetscSection,PetscInt,const PetscInt *,PetscInt *, const PetscInt (**)[2],const PetscScalar **);
