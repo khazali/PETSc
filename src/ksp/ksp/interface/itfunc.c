@@ -908,6 +908,21 @@ PetscErrorCode  KSPSolveTranspose(KSP ksp,Vec b,Vec x)
   ksp->vec_sol         = x;
   ksp->transpose_solve = PETSC_TRUE;
 
+  if (ksp->guess) {
+    PetscObjectState ostate,state;
+
+    ierr = KSPGuessSetUp(ksp->guess);CHKERRQ(ierr);
+    ierr = PetscObjectStateGet((PetscObject)ksp->vec_sol,&ostate);CHKERRQ(ierr);
+    ierr = KSPGuessFormGuess(ksp->guess,ksp->vec_rhs,ksp->vec_sol);CHKERRQ(ierr);
+    ierr = PetscObjectStateGet((PetscObject)ksp->vec_sol,&state);CHKERRQ(ierr);
+    if (state != ostate) {
+      ksp->guess_zero = PETSC_FALSE;
+    } else {
+      PetscInfo(ksp,"Using zero initial guess since the KSPGuess object did not change the vector\n");
+      ksp->guess_zero = PETSC_TRUE;
+    }
+  }
+
   ierr = KSPSetUp(ksp);CHKERRQ(ierr);
   ierr = KSPSetUpOnBlocks(ksp);CHKERRQ(ierr);
   if (ksp->guess_zero) { ierr = VecSet(ksp->vec_sol,0.0);CHKERRQ(ierr);}
@@ -929,6 +944,10 @@ PetscErrorCode  KSPSolveTranspose(KSP ksp,Vec b,Vec x)
   }
   if (!ksp->reason) SETERRQ(PetscObjectComm((PetscObject)ksp),PETSC_ERR_PLIB,"Internal error, solver returned without setting converged reason");
   ierr = KSPReasonViewFromOptions(ksp);CHKERRQ(ierr);
+
+  if (ksp->guess) {
+    ierr = KSPGuessUpdate(ksp->guess,ksp->vec_rhs,ksp->vec_sol);CHKERRQ(ierr);
+  }
 
   ierr = MatViewFromOptions(mat,(PetscObject)ksp,"-ksp_view_mat");CHKERRQ(ierr);
   ierr = MatViewFromOptions(pmat,(PetscObject)ksp,"-ksp_view_pmat");CHKERRQ(ierr);
@@ -1007,6 +1026,7 @@ PetscErrorCode  KSPDestroy(KSP *ksp)
   if (--((PetscObject)(*ksp))->refct > 0) {*ksp = 0; PetscFunctionReturn(0);}
 
   ierr = PetscObjectSAWsViewOff((PetscObject)*ksp);CHKERRQ(ierr);
+
   /*
    Avoid a cascading call to PCReset(ksp->pc) from the following call:
    PCReset() shouldn't be called from KSPDestroy() as it is unprotected by pc's
@@ -1016,8 +1036,9 @@ PetscErrorCode  KSPDestroy(KSP *ksp)
   (*ksp)->pc = NULL;
   ierr       = KSPReset((*ksp));CHKERRQ(ierr);
   (*ksp)->pc = pc;
-    if ((*ksp)->ops->destroy) {ierr = (*(*ksp)->ops->destroy)(*ksp);CHKERRQ(ierr);}
+  if ((*ksp)->ops->destroy) {ierr = (*(*ksp)->ops->destroy)(*ksp);CHKERRQ(ierr);}
 
+  ierr = KSPGuessDestroy(&(*ksp)->guess);CHKERRQ(ierr);
   ierr = DMDestroy(&(*ksp)->dm);CHKERRQ(ierr);
   ierr = PCDestroy(&(*ksp)->pc);CHKERRQ(ierr);
   ierr = PetscFree((*ksp)->res_hist_alloc);CHKERRQ(ierr);
