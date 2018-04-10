@@ -2341,6 +2341,7 @@ PetscErrorCode PetscSectionGetClosureIndex(PetscSection section, PetscObject obj
 PetscErrorCode PetscSectionSetClosurePermutation_Internal(PetscSection section, PetscObject obj, PetscInt clSize, PetscCopyMode mode, PetscInt *clPerm)
 {
   PetscInt       i;
+  PetscInt      *invCode;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -2362,13 +2363,17 @@ PetscErrorCode PetscSectionSetClosurePermutation_Internal(PetscSection section, 
   } else SETERRQ(PetscObjectComm(obj), PETSC_ERR_SUP, "Do not support borrowed arrays");
   ierr = PetscMalloc1(clSize, &section->clInvPerm);CHKERRQ(ierr);
   ierr = PetscMalloc1(clSize, &section->clCode);CHKERRQ(ierr);
+  ierr = PetscMalloc1(clSize, &invCode);CHKERRQ(ierr);
   for (i = 0; i < clSize; ++i) section->clInvPerm[section->clPerm[i]] = i;
-  for (i = clSize - 1; i >= 0; i--) {
-    PetscInt j = section->clPerm[i];
+  for (i = 0; i < clSize; i++) section->clCode[i] = section->clPerm[i];
+  for (i = 0; i < clSize; i++) invCode[i] = section->clInvPerm[i];
+  for (i = 0; i < clSize - 1; i++) {
+    PetscInt j = section->clCode[i];
 
-    if (j < i) j = section->clCode[j];
-    section->clCode[i] = j;
+    section->clCode[invCode[i]] = j;
+    invCode[j] = invCode[i];
   }
+  ierr = PetscFree(invCode);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2899,8 +2904,8 @@ PetscErrorCode PetscSectionGetPointSyms(PetscSection section, PetscInt numPoints
       ierr = PetscNewLog(sym,&link);CHKERRQ(ierr);
     }
     if (numPoints > link->numPoints) {
-      ierr = PetscFree3(link->nnzs, *(PetscInt(***)[2])&link->ijs,*(PetscScalar***)&link->vals);CHKERRQ(ierr);
-      ierr = PetscMalloc3(numPoints,&nnzs,numPoints,(PetscInt(***)[2])&link->ijs,numPoints,(PetscScalar***)&link->vals);CHKERRQ(ierr);
+      ierr = PetscFree3(link->nnzs, link->ijs, link->vals);CHKERRQ(ierr);
+      ierr = PetscMalloc3(numPoints,&link->nnzs,numPoints,&link->ijs,numPoints,&link->vals);CHKERRQ(ierr);
       link->numPoints = numPoints;
     }
     link->next   = sym->workout;
@@ -2958,6 +2963,7 @@ PetscErrorCode PetscSectionRestorePointSyms(PetscSection section, PetscInt numPo
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(section,PETSC_SECTION_CLASSID,1);
+  if ((!nnzs || !*nnzs) && (!ijs || !*ijs) && (!vals || !*vals)) PetscFunctionReturn(0);
   sym = section->sym;
   if (sym && (nnzs || ijs || vals)) {
     SymWorkLink *p,link;
@@ -3049,9 +3055,9 @@ PetscErrorCode PetscSectionRestoreFieldPointSyms(PetscSection section, PetscInt 
     PetscInt pS = section->pStart;                                               \
     for (i = 0; i < numPoints; i++) {                                            \
       PetscInt           p      = points[i][0];                                  \
-      PetscInt           nnz    = nnzs ? nnzs[p] : 0;                            \
-      const PetscInt   (*ij)[2] = ijs ? ijs[p] : NULL;                           \
-      const PetscScalar *val    = vals ? vals[p] : NULL;                         \
+      PetscInt           nnz    = nnzs ? nnzs[i] : 0;                            \
+      const PetscInt   (*ij)[2] = ijs ? ijs[i] : NULL;                           \
+      const PetscScalar *val    = vals ? vals[i] : NULL;                         \
       PetscInt           dof    = section->atlasDof[p - pS];                     \
       PetscInt           off    = section->atlasOff[p - pS];                     \
       if (val) {                                                                 \
@@ -3142,9 +3148,9 @@ PetscErrorCode PetscSectionGetBySym(PetscSection section, PetscInt numPoints, co
     PetscInt pS = section->pStart;                                                 \
     for (i = 0; i < numPoints; i++) {                                              \
       PetscInt           p      = points[i][0];                                    \
-      PetscInt           nnz    = nnzs ? nnzs[p] : 0;                              \
-      const PetscInt   (*ij)[2] = ijs ? ijs[p] : NULL;                             \
-      const PetscScalar *val    = vals ? vals[p] : NULL;                           \
+      PetscInt           nnz    = nnzs ? nnzs[i] : 0;                              \
+      const PetscInt   (*ij)[2] = ijs ? ijs[i] : NULL;                             \
+      const PetscScalar *val    = vals ? vals[i] : NULL;                           \
       PetscInt           dof    = section->atlasDof[p - pS];                       \
       PetscInt           cdof   = bcSection ? bcSection->atlasDof[p - pS] : 0;     \
       PetscInt           coff   = bcSection ? bcSection->atlasOff[p - pS] : 0;     \
@@ -3347,6 +3353,23 @@ PetscErrorCode PetscSectionSetBySym(PetscSection section, PetscInt numPoints, co
               }                                                                                                                               \
             }                                                                                                                                 \
           }                                                                                                                                   \
+        } else if (!gnnz) {                                                                                                                   \
+          if (!fval) {                                                                                                                        \
+            for (k = 0; k < fdof; k++) {                                                                                                      \
+              for (l = 0; l < gdof; l++) {                                                                                                    \
+                B[(fSize + fij[k][0]) * ldb + (gSize + l)] = A[(fSize + fij[k][1]) * lda + (gSize + l)];                                      \
+              }                                                                                                                               \
+            }                                                                                                                                 \
+          } else {                                                                                                                            \
+            for (k = 0; k < fdof; k++) {                                                                                                      \
+              for (l = 0; l < gdof; l++) B[(fSize + k) * ldb + gSize + l] = 0;                                                                \
+            }                                                                                                                                 \
+            for (k = 0; k < fnnz; k++) {                                                                                                      \
+              for (l = 0; l < gdof; l++) {                                                                                                    \
+                B[(fSize + fij[k][0]) * ldb + (gSize + l)] += A[(fSize + fij[k][1]) * lda + (gSize + l)] * fval[k];                           \
+              }                                                                                                                               \
+            }                                                                                                                                 \
+          }                                                                                                                                   \
         } else {                                                                                                                              \
           if (!gval & !fval) {                                                                                                                \
             for (k = 0; k < fdof; k++) {                                                                                                      \
@@ -3359,6 +3382,15 @@ PetscErrorCode PetscSectionSetBySym(PetscSection section, PetscInt numPoints, co
               for (l = 0; l < gdof; l++) B[(fSize + k) * ldb + gSize + l] = 0;                                                                \
               for (l = 0; l < gnnz; l++) {                                                                                                    \
                 B[(fSize + fij[k][0]) * ldb + (gSize + gij[l][0])] += A[(fSize + fij[k][1]) * lda + (gSize + gij[l][1])] * gval[l];           \
+              }                                                                                                                               \
+            }                                                                                                                                 \
+          } else if (!gval) {                                                                                                                 \
+            for (k = 0; k < fdof; k++) {                                                                                                      \
+              for (l = 0; l < gdof; l++) B[(fSize + k) * ldb + gSize + l] = 0;                                                                \
+            }                                                                                                                                 \
+            for (k = 0; k < fnnz; k++) {                                                                                                      \
+              for (l = 0; l < gdof; l++) {                                                                                                    \
+                B[(fSize + fij[k][0]) * ldb + (gSize + gij[l][0])] += A[(fSize + fij[k][1]) * lda + (gSize + gij[l][1])] * fval[k];           \
               }                                                                                                                               \
             }                                                                                                                                 \
           } else {                                                                                                                            \

@@ -5138,7 +5138,7 @@ PetscErrorCode DMPlexMatSetClosure(DM dm, PetscSection section, PetscSection glo
     }
     if (anySym) {
       ierr = DMGetWorkArray(dm, numIndices * numIndices, MPIU_SCALAR, &vAlloc2);CHKERRQ(ierr);
-      ierr = PetscSectionSymMatSTAS(section, numPoints, (const PetscInt (*)[2]) points, MPIU_SCALAR, vArray, numIndices, vAlloc2, numIndices);CHKERRQ(ierr);
+      ierr = PetscSectionSymMatSTAS(section, numPoints, (const PetscInt (*)[2]) points, PETSC_SCALAR, vArray, numIndices, vAlloc2, numIndices);CHKERRQ(ierr);
       vArray = vAlloc2;
       if (vAlloc) {ierr = DMRestoreWorkArray(dm, numIndices * numIndices, MPIU_SCALAR, &vAlloc);CHKERRQ(ierr);}
     }

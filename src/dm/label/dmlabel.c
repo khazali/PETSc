@@ -1679,7 +1679,7 @@ PetscErrorCode PetscSectionSymLabelSetStratum(PetscSectionSym sym, PetscInt stra
       sl->vals[i] = (const PetscScalar **) &ownVals[-minOrient];
     }
   } else {
-    sl->nnzs[i]  = nnzs;
+    sl->nnzs[i]  = &nnzs[-minOrient];
     sl->ijs[i]   = ijs ? &ijs[-minOrient] : NULL;
     sl->vals[i]  = vals ? &vals[-minOrient] : NULL;
   }
@@ -1715,8 +1715,8 @@ static PetscErrorCode PetscSectionSymGetPoints_Label(PetscSectionSym sym, PetscS
       }
     }
     if ((sl->minMaxOrients[j][1] > sl->minMaxOrients[j][0]) && (ornt < sl->minMaxOrients[j][0] || ornt >= sl->minMaxOrients[j][1])) SETERRQ5(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"point %D orientation %D not in range [%D, %D) for stratum %D",point,ornt,sl->minMaxOrients[j][0],sl->minMaxOrients[j][1],j < numStrata ? label->stratumValues[j] : label->defaultValue);
-    if (nnzs) {nnzs[i] = sl->nnzs[j][ornt];}
-    if (ijs)  {ijs[i]  = sl->ijs[j] ? sl->ijs[j][ornt] : NULL;}
+    if (nnzs) {nnzs[i] = sl->nnzs[j] ? sl->nnzs[j][ornt] : 0;}
+    if (ijs)  {ijs[i]  = sl->ijs[j]  ? sl->ijs[j][ornt] : NULL;}
     if (vals) {vals[i] = sl->vals[j] ? sl->vals[j][ornt] : NULL;}
   }
   PetscFunctionReturn(0);

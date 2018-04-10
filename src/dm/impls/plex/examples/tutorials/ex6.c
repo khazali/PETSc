@@ -218,46 +218,58 @@ static PetscErrorCode SetSymmetries(DM dm, PetscSection s, AppCtx *user)
         PetscInt        numComp = user->Nc[f];
         PetscInt        minOrnt = -2;
         PetscInt        maxOrnt = 2;
-        PetscInt        **perms;
+        PetscInt        *nnzs;
+        PetscInt        (**perms)[2];
 
+        ierr = PetscCalloc1(maxOrnt - minOrnt,&nnzs);CHKERRQ(ierr);
         ierr = PetscCalloc1(maxOrnt - minOrnt,&perms);CHKERRQ(ierr);
         for (o = minOrnt; o < maxOrnt; o++) {
-          PetscInt *perm;
+          PetscInt (*perm)[2];
 
           if (o == -1 || !o) { /* identity */
+            nnzs[o - minOrnt] = 0;
             perms[o - minOrnt] = NULL;
           } else {
             ierr = PetscMalloc1(numDof * numComp, &perm);CHKERRQ(ierr);
+            nnzs[o - minOrnt] = numDof;
             for (i = numDof - 1, k = 0; i >= 0; i--) {
-              for (j = 0; j < numComp; j++, k++) perm[k] = i * numComp + j;
+              for (j = 0; j < numComp; j++, k++) {
+                perm[k][0] = i * numComp + j;
+                perm[k][1] = k;
+              }
             }
             perms[o - minOrnt] = perm;
           }
         }
-        ierr = PetscSectionSymLabelSetStratum(sym,d,numDof*numComp,minOrnt,maxOrnt,PETSC_OWN_POINTER,(const PetscInt **) perms,NULL);CHKERRQ(ierr);
+        ierr = PetscSectionSymLabelSetStratum(sym,d,numDof*numComp,minOrnt,maxOrnt,PETSC_OWN_POINTER,nnzs,(const PetscInt (**)[2]) perms,NULL);CHKERRQ(ierr);
       } else if (d == 2) {
         PetscInt        perEdge = user->k[f] - 1;
         PetscInt        numDof  = perEdge * perEdge;
         PetscInt        numComp = user->Nc[f];
         PetscInt        minOrnt = -4;
         PetscInt        maxOrnt = 4;
-        PetscInt        **perms;
+        PetscInt        *nnzs;
+        PetscInt        (**perms)[2];
 
+        ierr = PetscCalloc1(maxOrnt-minOrnt,&nnzs);CHKERRQ(ierr);
         ierr = PetscCalloc1(maxOrnt-minOrnt,&perms);CHKERRQ(ierr);
         for (o = minOrnt; o < maxOrnt; o++) {
-          PetscInt *perm;
+          PetscInt (*perm)[2];
 
           if (!o) continue; /* identity */
           ierr = PetscMalloc1(numDof * numComp, &perm);CHKERRQ(ierr);
+          nnzs[o-minOrnt] = numDof;
           /* We want to perm[k] to list which *localArray* position the *sectionArray* position k should go to for the given orientation*/
           switch (o) {
           case 0:
+            nnzs[o-minOrnt] = 0;
             break; /* identity */
           case -4: /* flip along (-1,-1)--( 1, 1), which swaps edges 0 and 3 and edges 1 and 2.  This swaps the i and j variables */
             for (i = 0, k = 0; i < perEdge; i++) {
               for (j = 0; j < perEdge; j++, k++) {
                 for (c = 0; c < numComp; c++) {
-                  perm[k * numComp + c] = (perEdge * j + i) * numComp + c;
+                  perm[k * numComp + c][0] = (perEdge * j + i) * numComp + c;
+                  perm[k * numComp + c][1] = k * numComp + c;
                 }
               }
             }
@@ -266,7 +278,8 @@ static PetscErrorCode SetSymmetries(DM dm, PetscSection s, AppCtx *user)
             for (i = 0, k = 0; i < perEdge; i++) {
               for (j = 0; j < perEdge; j++, k++) {
                 for (c = 0; c < numComp; c++) {
-                  perm[k * numComp + c] = (perEdge * (perEdge - 1 - i) + j) * numComp + c;
+                  perm[k * numComp + c][0] = (perEdge * (perEdge - 1 - i) + j) * numComp + c;
+                  perm[k * numComp + c][1] = k * numComp + c;
                 }
               }
             }
@@ -275,7 +288,8 @@ static PetscErrorCode SetSymmetries(DM dm, PetscSection s, AppCtx *user)
             for (i = 0, k = 0; i < perEdge; i++) {
               for (j = 0; j < perEdge; j++, k++) {
                 for (c = 0; c < numComp; c++) {
-                  perm[k * numComp + c] = (perEdge * (perEdge - 1 - j) + (perEdge - 1 - i)) * numComp + c;
+                  perm[k * numComp + c][0] = (perEdge * (perEdge - 1 - j) + (perEdge - 1 - i)) * numComp + c;
+                  perm[k * numComp + c][1] = k * numComp + c;
                 }
               }
             }
@@ -284,7 +298,8 @@ static PetscErrorCode SetSymmetries(DM dm, PetscSection s, AppCtx *user)
             for (i = 0, k = 0; i < perEdge; i++) {
               for (j = 0; j < perEdge; j++, k++) {
                 for (c = 0; c < numComp; c++) {
-                  perm[k * numComp + c] = (perEdge * i + (perEdge - 1 - j)) * numComp + c;
+                  perm[k * numComp + c][0] = (perEdge * i + (perEdge - 1 - j)) * numComp + c;
+                  perm[k * numComp + c][1] = k * numComp + c;
                 }
               }
             }
@@ -293,7 +308,8 @@ static PetscErrorCode SetSymmetries(DM dm, PetscSection s, AppCtx *user)
             for (i = 0, k = 0; i < perEdge; i++) {
               for (j = 0; j < perEdge; j++, k++) {
                 for (c = 0; c < numComp; c++) {
-                  perm[k * numComp + c] = (perEdge * (perEdge - 1 - j) + i) * numComp + c;
+                  perm[k * numComp + c][0] = (perEdge * (perEdge - 1 - j) + i) * numComp + c;
+                  perm[k * numComp + c][1] = k * numComp + c;
                 }
               }
             }
@@ -302,7 +318,8 @@ static PetscErrorCode SetSymmetries(DM dm, PetscSection s, AppCtx *user)
             for (i = 0, k = 0; i < perEdge; i++) {
               for (j = 0; j < perEdge; j++, k++) {
                 for (c = 0; c < numComp; c++) {
-                  perm[k * numComp + c] = (perEdge * (perEdge - 1 - i) + (perEdge - 1 - j)) * numComp + c;
+                  perm[k * numComp + c][0] = (perEdge * (perEdge - 1 - i) + (perEdge - 1 - j)) * numComp + c;
+                  perm[k * numComp + c][1] = k * numComp + c;
                 }
               }
             }
@@ -311,7 +328,8 @@ static PetscErrorCode SetSymmetries(DM dm, PetscSection s, AppCtx *user)
             for (i = 0, k = 0; i < perEdge; i++) {
               for (j = 0; j < perEdge; j++, k++) {
                 for (c = 0; c < numComp; c++) {
-                  perm[k * numComp + c] = (perEdge * j + (perEdge - 1 - i)) * numComp + c;
+                  perm[k * numComp + c][0] = (perEdge * j + (perEdge - 1 - i)) * numComp + c;
+                  perm[k * numComp + c][1] = k * numComp + c;
                 }
               }
             }
@@ -321,7 +339,7 @@ static PetscErrorCode SetSymmetries(DM dm, PetscSection s, AppCtx *user)
           }
           perms[o - minOrnt] = perm;
         }
-        ierr = PetscSectionSymLabelSetStratum(sym,d,numDof*numComp,minOrnt,maxOrnt,PETSC_OWN_POINTER,(const PetscInt **) perms,NULL);CHKERRQ(ierr);
+        ierr = PetscSectionSymLabelSetStratum(sym,d,numDof*numComp,minOrnt,maxOrnt,PETSC_OWN_POINTER,nnzs,(const PetscInt (**)[2]) perms,NULL);CHKERRQ(ierr);
       }
     }
     ierr = PetscSectionSetFieldSym(s,f,sym);CHKERRQ(ierr);

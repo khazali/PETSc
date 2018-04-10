@@ -7,13 +7,14 @@ static PetscErrorCode CheckSymmetry(PetscInt dim, PetscInt order, PetscBool tens
 {
   DM                dm;
   PetscDualSpace    sp;
-  PetscInt          nFunc, *ids, *idsCopy, *idsCopy2, i, closureSize, *closure = NULL, offset, depth;
+  PetscInt          nFunc, i, closureSize, *closure = NULL, offset, depth;
   DMLabel           depthLabel;
   PetscBool         printed = PETSC_FALSE;
   PetscScalar       *vals, *valsCopy, *valsCopy2;
   const PetscInt    *numDofs;
-  const PetscInt    ***perms = NULL;
-  const PetscScalar ***flips = NULL;
+  const PetscInt    **nnzs = NULL;
+  const PetscInt    (***ijs)[2] = NULL;
+  const PetscScalar ***symvals = NULL;
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
@@ -27,14 +28,13 @@ static PetscErrorCode CheckSymmetry(PetscInt dim, PetscInt order, PetscBool tens
   ierr = PetscDualSpaceSetFromOptions(sp);CHKERRQ(ierr);
   ierr = PetscDualSpaceSetUp(sp);CHKERRQ(ierr);
   ierr = PetscDualSpaceGetDimension(sp,&nFunc);CHKERRQ(ierr);
-  ierr = PetscDualSpaceGetSymmetries(sp,&perms,&flips);CHKERRQ(ierr);
-  if (!perms && !flips) {
+  ierr = PetscDualSpaceGetSymmetries(sp,&nnzs,&ijs,&symvals);CHKERRQ(ierr);
+  if (!nnzs && !ijs && !symvals) {
     ierr = PetscDualSpaceDestroy(&sp);CHKERRQ(ierr);
     ierr = DMDestroy(&dm);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
-  ierr = PetscMalloc6(nFunc,&ids,nFunc,&idsCopy,nFunc,&idsCopy2,nFunc*dim,&vals,nFunc*dim,&valsCopy,nFunc*dim,&valsCopy2);CHKERRQ(ierr);
-  for (i = 0; i < nFunc; i++) ids[i] = idsCopy2[i] = i;
+  ierr = PetscMalloc3(nFunc*dim,&vals,nFunc*dim,&valsCopy,nFunc*dim,&valsCopy2);CHKERRQ(ierr);
   for (i = 0; i < nFunc; i++) {
     PetscQuadrature q;
     PetscInt        numPoints, Nc, j;
@@ -52,62 +52,73 @@ static PetscErrorCode CheckSymmetry(PetscInt dim, PetscInt order, PetscBool tens
   ierr = DMPlexGetDepthLabel(dm,&depthLabel);CHKERRQ(ierr);
   for (i = 0, offset = 0; i < closureSize; i++, offset += numDofs[depth]) {
     PetscInt          point = closure[2 * i], coneSize, j;
-    const PetscInt    **pointPerms = perms ? perms[i] : NULL;
-    const PetscScalar **pointFlips = flips ? flips[i] : NULL;
+    const PetscInt    (**pointijs)[2] = ijs ? ijs[i] : NULL;
+    const PetscInt    *pointnnzs = nnzs ? nnzs[i] : NULL;
+    const PetscScalar **pointVals = symvals ? symvals[i] : NULL;
     PetscBool         anyPrinted = PETSC_FALSE;
 
     ierr = DMLabelGetValue(depthLabel,point,&depth);CHKERRQ(ierr);
     ierr = DMPlexGetConeSize(dm,point,&coneSize);CHKERRQ(ierr);
 
-    if (!pointPerms && !pointFlips) continue;
+    if (!pointnnzs && !pointijs && !pointVals) continue;
     for (j = -coneSize; j < coneSize; j++) {
       PetscInt          k, l;
-      const PetscInt    *perm = pointPerms ? pointPerms[j] : NULL;
-      const PetscScalar *flip = pointFlips ? pointFlips[j] : NULL;
+      PetscInt          nnz = pointnnzs ? pointnnzs[j] : 0;
+      const PetscInt    (*ij)[2] = pointijs ? pointijs[j] : NULL;
+      const PetscScalar *symval = pointVals ? pointVals[j] : NULL;
 
-      for (k = 0; k < numDofs[depth]; k++) {
-        PetscInt kLocal = perm ? perm[k] : k;
+      for (k = 0; k < numDofs[depth] * dim; k++) valsCopy[k] = 0.;
+      for (k = 0; k < (nnz ? nnz : numDofs[depth]); k++) {
+        PetscInt kLocal = ij ? ij[k][0] : k;
+        PetscInt lLocal = ij ? ij[k][1] : k;
 
-        idsCopy[kLocal] = ids[offset + k];
         for (l = 0; l < dim; l++) {
-          valsCopy[kLocal * dim + l] = vals[(offset + k) * dim + l] * (flip ? flip[kLocal] : 1.);
+          valsCopy[kLocal * dim + l] += vals[(offset + lLocal) * dim + l] * (symval ? symval[k] : 1.);
         }
       }
       if (!printed && numDofs[depth] > 1) {
-        IS   is;
         Vec  vec;
         char name[256];
 
         anyPrinted = PETSC_TRUE;
         ierr = PetscSNPrintf(name,256,"%DD, %s, Order %D, Point %D Symmetry %D",dim,tensor ? "Tensor" : "Simplex", order, point,j);CHKERRQ(ierr);
-        ierr = ISCreateGeneral(PETSC_COMM_SELF,numDofs[depth],idsCopy,PETSC_USE_POINTER,&is);CHKERRQ(ierr);
-        ierr = PetscObjectSetName((PetscObject)is,name);CHKERRQ(ierr);
-        ierr = ISView(is,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
-        ierr = ISDestroy(&is);CHKERRQ(ierr);
+        if (nnz && ij) {
+          ierr = PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"IJs:\n");CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPushTab(PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+          ierr = PetscIntView(2 * nnz, (const PetscInt *) &(ij[0][0]), PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPopTab(PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+        }
+        if (nnz && symvals) {
+          ierr = PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"Vals:\n");CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPushTab(PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+          ierr = PetscScalarView(nnz, vals, PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+          ierr = PetscViewerASCIIPopTab(PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+        }
         ierr = VecCreateSeqWithArray(PETSC_COMM_SELF,dim,numDofs[depth]*dim,valsCopy,&vec);CHKERRQ(ierr);
         ierr = PetscObjectSetName((PetscObject)vec,name);CHKERRQ(ierr);
         ierr = VecView(vec,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
         ierr = VecDestroy(&vec);CHKERRQ(ierr);
       }
-      for (k = 0; k < numDofs[depth]; k++) {
-        PetscInt kLocal = perm ? perm[k] : k;
+      for (k = 0; k < numDofs[depth] * dim; k++) valsCopy2[offset * dim + k] = 0.;
+      for (k = 0; k < (nnz ? nnz : numDofs[depth]); k++) {
+        PetscInt kLocal = ij ? ij[k][0] : k;
+        PetscInt lLocal = ij ? ij[k][1] : k;
 
-        idsCopy2[offset + k] = idsCopy[kLocal];
         for (l = 0; l < dim; l++) {
-          valsCopy2[(offset + k) * dim + l] = valsCopy[kLocal * dim + l] * (flip ? PetscConj(flip[kLocal]) : 1.);
+          valsCopy2[(offset + lLocal) * dim + l] += valsCopy[kLocal * dim + l] * (symval ? PetscConj(symval[k]) : 1.);
         }
       }
       for (k = 0; k < nFunc; k++) {
-        if (idsCopy2[k] != ids[k]) SETERRQ8(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Symmetry failure: %DD, %s, point %D, symmetry %D, order %D, functional %D: (%D != %D)",dim, tensor ? "Tensor" : "Simplex",point,j,order,k,ids[k],k);
         for (l = 0; l < dim; l++) {
-          if (valsCopy2[dim * k + l] != vals[dim * k + l]) SETERRQ7(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Symmetry failure: %DD, %s, point %D, symmetry %D, order %D, functional %D, component %D: (%D != %D)",dim, tensor ? "Tensor" : "Simplex",point,j,order,k,l);
+          PetscScalar diff = valsCopy2[dim * k + l] - vals[dim * k + l];
+          if (PetscAbsScalar(diff) > PETSC_SMALL) SETERRQ8(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Symmetry failure: point %D, symmetry %D, order %D, functional %D, component %D: (%g - %g) = %g",point,j,order,k,l,(double) PetscRealPart(valsCopy2[dim * k + l]),(double) PetscRealPart(vals[dim * k + l]), (double) PetscRealPart(diff));
         }
       }
     }
     if (anyPrinted && !printed) printed = PETSC_TRUE;
   }
   ierr = DMPlexRestoreTransitiveClosure(dm,0,PETSC_TRUE,&closureSize,&closure);CHKERRQ(ierr);
-  ierr = PetscFree6(ids,idsCopy,idsCopy2,vals,valsCopy,valsCopy2);CHKERRQ(ierr);
+  ierr = PetscFree3(vals,valsCopy,valsCopy2);CHKERRQ(ierr);
   ierr = PetscDualSpaceDestroy(&sp);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   PetscFunctionReturn(0);

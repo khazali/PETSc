@@ -131,20 +131,22 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
           for (i = 0; i < dofPerEdge; i++) {
             for (j = 0; j < Nc; j++) {
               reverse[i*Nc + j][0] = Nc * (dofPerEdge - 1 - i) + j;
-              reverse[i*Nc + j][1] = j;
+              reverse[i*Nc + j][1] = i*Nc + j;
             }
           }
           symmetries[0][-2] = reverse;
+          nnzs[0][-2] = dofPerEdge * Nc;
 
           /* yes, this is redundant, but it makes it easier to cleanup if I don't have to worry about what not to free */
           ierr = PetscMalloc1(dofPerEdge*Nc,&reverse);CHKERRQ(ierr);
           for (i = 0; i < dofPerEdge; i++) {
             for (j = 0; j < Nc; j++) {
               reverse[i*Nc + j][0] = Nc * (dofPerEdge - 1 - i) + j;
-              reverse[i*Nc + j][1] = j;
+              reverse[i*Nc + j][1] = i*Nc + j;
             }
           }
           symmetries[0][1] = reverse;
+          nnzs[0][1] = dofPerEdge * Nc;
         }
       } else {
         PetscInt dofPerEdge = lag->simplexCell ? (order - 2) : (order - 1), s;
@@ -157,6 +159,7 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
             if (!s) continue;
             if (lag->simplexCell) {
               dofPerFace = (dofPerEdge * (dofPerEdge + 1))/2;
+              nnzs[0][s] = dofPerFace * Nc;
               ierr = PetscMalloc1(Nc*dofPerFace,&sym);CHKERRQ(ierr);
               for (j = 0, l = 0; j < dofPerEdge; j++) {
                 for (k = 0; k < dofPerEdge - j; k++, l++) {
@@ -187,6 +190,7 @@ static PetscErrorCode PetscDualSpaceGetSymmetries_Lagrange(PetscDualSpace sp, co
               }
             } else {
               dofPerFace = dofPerEdge * dofPerEdge;
+              nnzs[0][s] = dofPerFace * Nc;
               ierr = PetscMalloc1(Nc*dofPerFace,&sym);CHKERRQ(ierr);
               for (j = 0, l = 0; j < dofPerEdge; j++) {
                 for (k = 0; k < dofPerEdge; k++, l++) {

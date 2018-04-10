@@ -1429,12 +1429,12 @@ static PetscErrorCode DMPlexComputeAnchorMatrix_Tree_Direct(DM dm, PetscSection 
                * child and columns correspond to the anchor: BUT the maxrix returned by MatDenseGetArray is
                * column-major, so transpose-transpose = do nothing */
               for (r = 0; r < nWork * nWorkP; r++) scwork[r] = 0.;
-              for (r = 0; r < nnz ? nnz : nWork; r++) {
+              for (r = 0; r < (nnz ? nnz : nWork); r++) {
                 PetscInt    rlhs = nnz ? ij[r][0] : r;
                 PetscInt    rrhs = nnz ? ij[r][1] : r;
                 PetscScalar rval = val ? val[r] : 1.;
 
-                for (s = 0; s < nnzP ? nnzP: nWorkP; s++) {
+                for (s = 0; s < (nnzP ? nnzP: nWorkP); s++) {
                   PetscInt    slhs = nnzP ? ijP[s][0] : s;
                   PetscInt    srhs = nnzP ? ijP[s][1] : s;
                   PetscScalar sval = valP ? valP[s] : 1.;
@@ -1561,7 +1561,7 @@ static PetscErrorCode DMPlexReferenceTreeGetChildrenMatrices(DM refTree, PetscSc
         } else {
           fsec = refSection;
         }
-        ierr = PetscSectionSymMatAS(fsec, closureSize, (const PetscInt (*)[2]) closure, MPIU_SCALAR, cDof, refPointFieldMats[p-pRefStart][f], numCols, workMat, numCols);CHKERRQ(ierr);
+        ierr = PetscSectionSymMatAS(fsec, closureSize, (const PetscInt (*)[2]) closure, PETSC_SCALAR, cDof, refPointFieldMats[p-pRefStart][f], numCols, workMat, numCols);CHKERRQ(ierr);
         for (i = 0; i < cDof * numCols; i++) refPointFieldMats[p-pRefStart][f][i] = workMat[i];
         ierr = DMRestoreWorkArray(refTree, cDof*numCols, MPIU_SCALAR, &workMat);CHKERRQ(ierr);
       }
@@ -1762,7 +1762,7 @@ static PetscErrorCode DMPlexComputeAnchorMatrix_Tree_FromReference(DM dm, PetscS
         for (i = 0; i < closureSize; i++) {
           PetscInt q = closure[2*i];
           PetscInt aDof, aOff, j, k, qConDof, qConOff;
-          PetscInt innz = nnzs[i];
+          PetscInt innz = nnzs ? nnzs[i] : 0;
           const PetscInt    (*ij)[2] = innz ? ijs[i] : NULL;
           const PetscScalar *ival = (innz && ivals) ? ivals[i] : NULL;
 
@@ -1793,7 +1793,7 @@ static PetscErrorCode DMPlexComputeAnchorMatrix_Tree_FromReference(DM dm, PetscS
             for (r = 0; r < cDof; r++) {
               for (j = 0; j < aNumFillCols; j++) {
                 PetscScalar inVal = 0;
-                for (k = 0; k < innz ? innz : aDof; k++) {
+                for (k = 0; k < (innz ? innz : aDof); k++) {
                   PetscInt col = ij ? ij[k][0] : k;
                   PetscInt row = ij ? ij[k][1] : k;
 
@@ -1825,7 +1825,7 @@ static PetscErrorCode DMPlexComputeAnchorMatrix_Tree_FromReference(DM dm, PetscS
             }
             if (k == numFillCols) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"No nonzero space for (%d, %d)", cOff, aOff);
             for (r = 0; r < cDof; r++) {
-              for (j = 0; j < innz ? innz : aDof; j++) {
+              for (j = 0; j < (innz ? innz : aDof); j++) {
                 PetscInt col = ij ? ij[j][0] : j;
                 PetscInt row = ij ? ij[j][1] : j;
 
@@ -2460,7 +2460,7 @@ PetscErrorCode DMPlexComputeInterpolatorTree(DM coarse, DM fine, PetscSF coarseT
               newOffsets[f + 1] = offsets[f + 1];
             }
           }
-          ierr = PetscSectionSymMatAS(localCoarse, closureSize, (const PetscInt (*)[2]) closure, MPIU_SCALAR, numRowIndices, pMatIn, numRowIndices, pMatSym, numRowIndices);CHKERRQ(ierr);
+          ierr = PetscSectionSymMatAS(localCoarse, closureSize, (const PetscInt (*)[2]) closure, PETSC_SCALAR, numRowIndices, pMatIn, numRowIndices, pMatSym, numRowIndices);CHKERRQ(ierr);
           ierr = DMRestoreWorkArray(coarse,numRowIndices * numRowIndices,MPIU_SCALAR,&pMatIn);CHKERRQ(ierr);
           /* apply hanging node constraints on the right, get the new points and the new offsets */
           ierr = DMPlexAnchorsModifyMat(coarse,localCoarse,closureSize,numRowIndices,closure,pMatSym,&numPoints,NULL,&points,&pMatModified,newOffsets,PETSC_FALSE);CHKERRQ(ierr);
