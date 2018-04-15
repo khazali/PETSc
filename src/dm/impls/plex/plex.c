@@ -40,7 +40,6 @@ PetscErrorCode DMPlexRefineSimplexToTensor(DM dm, DM *dmRefined)
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm,&cMax,&fMax,NULL,NULL);CHKERRQ(ierr);
-  if (cMax >= 0 || fMax >= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Cannot handle hybrid meshes yet");
   ierr = DMPlexGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
   if (!(cEnd - cStart)) cellRefiner = REFINER_NOOP;
   else {
@@ -52,10 +51,12 @@ PetscErrorCode DMPlexRefineSimplexToTensor(DM dm, DM *dmRefined)
     case 2:
       switch (coneSize) {
       case 3:
-        cellRefiner = REFINER_SIMPLEX_TO_HEX_2D;
+        if (cMax >= 0) cellRefiner = REFINER_HYBRID_SIMPLEX_TO_HEX_2D;
+        else cellRefiner = REFINER_SIMPLEX_TO_HEX_2D;
       break;
       case 4:
-        cellRefiner = REFINER_NOOP;
+        if (cMax >= 0) cellRefiner = REFINER_HYBRID_SIMPLEX_TO_HEX_2D;
+        else cellRefiner = REFINER_NOOP;
       break;
       default: SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_SUP,"Cannot handle coneSize %D with dimension %D",coneSize,dim);
       }
@@ -63,9 +64,11 @@ PetscErrorCode DMPlexRefineSimplexToTensor(DM dm, DM *dmRefined)
     case 3:
       switch (coneSize) {
       case 4:
-        cellRefiner = REFINER_SIMPLEX_TO_HEX_3D;
+        if (cMax >= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Simplex2Tensor in 3D with Hybrid mesh not yet done");
+        else cellRefiner = REFINER_SIMPLEX_TO_HEX_3D;
       break;
       case 6:
+        if (cMax >= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Simplex2Tensor in 3D with Hybrid mesh not yet done");
         cellRefiner = REFINER_NOOP;
       break;
       default: SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_SUP,"Cannot handle coneSize %D with dimension %D",coneSize,dim);
@@ -2163,8 +2166,8 @@ PetscErrorCode DMCreateSubDM_Plex(DM dm, PetscInt numFields, const PetscInt fiel
     ierr = PetscSFCreateInverseSF((*subdm)->sfMigration, &sfMigrationInv);CHKERRQ(ierr);
     ierr = PetscSectionCreate(PetscObjectComm((PetscObject) (*subdm)), &sectionSeq);CHKERRQ(ierr);
     ierr = PetscSFDistributeSection(sfMigrationInv, section, NULL, sectionSeq);CHKERRQ(ierr);
-  
-    ierr = DMPlexCreateGlobalToNaturalSF(*subdm, sectionSeq, (*subdm)->sfMigration, &sfNatural);CHKERRQ(ierr);  
+
+    ierr = DMPlexCreateGlobalToNaturalSF(*subdm, sectionSeq, (*subdm)->sfMigration, &sfNatural);CHKERRQ(ierr);
     (*subdm)->sfNatural = sfNatural;
     ierr = PetscSectionDestroy(&sectionSeq);CHKERRQ(ierr);
     ierr = PetscSFDestroy(&sfMigrationInv);CHKERRQ(ierr);
@@ -2193,8 +2196,8 @@ PetscErrorCode DMCreateSuperDM_Plex(DM dms[], PetscInt len, IS **is, DM *superdm
       ierr = PetscSFCreateInverseSF((*superdm)->sfMigration, &sfMigrationInv);CHKERRQ(ierr);
       ierr = PetscSectionCreate(PetscObjectComm((PetscObject) (*superdm)), &sectionSeq);CHKERRQ(ierr);
       ierr = PetscSFDistributeSection(sfMigrationInv, section, NULL, sectionSeq);CHKERRQ(ierr);
-    
-      ierr = DMPlexCreateGlobalToNaturalSF(*superdm, sectionSeq, (*superdm)->sfMigration, &sfNatural);CHKERRQ(ierr);  
+
+      ierr = DMPlexCreateGlobalToNaturalSF(*superdm, sectionSeq, (*superdm)->sfMigration, &sfNatural);CHKERRQ(ierr);
       (*superdm)->sfNatural = sfNatural;
       ierr = PetscSectionDestroy(&sectionSeq);CHKERRQ(ierr);
       ierr = PetscSFDestroy(&sfMigrationInv);CHKERRQ(ierr);
