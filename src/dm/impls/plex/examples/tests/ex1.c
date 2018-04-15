@@ -25,6 +25,7 @@ typedef struct {
   PetscBool     testPartition;                /* Use a fixed partitioning for testing */
   PetscInt      overlap;                      /* The cell overlap to use during partitioning */
   PetscBool     testShape;                    /* Test the cell shape quality */
+  PetscBool     check[3];                     /* Runs DMPlex checks on the mesh */
 } AppCtx;
 
 PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -53,6 +54,9 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->overlap           = PETSC_FALSE;
   options->testShape         = PETSC_FALSE;
   options->simplex2tensor    = PETSC_FALSE;
+  options->check[0]          = PETSC_FALSE;
+  options->check[1]          = PETSC_FALSE;
+  options->check[2]          = PETSC_FALSE;
 
   ierr = PetscOptionsBegin(comm, "", "Meshing Problem Options", "DMPLEX");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex1.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
@@ -82,6 +86,9 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsBool("-test_partition", "Use a fixed partition for testing", "ex1.c", options->testPartition, &options->testPartition, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-overlap", "The cell overlap for partitioning", "ex1.c", options->overlap, &options->overlap, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_shape", "Report cell shape qualities (Jacobian condition numbers)", "ex1.c", options->testShape, &options->testShape, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-check_symmetry", "Run DMPlexCheckSymmetry", "ex1.c", options->check[0], &options->check[0], NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-check_skeleton", "Run DMPlexCheckSkeleton", "ex1.c", options->check[1], &options->check[1], NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-check_faces", "Run DMPlexCheckFaces", "ex1.c", options->check[2], &options->check[2], NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
 
   ierr = PetscLogEventRegister("CreateMesh", DM_CLASSID, &options->createMeshEvent);CHKERRQ(ierr);
@@ -237,11 +244,21 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       ierr = DMDestroy(dm);CHKERRQ(ierr);
       *dm  = rdm;
     }
+    user->cellSimplex = PETSC_FALSE;
   }
   ierr = PetscObjectSetName((PetscObject) *dm, "Simplicial Mesh");CHKERRQ(ierr);
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
   ierr = PetscLogEventEnd(user->createMeshEvent,0,0,0,0);CHKERRQ(ierr);
   user->dm = *dm;
+  if (user->check[0]) {
+    ierr = DMPlexCheckSymmetry(*dm);CHKERRQ(ierr);
+  }
+  if (user->check[1]) {
+    ierr = DMPlexCheckSkeleton(*dm, user->cellSimplex, 0);CHKERRQ(ierr);
+  }
+  if (user->check[2]) {
+    ierr = DMPlexCheckFaces(*dm, user->cellSimplex, 0);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -416,7 +433,6 @@ int main(int argc, char **argv)
     suffix: 1d_2
     args: -dim 1 -domain_box_sizes 5 -x_periodicity periodic -dm_view ascii::ascii_info_detail -test_shape
 
-
   # Parallel refinement tests with overlap
   test:
     suffix: 1d_refine_overlap_0
@@ -524,6 +540,10 @@ int main(int argc, char **argv)
     nsize: 4
     requires: !single mpiio
     args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin_physnames.msh -viewer_binary_mpiio -petscpartitioner_type simple -interpolate 1 -dm_view
+  test:
+    suffix: gmsh_13_hybs2t
+    nsize: 4
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_triquad.msh -petscpartitioner_type simple -interpolate 1 -dm_view ::ascii_info_detail -test_shape -simplex2tensor -dm_plex_gmsh_hybrid -check_faces -check_skeleton -check_symmetry
 
   # Fluent mesh reader tests
   test:
