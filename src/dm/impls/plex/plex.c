@@ -6037,8 +6037,9 @@ PetscErrorCode DMPlexGetHybridBounds(DM dm, PetscInt *cMax, PetscInt *fMax, Pets
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+  if (dim < 0) SETERRQ(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONGSTATE, "DM dimension not yet set");
   if (cMax) *cMax = mesh->hybridPointMax[dim];
-  if (fMax) *fMax = mesh->hybridPointMax[dim-1];
+  if (fMax) *fMax = mesh->hybridPointMax[PetscMax(dim-1,0)];
   if (eMax) *eMax = mesh->hybridPointMax[1];
   if (vMax) *vMax = mesh->hybridPointMax[0];
   PetscFunctionReturn(0);
@@ -6067,10 +6068,11 @@ PetscErrorCode DMPlexSetHybridBounds(DM dm, PetscInt cMax, PetscInt fMax, PetscI
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
-  if (cMax >= 0) mesh->hybridPointMax[dim]   = cMax;
-  if (fMax >= 0) mesh->hybridPointMax[dim-1] = fMax;
-  if (eMax >= 0) mesh->hybridPointMax[1]     = eMax;
-  if (vMax >= 0) mesh->hybridPointMax[0]     = vMax;
+  if (dim < 0) SETERRQ(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONGSTATE, "DM dimension not yet set");
+  if (cMax >= 0) mesh->hybridPointMax[dim]               = cMax;
+  if (fMax >= 0) mesh->hybridPointMax[PetscMax(dim-1,0)] = fMax;
+  if (eMax >= 0) mesh->hybridPointMax[1]                 = eMax;
+  if (vMax >= 0) mesh->hybridPointMax[0]                 = vMax;
   PetscFunctionReturn(0);
 }
 
@@ -6330,7 +6332,7 @@ PetscErrorCode DMPlexCreateRankField(DM dm, Vec *ranks)
 
   Level: developer
 
-.seealso: DMCreate(), DMCheckSkeleton(), DMCheckFaces()
+.seealso: DMCreate(), DMPlexCheckSkeleton(), DMPlexCheckFaces()
 @*/
 PetscErrorCode DMPlexCheckSymmetry(DM dm)
 {
@@ -6416,7 +6418,7 @@ PetscErrorCode DMPlexCheckSymmetry(DM dm)
 
   Level: developer
 
-.seealso: DMCreate(), DMCheckSymmetry(), DMCheckFaces()
+.seealso: DMCreate(), DMPlexCheckSymmetry(), DMPlexCheckFaces()
 @*/
 PetscErrorCode DMPlexCheckSkeleton(DM dm, PetscBool isSimplex, PetscInt cellHeight)
 {
@@ -6474,7 +6476,7 @@ PetscErrorCode DMPlexCheckSkeleton(DM dm, PetscBool isSimplex, PetscInt cellHeig
 
   Level: developer
 
-.seealso: DMCreate(), DMCheckSymmetry(), DMCheckSkeleton()
+.seealso: DMCreate(), DMPlexCheckSymmetry(), DMPlexCheckSkeleton()
 @*/
 PetscErrorCode DMPlexCheckFaces(DM dm, PetscBool isSimplex, PetscInt cellHeight)
 {
