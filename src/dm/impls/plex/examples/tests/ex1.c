@@ -154,7 +154,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       if (cellSimplex) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh a cylinder with simplices");
       if (dim != 3)    SETERRQ1(comm, PETSC_ERR_ARG_WRONG, "Dimension must be 3 for a cylinder mesh, not %D", dim);
       if (cellWedge) {
-        ierr = DMPlexCreateWedgeCylinderMesh(comm, 6, PETSC_FALSE, dm);CHKERRQ(ierr);
+        ierr = DMPlexCreateWedgeCylinderMesh(comm, 6, interpolate, dm);CHKERRQ(ierr);
       } else {
         ierr = DMPlexCreateHexCylinderMesh(comm, 3, user->periodicity[2], dm);CHKERRQ(ierr);
       }
@@ -613,7 +613,12 @@ int main(int argc, char **argv)
 
   test:
     suffix: cylinder_wedge
-    args: -dim 3 -cell_simplex 0 -interpolate -cell_wedge -domain_shape cylinder -dm_view
+    args: -dim 3 -cell_simplex 0 -interpolate 0 -cell_wedge -domain_shape cylinder -dm_view vtk: -check_symmetry -check_faces 0 -check_skeleton
+
+  test:
+    suffix: cylinder_wedge_int
+    output_file: output/ex1_cylinder_wedge.out
+    args: -dim 3 -cell_simplex 0 -interpolate -cell_wedge -domain_shape cylinder -dm_view vtk: -check_symmetry -check_faces -check_skeleton
 
   test:
     suffix: box_2d
