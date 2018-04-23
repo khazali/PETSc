@@ -1032,6 +1032,207 @@ PetscErrorCode DMPlexCreateBoxMesh(MPI_Comm comm, PetscInt dim, PetscBool simple
   PetscFunctionReturn(0);
 }
 
+/*@
+  DMPlexCreateWedgeBoxMesh - Creates a 3-D mesh tesselating the (x,y) plane and extruding in the third direction using wedge cells.
+
+  Collective on MPI_Comm
+
+  Input Parameters:
++ comm        - The communicator for the DM object
+. faces       - Number of faces per dimension, or NULL for (1, 1, 1)
+. lower       - The lower left corner, or NULL for (0, 0, 0)
+. upper       - The upper right corner, or NULL for (1, 1, 1)
+. periodicity - The boundary type for the X,Y,Z direction, or NULL for DM_BOUNDARY_NONE
+- interpolate - Flag to create intermediate mesh pieces (edges, faces)
+
+  Output Parameter:
+. dm  - The DM object
+
+  Level: beginner
+
+.keywords: DM, create
+.seealso: DMPlexCreateHexCylinderMesh(), DMPlexCreateWedgeCylinderMesh(), DMPlexCreateBoxMesh(), DMSetType(), DMCreate()
+@*/
+PetscErrorCode DMPlexCreateWedgeBoxMesh(MPI_Comm comm, const PetscInt faces[], const PetscReal lower[], const PetscReal upper[], const DMBoundaryType periodicity[], PetscBool interpolate, DM *dm)
+{
+  DM             bdm, botdm;
+  PetscInt       i;
+  PetscInt       fac[3] = {0, 0, 0};
+  PetscReal      low[3] = {0, 0, 0};
+  PetscReal      upp[3] = {1, 1, 1};
+  DMBoundaryType bdt[3] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  for (i = 0; i < 3; ++i) fac[i] = faces ? (faces[i] > 0 ? faces[i] : 1) : 1;
+  if (lower) for (i = 0; i < 3; ++i) low[i] = lower[i];
+  if (upper) for (i = 0; i < 3; ++i) upp[i] = upper[i];
+  if (periodicity) for (i = 0; i < 3; ++i) bdt[i] = periodicity[i];
+  for (i = 0; i < 3; ++i) if (bdt[i] != DM_BOUNDARY_NONE) SETERRQ(comm, PETSC_ERR_SUP, "Periodicity not yet supported");
+
+  ierr = DMCreate(comm, &bdm);CHKERRQ(ierr);
+  ierr = DMSetType(bdm, DMPLEX);CHKERRQ(ierr);
+  ierr = DMSetDimension(bdm, 1);CHKERRQ(ierr);
+  ierr = DMSetCoordinateDim(bdm, 2);CHKERRQ(ierr);
+  ierr = DMPlexCreateSquareBoundary(bdm, low, upp, fac);CHKERRQ(ierr);
+  ierr = DMPlexGenerate(bdm, NULL, PETSC_FALSE, &botdm);CHKERRQ(ierr);
+  ierr = DMDestroy(&bdm);CHKERRQ(ierr);
+  ierr = DMPlexExtrudeMeshWedge(botdm, fac[2], upp[2] - low[2], interpolate, dm);CHKERRQ(ierr);
+  if (low[2] != 0.0) {
+    Vec         v;
+    PetscScalar *x;
+    PetscInt    cDim, n;
+
+    ierr = DMGetCoordinatesLocal(*dm, &v);CHKERRQ(ierr);
+    ierr = VecGetBlockSize(v, &cDim);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(v, &n);CHKERRQ(ierr);
+    ierr = VecGetArray(v, &x);CHKERRQ(ierr);
+    x   += cDim;
+    for (i=0; i<n; i+=cDim) x[i] += low[2];
+    ierr = VecRestoreArray(v,&x);CHKERRQ(ierr);
+    ierr = DMSetCoordinatesLocal(*dm, v);CHKERRQ(ierr);
+  }
+  ierr = DMDestroy(&botdm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
+  DMPlexExtrudeMeshWedge - Creates a 3-D mesh by extruding a 2-D mesh in the third direction using wedge cells.
+
+  Collective on MPI_Comm
+
+  Input Parameters:
++ idm - The 2D mesh
+. layers - The number of layers
+. height - The height of the extruded layer
+- interpolate - Flag to create intermediate mesh pieces (edges, faces)
+
+  Output Parameter:
+. dm  - The DM object
+
+  Level: beginner
+
+.keywords: DM, create
+.seealso: DMPlexCreateWedgeCylinderMesh(), DMPlexCreateWedgeBoxMesh(), DMSetType(), DMCreate()
+@*/
+PetscErrorCode DMPlexExtrudeMeshWedge(DM idm, PetscInt layers, PetscReal height, PetscBool interpolate, DM* dm)
+{
+  PetscScalar    *coordsB;
+  const PetscScalar *coordsA;
+  Vec            coordinatesA, coordinatesB;
+  PetscSection   coordSectionA, coordSectionB;
+  PetscInt       dim, cDim, c, l, v, coordSize, *newCone;
+  PetscInt       cStart, cEnd, vStart, vEnd, cellV, numCells, numVertices;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMGetDimension(idm, &dim);CHKERRQ(ierr);
+  if (dim != 2) SETERRQ1(PetscObjectComm((PetscObject)idm), PETSC_ERR_SUP, "Dimension %D not coded", dim);
+  ierr = DMPlexGetHeightStratum(idm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthStratum(idm, 0, &vStart, &vEnd);CHKERRQ(ierr);
+  cellV = 0;
+  if (cEnd - cStart) {
+    ierr = DMPlexGetConeSize(idm, cStart, &cellV);CHKERRQ(ierr);
+  }
+  numCells = (cEnd - cStart)*layers;
+  numVertices = (vEnd - vStart)*(layers+1);
+
+  ierr = DMCreate(PetscObjectComm((PetscObject)idm), dm);CHKERRQ(ierr);
+  ierr = DMSetType(*dm, DMPLEX);CHKERRQ(ierr);
+  ierr = DMSetDimension(*dm, dim+1);CHKERRQ(ierr);
+  ierr = DMPlexSetChart(*dm, 0, numCells+numVertices);CHKERRQ(ierr);
+  ierr = DMPlexSetHybridBounds(*dm, 0, PETSC_DETERMINE, PETSC_DETERMINE, PETSC_DETERMINE);CHKERRQ(ierr);
+  for (c = 0; c < numCells; c++) {ierr = DMPlexSetConeSize(*dm, c, 2*cellV);CHKERRQ(ierr);}
+  ierr = DMSetUp(*dm);CHKERRQ(ierr);
+
+  ierr = PetscMalloc1(3*cellV,&newCone);CHKERRQ(ierr);
+  for (c = cStart; c < cEnd; ++c) {
+    PetscInt *closure = NULL;
+    PetscInt closureSize, numCorners = 0, l;
+
+    ierr = DMPlexGetTransitiveClosure(idm, c, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+    for (v = 0; v < closureSize*2; v += 2) {
+      if ((closure[v] >= vStart) && (closure[v] < vEnd)) {
+        if (numCorners == cellV) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Hybrid meshes not supported");
+        newCone[numCorners++] = closure[v] - vStart;
+      }
+    }
+    switch (numCorners) {
+    case 3: /* from counter-clockwise to wedge ordering */
+      l = newCone[1];
+      newCone[1] = newCone[2];
+      newCone[2] = l;
+      break;
+    default: SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_SUP, "Unsupported number of corners: %D", numCorners);
+    }
+    ierr = DMPlexRestoreTransitiveClosure(idm, c, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+    for (l = 0; l < layers; ++l) {
+      PetscInt i;
+
+      for (i = 0; i < cellV; ++i) {
+        newCone[  numCorners + i] =     l*(vEnd - vStart) + newCone[i] + numCells;
+        newCone[2*numCorners + i] = (l+1)*(vEnd - vStart) + newCone[i] + numCells;
+      }
+      ierr = DMPlexSetCone(*dm, l*(cEnd - cStart) + c - cStart, newCone + numCorners);CHKERRQ(ierr);
+    }
+  }
+  ierr = DMPlexSymmetrize(*dm);CHKERRQ(ierr);
+  ierr = DMPlexStratify(*dm);CHKERRQ(ierr);
+  ierr = PetscFree(newCone);CHKERRQ(ierr);
+
+  ierr = DMGetCoordinateDim(idm, &cDim);CHKERRQ(ierr);
+  if (cDim > 2) SETERRQ1(PetscObjectComm((PetscObject)idm), PETSC_ERR_SUP, "Coordinate dimension %D not coded", cDim);
+  ierr = DMGetCoordinateSection(*dm, &coordSectionB);CHKERRQ(ierr);
+  ierr = PetscSectionSetNumFields(coordSectionB, 1);CHKERRQ(ierr);
+  ierr = PetscSectionSetFieldComponents(coordSectionB, 0, cDim+1);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(coordSectionB, numCells, numCells+numVertices);CHKERRQ(ierr);
+  for (v = numCells; v < numCells+numVertices; ++v) {
+    ierr = PetscSectionSetDof(coordSectionB, v, cDim+1);CHKERRQ(ierr);
+    ierr = PetscSectionSetFieldDof(coordSectionB, v, 0, cDim+1);CHKERRQ(ierr);
+  }
+  ierr = PetscSectionSetUp(coordSectionB);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(coordSectionB, &coordSize);CHKERRQ(ierr);
+  ierr = VecCreate(PETSC_COMM_SELF, &coordinatesB);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) coordinatesB, "coordinates");CHKERRQ(ierr);
+  ierr = VecSetSizes(coordinatesB, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(coordinatesB, 3);CHKERRQ(ierr);
+  ierr = VecSetType(coordinatesB,VECSTANDARD);CHKERRQ(ierr);
+
+  ierr = DMGetCoordinateSection(idm, &coordSectionA);CHKERRQ(ierr);
+  ierr = DMGetCoordinatesLocal(idm, &coordinatesA);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(coordinatesA, &coordsA);CHKERRQ(ierr);
+  ierr = VecGetArray(coordinatesB, &coordsB);CHKERRQ(ierr);
+  for (v = vStart; v < vEnd; ++v) {
+    PetscScalar h = height/layers;
+    PetscInt    offA;
+
+    ierr = PetscSectionGetOffset(coordSectionA, v, &offA);CHKERRQ(ierr);
+    for (l = 0; l < layers+1; ++l) {
+      PetscInt    offB, d;
+      PetscInt    newV = (vEnd -vStart)*l + (v -vStart) + numCells;
+
+      ierr = PetscSectionGetOffset(coordSectionB, newV, &offB);CHKERRQ(ierr);
+      for (d = 0; d < 2; ++d) {
+        coordsB[offB+d] = coordsA[offA+d];
+      }
+      coordsB[offB + 2] = l*h;
+    }
+  }
+  ierr = VecRestoreArrayRead(coordinatesA, &coordsA);CHKERRQ(ierr);
+  ierr = VecRestoreArray(coordinatesB, &coordsB);CHKERRQ(ierr);
+  ierr = DMSetCoordinatesLocal(*dm, coordinatesB);CHKERRQ(ierr);
+  ierr = VecDestroy(&coordinatesB);CHKERRQ(ierr);
+  if (interpolate) {
+    DM idm;
+
+    ierr = DMPlexInterpolate(*dm, &idm);CHKERRQ(ierr);
+    ierr = DMPlexCopyCoordinates(*dm, idm);CHKERRQ(ierr);
+    ierr = DMDestroy(dm);CHKERRQ(ierr);
+    *dm  = idm;
+  }
+  PetscFunctionReturn(0);
+}
+
 /*@C
   DMPlexSetOptionsPrefix - Sets the prefix used for searching for all DM options in the database.
 
