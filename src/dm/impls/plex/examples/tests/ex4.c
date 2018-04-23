@@ -1008,7 +1008,13 @@ int main(int argc, char **argv)
       suffix: hybint_3d_0
       args: -dim 3 -num_refinements 1
     test:
+      suffix: hybint_3d_s2t_0
+      args: -dim 3 -num_refinements 1 -simplex2tensor
+    test:
       suffix: hybint_3d_1
       args: -dim 3 -num_refinements 1 -test_num 1
+    test:
+      suffix: hybint_3d_s2t_1
+      args: -dim 3 -num_refinements 1  -simplex2tensor -test_num 1
 
 TEST*/
