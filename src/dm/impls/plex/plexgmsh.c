@@ -124,6 +124,10 @@ static PetscErrorCode DMPlexCreateGmsh_ReadElements(PetscViewer viewer, PetscBoo
       dim = 3;
       numNodes = 8;
       break;
+    case 6: /* 6-node wedge */
+      dim = 3;
+      numNodes = 6;
+      break;
     case 8: /* 3-node 2nd order line */
       dim = 1;
       numNodes = 2;
@@ -138,7 +142,6 @@ static PetscErrorCode DMPlexCreateGmsh_ReadElements(PetscViewer viewer, PetscBoo
       dim = 0;
       numNodes = 1;
       break;
-    case 6: /* 6-node prism */
     case 7: /* 5-node pyramid */
     case 10: /* 9-node 2nd order quadrangle */
     case 11: /* 10-node 2nd order tetrahedron */
@@ -304,10 +307,12 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
        once and store them in memory, while determining the true number of cells. */
     ierr = DMPlexCreateGmsh_ReadElements(viewer, binary, byteSwap, shift, numCells, &gmsh_elem);CHKERRQ(ierr);
     hybrid = PETSC_FALSE;
-    for (trueNumCells=0, c = 0; c < numCells; ++c) {
+    for (trueNumCells = 0, c = 0; c < numCells; ++c) {
       int on = -1;
       if (gmsh_elem[c].dim > dim) {dim = gmsh_elem[c].dim; trueNumCells = 0;}
-      if (gmsh_elem[c].dim == dim) {hybrid = (trueNumCells ? (on != gmsh_elem[c].numNodes ? on = gmsh_elem[c].numNodes,PETSC_TRUE : hybrid) : PETSC_FALSE); trueNumCells++;}
+      if (gmsh_elem[c].dim == dim) {hybrid = (trueNumCells ? (on != gmsh_elem[c].cellType ? on = gmsh_elem[c].cellType,PETSC_TRUE : hybrid) : (on = gmsh_elem[c].cellType, PETSC_FALSE) ); trueNumCells++;}
+      /* wedges always indicate an hybrid mesh in PLEX */
+      if (on == 6) hybrid = PETSC_TRUE;
     }
     ierr = PetscViewerRead(viewer, line, 1, NULL, PETSC_STRING);CHKERRQ(ierr);
     ierr = PetscStrncmp(line, "$EndElements", 12, &match);CHKERRQ(ierr);
@@ -316,7 +321,7 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
     /* Renumber cells for hybrid grids */
     if (hybrid && enable_hybrid) {
       PetscInt hc1 = 0, hc2 = 0, *hybridCells1 = NULL, *hybridCells2 = NULL;
-      PetscInt cell;
+      PetscInt cell, tn, *tp;
       int      n1 = 0,n2 = 0;
 
       ierr = PetscMalloc1(trueNumCells, &hybridCells1);CHKERRQ(ierr);
@@ -332,20 +337,65 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
           cell++;
         }
       }
-      if (hc1 && hc2) {
-        if (n1 > n2) { /* TODO: add a switch? */
-          PetscInt tn = hc1, *tp = hybridCells1;
+
+      switch (n1) {
+      case 2: /* triangles */
+        switch (n2) {
+        case 0: /* single type mesh */
+        case 3: /* quads */
+          break;
+        default:
+          SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_SUP, "Unsupported cell types %d and %d",n1, n2);
+        }
+        break;
+      case 3:
+        switch (n2) {
+        case 0: /* single type mesh */
+        case 2: /* swap since we list simplices first */
+          tn  = hc1;
           hc1 = hc2;
           hc2 = tn;
+
+          tp           = hybridCells1;
           hybridCells1 = hybridCells2;
           hybridCells2 = tp;
+          break;
+        default:
+          SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_SUP, "Unsupported cell types %d and %d",n1, n2);
         }
+        break;
+      case 4: /* tetrahedra */
+        switch (n2) {
+        case 0: /* single type mesh */
+        case 6: /* wedges */
+          break;
+        default:
+          SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_SUP, "Unsupported cell types %d and %d",n1, n2);
+        }
+        break;
+      case 6:
+        switch (n2) {
+        case 0: /* single type mesh */
+        case 4: /* swap since we list simplices first */
+          tn  = hc1;
+          hc1 = hc2;
+          hc2 = tn;
 
-        cMax = hc1;
-        ierr = PetscMalloc1(trueNumCells,&hybridMap);CHKERRQ(ierr);
-        for (cell = 0; cell < hc1; cell++) hybridMap[hybridCells1[cell]] = cell;
-        for (cell = 0; cell < hc2; cell++) hybridMap[hybridCells2[cell]] = cell + hc1;
+          tp           = hybridCells1;
+          hybridCells1 = hybridCells2;
+          hybridCells2 = tp;
+          break;
+        default:
+          SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_SUP, "Unsupported cell types %d and %d",n1, n2);
+        }
+        break;
+      default:
+        SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_SUP, "Unsupported cell types %d and %d",n1, n2);
       }
+      cMax = hc1;
+      ierr = PetscMalloc1(trueNumCells, &hybridMap);CHKERRQ(ierr);
+      for (cell = 0; cell < hc1; cell++) hybridMap[hybridCells1[cell]] = cell;
+      for (cell = 0; cell < hc2; cell++) hybridMap[hybridCells2[cell]] = cell + hc1;
       ierr = PetscFree(hybridCells1);CHKERRQ(ierr);
       ierr = PetscFree(hybridCells2);CHKERRQ(ierr);
     }
@@ -452,6 +502,17 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
           PetscInt tmp = pcone[1];
           pcone[1] = pcone[3];
           pcone[3] = tmp;
+        }
+        /* Prisms are inverted */
+        if (gmsh_elem[c].cellType == 6) {
+          PetscInt tmp;
+
+          tmp      = pcone[1];
+          pcone[1] = pcone[2];
+          pcone[2] = tmp;
+          tmp      = pcone[4];
+          pcone[4] = pcone[5];
+          pcone[5] = tmp;
         }
       } else if (dim == 2 && hybridMap && hybridMap[cell] >= cMax) { /* hybrid cells */
         /* quads are input to PLEX as prisms */
@@ -605,6 +666,17 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
               PetscInt tmp = pcone[1];
               pcone[1] = pcone[3];
               pcone[3] = tmp;
+            }
+            /* Prisms are inverted */
+            if (gmsh_elem[c].cellType == 6) {
+              PetscInt tmp;
+
+              tmp      = pcone[1];
+              pcone[1] = pcone[2];
+              pcone[2] = tmp;
+              tmp      = pcone[4];
+              pcone[4] = pcone[5];
+              pcone[5] = tmp;
             }
           } else if (dim == 2 && hybridMap && hybridMap[cell] >= cMax) { /* hybrid cells */
             /* quads are input to PLEX as prisms */
