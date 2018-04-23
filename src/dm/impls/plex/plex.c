@@ -38,6 +38,7 @@ PetscErrorCode DMPlexRefineSimplexToTensor(DM dm, DM *dmRefined)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidPointer(dmRefined, 1);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm,&cMax,&fMax,NULL,NULL);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
@@ -64,8 +65,12 @@ PetscErrorCode DMPlexRefineSimplexToTensor(DM dm, DM *dmRefined)
     case 3:
       switch (coneSize) {
       case 4:
-        if (cMax >= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Simplex2Tensor in 3D with Hybrid mesh not yet done");
+        if (cMax >= 0) cellRefiner = REFINER_HYBRID_SIMPLEX_TO_HEX_3D;
         else cellRefiner = REFINER_SIMPLEX_TO_HEX_3D;
+      break;
+      case 5:
+        if (cMax >= 0) cellRefiner = REFINER_HYBRID_SIMPLEX_TO_HEX_3D;
+        else cellRefiner = REFINER_NOOP;
       break;
       case 6:
         if (cMax >= 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Simplex2Tensor in 3D with Hybrid mesh not yet done");
