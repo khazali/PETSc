@@ -11,21 +11,22 @@ typedef struct {
   PetscLogEvent createMeshEvent;
   PetscLogStage stages[4];
   /* Domain and mesh definition */
-  PetscInt      dim;                          /* The topological mesh dimension */
-  PetscBool     interpolate;                  /* Generate intermediate mesh elements */
-  PetscReal     refinementLimit;              /* The largest allowable cell volume */
-  PetscBool     cellSimplex;                  /* Use simplices or hexes */
-  PetscBool     cellWedge;                    /* Use wedges */
-  PetscBool     simplex2tensor;               /* Refine simplicials in hexes */
-  DomainShape   domainShape;                  /* Shape of the region to be meshed */
-  PetscInt      *domainBoxSizes;              /* Sizes of the box mesh */
-  DMBoundaryType periodicity[3];              /* The domain periodicity */
-  char          filename[PETSC_MAX_PATH_LEN]; /* Import mesh from file */
-  char          bdfilename[PETSC_MAX_PATH_LEN]; /* Import mesh boundary from file */
-  PetscBool     testPartition;                /* Use a fixed partitioning for testing */
-  PetscInt      overlap;                      /* The cell overlap to use during partitioning */
-  PetscBool     testShape;                    /* Test the cell shape quality */
-  PetscBool     check[3];                     /* Runs DMPlex checks on the mesh */
+  PetscInt      dim;                             /* The topological mesh dimension */
+  PetscBool     interpolate;                     /* Generate intermediate mesh elements */
+  PetscReal     refinementLimit;                 /* The largest allowable cell volume */
+  PetscBool     cellSimplex;                     /* Use simplices or hexes */
+  PetscBool     cellWedge;                       /* Use wedges */
+  PetscBool     simplex2tensor;                  /* Refine simplicials in hexes */
+  DomainShape   domainShape;                     /* Shape of the region to be meshed */
+  PetscInt      *domainBoxSizes;                 /* Sizes of the box mesh */
+  DMBoundaryType periodicity[3];                 /* The domain periodicity */
+  char          filename[PETSC_MAX_PATH_LEN];    /* Import mesh from file */
+  char          bdfilename[PETSC_MAX_PATH_LEN];  /* Import mesh boundary from file */
+  char          extfilename[PETSC_MAX_PATH_LEN]; /* Import 2D mesh to be extruded from file */
+  PetscBool     testPartition;                   /* Use a fixed partitioning for testing */
+  PetscInt      overlap;                         /* The cell overlap to use during partitioning */
+  PetscBool     testShape;                       /* Test the cell shape quality */
+  PetscBool     check[3];                        /* Runs DMPlex checks on the mesh */
 } AppCtx;
 
 PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -50,6 +51,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->periodicity[2]    = DM_BOUNDARY_NONE;
   options->filename[0]       = '\0';
   options->bdfilename[0]     = '\0';
+  options->extfilename[0]    = '\0';
   options->testPartition     = PETSC_FALSE;
   options->overlap           = PETSC_FALSE;
   options->testShape         = PETSC_FALSE;
@@ -83,6 +85,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->periodicity[2] = (DMBoundaryType) bd;
   ierr = PetscOptionsString("-filename", "The mesh file", "ex1.c", options->filename, options->filename, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-bd_filename", "The mesh boundary file", "ex1.c", options->bdfilename, options->bdfilename, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-ext_filename", "The 2D mesh file to be extruded", "ex1.c", options->extfilename, options->extfilename, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_partition", "Use a fixed partition for testing", "ex1.c", options->testPartition, &options->testPartition, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-overlap", "The cell overlap for partitioning", "ex1.c", options->overlap, &options->overlap, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_shape", "Report cell shape qualities (Jacobian condition numbers)", "ex1.c", options->testShape, &options->testShape, NULL);CHKERRQ(ierr);
@@ -109,6 +112,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   PetscBool      simplex2tensor       = user->simplex2tensor;
   const char    *filename             = user->filename;
   const char    *bdfilename           = user->bdfilename;
+  const char    *extfilename          = user->extfilename;
   PetscInt       triSizes_n2[2]       = {4, 4};
   PetscInt       triPoints_n2[8]      = {3, 5, 6, 7, 0, 1, 2, 4};
   PetscInt       triSizes_n8[8]       = {1, 1, 1, 1, 1, 1, 1, 1};
@@ -126,7 +130,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
                                          75, 76, 77, 78, 79, 86, 87,  88,  90,  92, 113, 115, 116, 117, 118, 119, 120, 123, 138, 140, 141, 142, 146, 148, 149,
                                           0,  2, 11, 13, 15, 20, 21,  22,  23,  49,  52,  53,  54,  55,  56,  57,  58,  59,  60,  62,  63,  64,  65,  66,  67,
                                          68, 69, 70, 82, 83, 84, 85, 102, 103, 105, 106, 107, 108, 109, 110, 111, 112, 114, 130, 132, 134, 135, 136, 137, 139};
-  size_t         len, bdlen;
+  size_t         len, bdlen, extlen;
   PetscMPIInt    rank, size;
   PetscErrorCode ierr;
 
@@ -136,6 +140,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   ierr = PetscStrlen(bdfilename, &bdlen);CHKERRQ(ierr);
+  ierr = PetscStrlen(extfilename, &extlen);CHKERRQ(ierr);
   ierr = PetscLogStagePush(user->stages[STAGE_LOAD]);CHKERRQ(ierr);
   if (len) {
     ierr = DMPlexCreateFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
@@ -145,10 +150,21 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     ierr = DMPlexCreateFromFile(comm, bdfilename, interpolate, &boundary);CHKERRQ(ierr);
     ierr = DMPlexGenerate(boundary, NULL, interpolate, dm);CHKERRQ(ierr);
     ierr = DMDestroy(&boundary);CHKERRQ(ierr);
+  } else if (extlen) {
+    DM edm;
+
+    ierr = DMPlexCreateFromFile(comm, extfilename, PETSC_FALSE, &edm);CHKERRQ(ierr);
+    ierr = DMPlexExtrudeMeshWedge(edm, 2, 1.5, interpolate, dm);CHKERRQ(ierr);
+    ierr = DMDestroy(&edm);CHKERRQ(ierr);
   } else {
     switch (user->domainShape) {
     case BOX:
-      ierr = DMPlexCreateBoxMesh(comm, dim, cellSimplex, user->domainBoxSizes, NULL, NULL, user->periodicity, interpolate, dm);CHKERRQ(ierr);
+      if (cellWedge) {
+        if (dim != 3) SETERRQ1(comm, PETSC_ERR_ARG_WRONG, "Dimension must be 3 for a wedge mesh, not %D", dim);
+        ierr = DMPlexCreateWedgeBoxMesh(comm, user->domainBoxSizes, NULL, NULL, user->periodicity, interpolate, dm);CHKERRQ(ierr);
+      } else {
+        ierr = DMPlexCreateBoxMesh(comm, dim, cellSimplex, user->domainBoxSizes, NULL, NULL, user->periodicity, interpolate, dm);CHKERRQ(ierr);
+      }
       break;
     case CYLINDER:
       if (cellSimplex) SETERRQ(comm, PETSC_ERR_ARG_WRONG, "Cannot mesh a cylinder with simplices");
@@ -162,6 +178,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     default: SETERRQ1(comm, PETSC_ERR_ARG_WRONG, "Unknown domain shape %D", user->domainShape);
     }
   }
+
   ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr); /* needed for periodic */
   ierr = PetscLogStagePop();CHKERRQ(ierr);
   {
@@ -544,6 +561,10 @@ int main(int argc, char **argv)
     suffix: gmsh_13_hybs2t
     nsize: 4
     args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_triquad.msh -petscpartitioner_type simple -interpolate 1 -dm_view ::ascii_info_detail -test_shape -simplex2tensor -dm_plex_gmsh_hybrid -check_faces -check_skeleton -check_symmetry
+  test:
+    suffix: gmsh_14_ext
+    requires: !single
+    args: -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view ::ascii_info_detail -check_symmetry -check_skeleton
 
   # Fluent mesh reader tests
   test:
@@ -635,6 +656,11 @@ int main(int argc, char **argv)
   test:
     suffix: box_3d
     args: -dim 3 -cell_simplex 0 -interpolate -domain_shape box -dm_refine 3 -test_shape -dm_view
+
+  test:
+    requires: triangle
+    suffix: box_wedge
+    args: -dim 3 -cell_simplex 0 -interpolate -cell_wedge -domain_shape box -dm_view vtk: -check_symmetry -check_faces -check_skeleton
 
   # Test GLVis output
   test:
