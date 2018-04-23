@@ -565,6 +565,20 @@ int main(int argc, char **argv)
     suffix: gmsh_14_ext
     requires: !single
     args: -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view ::ascii_info_detail -check_symmetry -check_skeleton
+  test:
+    suffix: gmsh_14_ext_s2t
+    requires: !single
+    args: -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view ::ascii_info_detail -interpolate -check_faces -check_symmetry -check_skeleton -simplex2tensor -test_shape
+  test:
+    suffix: gmsh_15_hyb3d
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_tetwedge.msh -dm_view -interpolate -check_faces -check_symmetry -check_skeleton -dm_plex_gmsh_hybrid
+  test:
+    suffix: gmsh_15_hyb3d_vtk
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_tetwedge.msh -dm_view vtk:
+  test:
+    suffix: gmsh_15_hyb3d_s2t
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_tetwedge.msh -dm_view -interpolate -check_faces -check_symmetry -check_skeleton -dm_plex_gmsh_hybrid -simplex2tensor -test_shape
+
 
   # Fluent mesh reader tests
   test:
@@ -661,6 +675,16 @@ int main(int argc, char **argv)
     requires: triangle
     suffix: box_wedge
     args: -dim 3 -cell_simplex 0 -interpolate -cell_wedge -domain_shape box -dm_view vtk: -check_symmetry -check_faces -check_skeleton
+
+  testset:
+    requires: triangle
+    args: -dim 3 -cell_simplex 0 -interpolate -cell_wedge -domain_shape box -domain_box_sizes 4,5,3 -dm_view ::ascii_info_detail -check_symmetry -check_faces -check_skeleton -simplex2tensor -test_shape
+    test:
+      suffix: box_wedge_s2t
+    test:
+      nsize: 3
+      args: -petscpartitioner_type simple
+      suffix: box_wedge_s2t_parallel
 
   # Test GLVis output
   test:
