@@ -210,21 +210,21 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
   Vec            coordinates;
   PetscBT        periodicV = NULL, periodicC = NULL;
   PetscScalar   *coords;
-  PetscInt       dim = 0, embedDim, coordSize, c, v, d, r, cell, *periodicMap = NULL, *periodicMapI = NULL, *hybridMap = NULL, cMax = PETSC_DETERMINE;
+  PetscInt       dim = 0, embedDim = -1, coordSize, c, v, d, r, cell, *periodicMap = NULL, *periodicMapI = NULL, *hybridMap = NULL, cMax = PETSC_DETERMINE;
   int            i, numVertices = 0, numCells = 0, trueNumCells = 0, numRegions = 0, snum, shift = 1;
   PetscMPIInt    rank;
   char           line[PETSC_MAX_PATH_LEN];
-  PetscBool      binary, byteSwap = PETSC_FALSE, zerobase = PETSC_FALSE, isbd = PETSC_FALSE, periodic = PETSC_FALSE, usemarker = PETSC_FALSE;
+  PetscBool      binary, byteSwap = PETSC_FALSE, zerobase = PETSC_FALSE, periodic = PETSC_FALSE, usemarker = PETSC_FALSE;
   PetscBool      enable_hybrid = PETSC_FALSE;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_gmsh_hybrid", &enable_hybrid, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_gmsh_periodic", &periodic, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_gmsh_use_marker", &usemarker, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL, NULL, "-gmsh_zero_base", &zerobase, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsGetBool(NULL, NULL, "-gmsh_bd", &isbd, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_gmsh_hybrid", &enable_hybrid, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_gmsh_periodic", &periodic, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_gmsh_use_marker", &usemarker, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_gmsh_zero_base", &zerobase, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetInt(((PetscObject) viewer)->options,((PetscObject) viewer)->prefix, "-dm_plex_gmsh_spacedim", &embedDim, NULL);CHKERRQ(ierr);
   if (zerobase) shift = 0;
 
   ierr = DMCreate(comm, dm);CHKERRQ(ierr);
@@ -602,7 +602,8 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
   }
 
   /* Create coordinates */
-  embedDim = isbd ? dim+1 : dim;
+  if (embedDim < 0) embedDim = dim;
+  ierr = DMSetCoordinateDim(*dm, embedDim);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(*dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionSetNumFields(coordSection, 1);CHKERRQ(ierr);
   ierr = PetscSectionSetFieldComponents(coordSection, 0, embedDim);CHKERRQ(ierr);
