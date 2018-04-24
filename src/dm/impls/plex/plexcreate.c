@@ -1181,7 +1181,8 @@ PetscErrorCode DMPlexExtrudeMeshWedge(DM idm, PetscInt layers, PetscReal height,
     for (l = 0; l < layers; ++l) {
       PetscInt i;
 
-      for (i = 0; i < cellV; ++i) {
+      /* maybe we want to order extruded first? */
+      for (i = 0; i < numCorners; ++i) {
         newCone[  numCorners + i] =     l*(vEnd - vStart) + newCone[i] + numCells;
         newCone[2*numCorners + i] = (l+1)*(vEnd - vStart) + newCone[i] + numCells;
       }

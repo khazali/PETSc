@@ -27,6 +27,8 @@ typedef struct {
   PetscInt      overlap;                         /* The cell overlap to use during partitioning */
   PetscBool     testShape;                       /* Test the cell shape quality */
   PetscBool     check[3];                        /* Runs DMPlex checks on the mesh */
+  PetscReal     extrude_thickness;               /* Thickness of extrusion */
+  PetscInt      extrude_layers;                  /* Layers to be extruded */
 } AppCtx;
 
 PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -59,6 +61,8 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->check[0]          = PETSC_FALSE;
   options->check[1]          = PETSC_FALSE;
   options->check[2]          = PETSC_FALSE;
+  options->extrude_layers    = 2;
+  options->extrude_thickness = 0.1;
 
   ierr = PetscOptionsBegin(comm, "", "Meshing Problem Options", "DMPLEX");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex1.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
@@ -86,6 +90,8 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsString("-filename", "The mesh file", "ex1.c", options->filename, options->filename, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-bd_filename", "The mesh boundary file", "ex1.c", options->bdfilename, options->bdfilename, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-ext_filename", "The 2D mesh file to be extruded", "ex1.c", options->extfilename, options->extfilename, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-ext_layers", "The number of layers to extrude", "ex1.c", options->extrude_layers, &options->extrude_layers, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsReal("-ext_thickness", "The thickness of the layer to be extruded", "ex1.c", options->extrude_thickness, &options->extrude_thickness, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_partition", "Use a fixed partition for testing", "ex1.c", options->testPartition, &options->testPartition, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-overlap", "The cell overlap for partitioning", "ex1.c", options->overlap, &options->overlap, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_shape", "Report cell shape qualities (Jacobian condition numbers)", "ex1.c", options->testShape, &options->testShape, NULL);CHKERRQ(ierr);
@@ -153,8 +159,8 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   } else if (extlen) {
     DM edm;
 
-    ierr = DMPlexCreateFromFile(comm, extfilename, PETSC_FALSE, &edm);CHKERRQ(ierr);
-    ierr = DMPlexExtrudeMeshWedge(edm, 2, 1.5, interpolate, dm);CHKERRQ(ierr);
+    ierr = DMPlexCreateFromFile(comm, extfilename, interpolate, &edm);CHKERRQ(ierr);
+    ierr = DMPlexExtrudeMeshWedge(edm, user->extrude_layers, user->extrude_thickness, interpolate, dm);CHKERRQ(ierr);
     ierr = DMDestroy(&edm);CHKERRQ(ierr);
   } else {
     switch (user->domainShape) {
@@ -564,11 +570,11 @@ int main(int argc, char **argv)
   test:
     suffix: gmsh_14_ext
     requires: !single
-    args: -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view ::ascii_info_detail -check_symmetry -check_skeleton
+    args: -ext_layers 2 -ext_thickness 1.5 -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view ::ascii_info_detail -check_symmetry -check_skeleton
   test:
     suffix: gmsh_14_ext_s2t
     requires: !single
-    args: -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view ::ascii_info_detail -interpolate -check_faces -check_symmetry -check_skeleton -simplex2tensor -test_shape
+    args: -ext_layers 2 -ext_thickness 1.5 -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view ::ascii_info_detail -interpolate -check_faces -check_symmetry -check_skeleton -simplex2tensor -test_shape
   test:
     suffix: gmsh_15_hyb3d
     args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_tetwedge.msh -dm_view -interpolate -check_faces -check_symmetry -check_skeleton -dm_plex_gmsh_hybrid
@@ -578,6 +584,22 @@ int main(int argc, char **argv)
   test:
     suffix: gmsh_15_hyb3d_s2t
     args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_tetwedge.msh -dm_view -interpolate -check_faces -check_symmetry -check_skeleton -dm_plex_gmsh_hybrid -simplex2tensor -test_shape
+  test:
+    suffix: gmsh_16_spheresurface
+    nsize : 4
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/surfacesphere_bin.msh -dm_plex_gmsh_spacedim 3 -check_symmetry -check_faces -check_skeleton -dm_view -interpolate -test_shape -petscpartitioner_type simple
+  test:
+    suffix: gmsh_16_spheresurface_s2t
+    nsize : 4
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/surfacesphere_bin.msh -dm_plex_gmsh_spacedim 3 -simplex2tensor -check_symmetry -check_faces -check_skeleton -dm_view -interpolate -test_shape -petscpartitioner_type simple
+  test:
+    suffix: gmsh_16_spheresurface_extruded
+    nsize : 4
+    args: -ext_layers 3 -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/surfacesphere_bin.msh -dm_plex_gmsh_hybrid -dm_plex_gmsh_spacedim 3 -check_symmetry -check_faces -check_skeleton -dm_view -interpolate -petscpartitioner_type simple
+  test:
+    suffix: gmsh_16_spheresurface_extruded_s2t
+    nsize : 4
+    args: -ext_layers 3 -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/surfacesphere_bin.msh -dm_plex_gmsh_spacedim 3 -simplex2tensor -check_symmetry -check_faces -check_skeleton -dm_view -interpolate -test_shape -petscpartitioner_type simple
 
 
   # Fluent mesh reader tests
