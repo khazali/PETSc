@@ -286,14 +286,22 @@ PetscErrorCode PetscVFPrintfDefault(FILE *fd,const char *format,va_list Argp)
   char           *buff = str;
   size_t         fullLength;
   PetscErrorCode ierr;
+#if defined(PETSC_HAVE_VA_COPY)
   va_list        Argpcopy;
+#endif
 
   PetscFunctionBegin;
+#if defined(PETSC_HAVE_VA_COPY)
   va_copy(Argpcopy,Argp);
+#endif
   ierr = PetscVSNPrintf(str,sizeof(str),format,&fullLength,Argp);CHKERRQ(ierr);
   if (fullLength > sizeof(str)) {
     ierr = PetscMalloc1(fullLength,&buff);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_VA_COPY)
     ierr = PetscVSNPrintf(buff,fullLength,format,NULL,Argpcopy);CHKERRQ(ierr);
+#else
+    SETERRQ(PETSC_COMM_SELF,PETSC_ERR_LIB,"C89 does not support va_copy() hence cannot print long strings with PETSc printing routines");
+#endif
   }
   fprintf(fd,"%s",buff);CHKERRQ(ierr);
   fflush(fd);
@@ -815,3 +823,21 @@ PetscErrorCode PetscFormatStrip(char *format)
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode PetscFormatRealArray(char buf[],size_t len,const char *fmt,PetscInt n,const PetscReal x[])
+{
+  PetscErrorCode ierr;
+  PetscInt       i;
+  size_t         left,count;
+  char           *p;
+
+  PetscFunctionBegin;
+  for (i=0,p=buf,left=len; i<n; i++) {
+    ierr = PetscSNPrintfCount(p,left,fmt,&count,(double)x[i]);CHKERRQ(ierr);
+    if (count >= left) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Insufficient space in buffer");
+    left -= count;
+    p    += count-1;
+    *p++  = ' ';
+  }
+  p[i ? 0 : -1] = 0;
+  PetscFunctionReturn(0);
+}
