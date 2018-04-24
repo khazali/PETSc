@@ -318,7 +318,7 @@ static PetscErrorCode TestCellShape(DM dm)
   stats.sum = stats.squaresum = 0.;
   stats.count = 0;
 
-  ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDim(dm,&dim);CHKERRQ(ierr);
 
   ierr = PetscMalloc2(dim * dim, &J, dim * dim, &invJ);CHKERRQ(ierr);
 
