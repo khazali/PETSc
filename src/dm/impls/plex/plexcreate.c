@@ -1117,13 +1117,14 @@ PetscErrorCode DMPlexCreateWedgeBoxMesh(MPI_Comm comm, const PetscInt faces[], c
 @*/
 PetscErrorCode DMPlexExtrudeMeshWedge(DM idm, PetscInt layers, PetscReal height, PetscBool interpolate, DM* dm)
 {
-  PetscScalar    *coordsB;
+  PetscScalar       *coordsB;
   const PetscScalar *coordsA;
-  Vec            coordinatesA, coordinatesB;
-  PetscSection   coordSectionA, coordSectionB;
-  PetscInt       dim, cDim, c, l, v, coordSize, *newCone;
-  PetscInt       cStart, cEnd, vStart, vEnd, cellV, numCells, numVertices;
-  PetscErrorCode ierr;
+  PetscReal         *normals = NULL;
+  Vec               coordinatesA, coordinatesB;
+  PetscSection      coordSectionA, coordSectionB;
+  PetscInt          dim, cDim, cDimB, c, l, v, coordSize, *newCone;
+  PetscInt          cStart, cEnd, vStart, vEnd, cellV, numCells, numVertices;
+  PetscErrorCode    ierr;
 
   PetscFunctionBegin;
   ierr = DMGetDimension(idm, &dim);CHKERRQ(ierr);
@@ -1145,16 +1146,27 @@ PetscErrorCode DMPlexExtrudeMeshWedge(DM idm, PetscInt layers, PetscReal height,
   for (c = 0; c < numCells; c++) {ierr = DMPlexSetConeSize(*dm, c, 2*cellV);CHKERRQ(ierr);}
   ierr = DMSetUp(*dm);CHKERRQ(ierr);
 
+  ierr = DMGetCoordinateDim(idm, &cDim);CHKERRQ(ierr);
+  if (dim != cDim) {
+    ierr = PetscCalloc1(cDim*(vEnd - vStart), &normals);CHKERRQ(ierr);
+  }
   ierr = PetscMalloc1(3*cellV,&newCone);CHKERRQ(ierr);
   for (c = cStart; c < cEnd; ++c) {
     PetscInt *closure = NULL;
     PetscInt closureSize, numCorners = 0, l;
+    PetscReal normal[3] = {0, 0, 0};
 
+    if (normals) {
+      ierr = DMPlexComputeCellGeometryFVM(idm, c, NULL, NULL, normal);CHKERRQ(ierr);
+    }
     ierr = DMPlexGetTransitiveClosure(idm, c, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
     for (v = 0; v < closureSize*2; v += 2) {
       if ((closure[v] >= vStart) && (closure[v] < vEnd)) {
+        PetscInt d;
+
         if (numCorners == cellV) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_SUP, "Hybrid meshes not supported");
         newCone[numCorners++] = closure[v] - vStart;
+        if (normals) { for (d = 0; d < cDim; ++d) normals[cDim*(closure[v]-vStart)+d] += normal[d]; }
       }
     }
     switch (numCorners) {
@@ -1180,48 +1192,57 @@ PetscErrorCode DMPlexExtrudeMeshWedge(DM idm, PetscInt layers, PetscReal height,
   ierr = DMPlexStratify(*dm);CHKERRQ(ierr);
   ierr = PetscFree(newCone);CHKERRQ(ierr);
 
-  ierr = DMGetCoordinateDim(idm, &cDim);CHKERRQ(ierr);
-  if (cDim > 2) SETERRQ1(PetscObjectComm((PetscObject)idm), PETSC_ERR_SUP, "Coordinate dimension %D not coded", cDim);
+  cDimB = cDim == dim ? cDim+1 : cDim;
   ierr = DMGetCoordinateSection(*dm, &coordSectionB);CHKERRQ(ierr);
   ierr = PetscSectionSetNumFields(coordSectionB, 1);CHKERRQ(ierr);
-  ierr = PetscSectionSetFieldComponents(coordSectionB, 0, cDim+1);CHKERRQ(ierr);
+  ierr = PetscSectionSetFieldComponents(coordSectionB, 0, cDimB);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(coordSectionB, numCells, numCells+numVertices);CHKERRQ(ierr);
   for (v = numCells; v < numCells+numVertices; ++v) {
-    ierr = PetscSectionSetDof(coordSectionB, v, cDim+1);CHKERRQ(ierr);
-    ierr = PetscSectionSetFieldDof(coordSectionB, v, 0, cDim+1);CHKERRQ(ierr);
+    ierr = PetscSectionSetDof(coordSectionB, v, cDimB);CHKERRQ(ierr);
+    ierr = PetscSectionSetFieldDof(coordSectionB, v, 0, cDimB);CHKERRQ(ierr);
   }
   ierr = PetscSectionSetUp(coordSectionB);CHKERRQ(ierr);
   ierr = PetscSectionGetStorageSize(coordSectionB, &coordSize);CHKERRQ(ierr);
   ierr = VecCreate(PETSC_COMM_SELF, &coordinatesB);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) coordinatesB, "coordinates");CHKERRQ(ierr);
   ierr = VecSetSizes(coordinatesB, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
-  ierr = VecSetBlockSize(coordinatesB, 3);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(coordinatesB, cDimB);CHKERRQ(ierr);
   ierr = VecSetType(coordinatesB,VECSTANDARD);CHKERRQ(ierr);
 
   ierr = DMGetCoordinateSection(idm, &coordSectionA);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocal(idm, &coordinatesA);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(coordinatesA, &coordsA);CHKERRQ(ierr);
   ierr = VecGetArray(coordinatesB, &coordsB);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(coordinatesA, &coordsA);CHKERRQ(ierr);
   for (v = vStart; v < vEnd; ++v) {
-    PetscScalar h = height/layers;
-    PetscInt    offA;
+    const PetscReal *cptr;
+    PetscReal ones2[2] = { 0., 1.}, ones3[3] = { 0., 0., 1.};
+    PetscReal *normal, norm, h = height/layers;
+    PetscInt  offA, d, cDimA = cDim;
+
+    normal = normals ? normals + cDimB*(v - vStart) : (cDim > 1 ? ones3 : ones2);
+    if (normals) {
+      for (d = 0, norm = 0.0; d < cDimB; ++d) norm += normal[d]*normal[d];
+      for (d = 0; d < cDimB; ++d) normal[d] *= 1./PetscSqrtReal(norm);
+    }
 
     ierr = PetscSectionGetOffset(coordSectionA, v, &offA);CHKERRQ(ierr);
+    cptr = coordsA + offA;
     for (l = 0; l < layers+1; ++l) {
       PetscInt    offB, d;
       PetscInt    newV = (vEnd -vStart)*l + (v -vStart) + numCells;
 
       ierr = PetscSectionGetOffset(coordSectionB, newV, &offB);CHKERRQ(ierr);
-      for (d = 0; d < 2; ++d) {
-        coordsB[offB+d] = coordsA[offA+d];
-      }
-      coordsB[offB + 2] = l*h;
+      for (d = 0; d < cDimA; ++d) { coordsB[offB+d]  = cptr[d]; }
+      for (d = 0; d < cDimB; ++d) { coordsB[offB+d] += normal[d]*h; }
+      cptr    = coordsB + offB;
+      cDimA   = cDimB;
     }
   }
   ierr = VecRestoreArrayRead(coordinatesA, &coordsA);CHKERRQ(ierr);
   ierr = VecRestoreArray(coordinatesB, &coordsB);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(*dm, coordinatesB);CHKERRQ(ierr);
   ierr = VecDestroy(&coordinatesB);CHKERRQ(ierr);
+  ierr = PetscFree(normals);CHKERRQ(ierr);
   if (interpolate) {
     DM idm;
 
