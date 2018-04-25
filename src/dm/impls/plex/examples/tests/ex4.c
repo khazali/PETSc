@@ -991,7 +991,7 @@ int main(int argc, char **argv)
   # Hybrid interpolation
   testset:
     nsize: 2
-    args: -test_partition 0 -petscpartitioner_type simple -dm_view ascii::ascii_info_detail -reinterpolate
+    args: -test_partition 0 -petscpartitioner_type simple -dm_view -reinterpolate
     test:
       suffix: hybint_2d_0
       args: -dim 2 -num_refinements 2

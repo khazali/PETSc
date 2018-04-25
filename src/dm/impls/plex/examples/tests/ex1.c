@@ -699,7 +699,7 @@ int main(int argc, char **argv)
 
   testset:
     requires: triangle
-    args: -dim 3 -cell_simplex 0 -interpolate -cell_wedge -domain_shape box -domain_box_sizes 2,3,1 -dm_view ::ascii_info_detail -check_symmetry -check_faces -check_skeleton -simplex2tensor -test_shape
+    args: -dim 3 -cell_simplex 0 -interpolate -cell_wedge -domain_shape box -domain_box_sizes 2,3,1 -dm_view -check_symmetry -check_faces -check_skeleton -simplex2tensor -test_shape
     test:
       suffix: box_wedge_s2t
     test:
