@@ -566,15 +566,15 @@ int main(int argc, char **argv)
   test:
     suffix: gmsh_13_hybs2t
     nsize: 4
-    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_triquad.msh -petscpartitioner_type simple -interpolate 1 -dm_view ::ascii_info_detail -test_shape -simplex2tensor -dm_plex_gmsh_hybrid -check_faces -check_skeleton -check_symmetry
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_triquad.msh -petscpartitioner_type simple -interpolate 1 -dm_view -test_shape -simplex2tensor -dm_plex_gmsh_hybrid -check_faces -check_skeleton -check_symmetry
   test:
     suffix: gmsh_14_ext
     requires: !single
-    args: -ext_layers 2 -ext_thickness 1.5 -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view ::ascii_info_detail -check_symmetry -check_skeleton
+    args: -ext_layers 2 -ext_thickness 1.5 -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view -check_symmetry -check_skeleton
   test:
     suffix: gmsh_14_ext_s2t
     requires: !single
-    args: -ext_layers 2 -ext_thickness 1.5 -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view ::ascii_info_detail -interpolate -check_faces -check_symmetry -check_skeleton -simplex2tensor -test_shape
+    args: -ext_layers 2 -ext_thickness 1.5 -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin.msh -dm_view -interpolate -check_faces -check_symmetry -check_skeleton -simplex2tensor -test_shape
   test:
     suffix: gmsh_15_hyb3d
     args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/hybrid_tetwedge.msh -dm_view -interpolate -check_faces -check_symmetry -check_skeleton -dm_plex_gmsh_hybrid
@@ -699,7 +699,7 @@ int main(int argc, char **argv)
 
   testset:
     requires: triangle
-    args: -dim 3 -cell_simplex 0 -interpolate -cell_wedge -domain_shape box -domain_box_sizes 4,5,3 -dm_view ::ascii_info_detail -check_symmetry -check_faces -check_skeleton -simplex2tensor -test_shape
+    args: -dim 3 -cell_simplex 0 -interpolate -cell_wedge -domain_shape box -domain_box_sizes 2,3,1 -dm_view ::ascii_info_detail -check_symmetry -check_faces -check_skeleton -simplex2tensor -test_shape
     test:
       suffix: box_wedge_s2t
     test:

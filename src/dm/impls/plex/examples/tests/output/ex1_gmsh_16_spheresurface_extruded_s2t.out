@@ -1,10 +1,10 @@
 DM Object: Simplicial Mesh 4 MPI processes
   type: plex
 Simplicial Mesh in 3 dimensions:
-  0-cells: 1828 1878 1876 1832
-  1-cells: 4524 4608 4607 4526
-  2-cells: 3587 3621 3621 3587
+  0-cells: 1280 1340 1336 1288
+  1-cells: 3428 3529 3526 3434
+  2-cells: 3039 3081 3081 3039
   3-cells: 891 891 891 891
 Labels:
-  depth: 4 strata with value/size (0 (1828), 1 (4524), 2 (3587), 3 (891))
-Mesh with 3564 cells, shape condition numbers: min = 3.77824, max = 8.71165, mean = 5.62105, stddev = 0.880734
+  depth: 4 strata with value/size (0 (1280), 1 (3428), 2 (3039), 3 (891))
+Mesh with 3564 cells, shape condition numbers: min = 3.85845, max = 8.94689, mean = 5.76779, stddev = 0.908487
