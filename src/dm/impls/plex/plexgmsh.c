@@ -138,6 +138,11 @@ static PetscErrorCode DMPlexCreateGmsh_ReadElements(PetscViewer viewer, PetscBoo
       numNodes = 3;
       numNodesIgnore = 3;
       break;
+    case 13: /* 18-node 2nd wedge */
+      dim = 3;
+      numNodes = 6;
+      numNodesIgnore = 12;
+      break;
     case 15: /* 1-node vertex */
       dim = 0;
       numNodes = 1;
@@ -146,7 +151,6 @@ static PetscErrorCode DMPlexCreateGmsh_ReadElements(PetscViewer viewer, PetscBoo
     case 10: /* 9-node 2nd order quadrangle */
     case 11: /* 10-node 2nd order tetrahedron */
     case 12: /* 27-node 2nd order hexhedron */
-    case 13: /* 19-node 2nd order prism */
     case 14: /* 14-node 2nd order pyramid */
     default:
       SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Unsupported Gmsh element type %d", cellType);
@@ -312,7 +316,7 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
       if (gmsh_elem[c].dim > dim) {dim = gmsh_elem[c].dim; trueNumCells = 0;}
       if (gmsh_elem[c].dim == dim) {hybrid = (trueNumCells ? (on != gmsh_elem[c].cellType ? on = gmsh_elem[c].cellType,PETSC_TRUE : hybrid) : (on = gmsh_elem[c].cellType, PETSC_FALSE) ); trueNumCells++;}
       /* wedges always indicate an hybrid mesh in PLEX */
-      if (on == 6) hybrid = PETSC_TRUE;
+      if (on == 6 || on == 13) hybrid = PETSC_TRUE;
     }
     ierr = PetscViewerRead(viewer, line, 1, NULL, PETSC_STRING);CHKERRQ(ierr);
     ierr = PetscStrncmp(line, "$EndElements", 12, &match);CHKERRQ(ierr);
@@ -340,18 +344,22 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
 
       switch (n1) {
       case 2: /* triangles */
+      case 9:
         switch (n2) {
         case 0: /* single type mesh */
         case 3: /* quads */
+        case 10:
           break;
         default:
           SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_SUP, "Unsupported cell types %d and %d",n1, n2);
         }
         break;
       case 3:
+      case 10:
         switch (n2) {
         case 0: /* single type mesh */
         case 2: /* swap since we list simplices first */
+        case 9:
           tn  = hc1;
           hc1 = hc2;
           hc2 = tn;
@@ -365,18 +373,22 @@ PetscErrorCode DMPlexCreateGmsh(MPI_Comm comm, PetscViewer viewer, PetscBool int
         }
         break;
       case 4: /* tetrahedra */
+      case 11:
         switch (n2) {
         case 0: /* single type mesh */
         case 6: /* wedges */
+        case 13:
           break;
         default:
           SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_SUP, "Unsupported cell types %d and %d",n1, n2);
         }
         break;
       case 6:
+      case 13:
         switch (n2) {
         case 0: /* single type mesh */
         case 4: /* swap since we list simplices first */
+        case 11:
           tn  = hc1;
           hc1 = hc2;
           hc2 = tn;
