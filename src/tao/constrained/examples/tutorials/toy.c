@@ -65,6 +65,7 @@ PetscErrorCode main(int argc,char **argv)
   ierr = InitializeProblem(&user);CHKERRQ(ierr);
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
   ierr = TaoSetType(tao,TAOIPM);CHKERRQ(ierr);
+  ierr = TaoSetProblemType(tao, TAO_PROBLEM_NONLINEAR, PETSC_FALSE);CHKERRQ(ierr);
   ierr = TaoSetInitialVector(tao,user.x);CHKERRQ(ierr);
   ierr = TaoSetVariableBounds(tao,user.xl,user.xu);CHKERRQ(ierr);
   ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void*)&user);CHKERRQ(ierr);

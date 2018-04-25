@@ -30,6 +30,7 @@ PetscErrorCode TaoDestroy_SSILS(Tao tao)
   ierr = VecDestroy(&ssls->t1);CHKERRQ(ierr);
   ierr = VecDestroy(&ssls->t2);CHKERRQ(ierr);
   ierr = PetscFree(tao->data);CHKERRQ(ierr);
+  ierr = PetscFree(tao->compatible_probs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -118,6 +119,12 @@ PETSC_EXTERN PetscErrorCode TaoCreate_SSILS(Tao tao)
   tao->ops->view=TaoView_SSLS;
   tao->ops->setfromoptions=TaoSetFromOptions_SSLS;
   tao->ops->destroy = TaoDestroy_SSILS;
+  
+  tao->solves_bounds = PETSC_TRUE;
+  tao->solves_nonlincon = PETSC_TRUE;
+  tao->num_compatible = 1;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_COMPLEMENTARITY;
 
   ssls->delta = 1e-10;
   ssls->rho = 2.1;

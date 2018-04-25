@@ -280,6 +280,7 @@ static PetscErrorCode TaoDestroy_OWLQN(Tao tao)
     ierr = VecDestroy(&lmP->GV);CHKERRQ(ierr);
   }
   ierr = PetscFree(tao->data);CHKERRQ(ierr);
+  ierr = PetscFree(tao->compatible_probs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -338,6 +339,12 @@ PETSC_EXTERN PetscErrorCode TaoCreate_OWLQN(Tao tao)
   tao->ops->view = TaoView_OWLQN;
   tao->ops->setfromoptions = TaoSetFromOptions_OWLQN;
   tao->ops->destroy = TaoDestroy_OWLQN;
+  
+  tao->num_compatible = 3;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_LINEAR;
+  tao->compatible_probs[1] = TAO_PROBLEM_QUADRATIC;
+  tao->compatible_probs[2] = TAO_PROBLEM_NONLINEAR;
 
   ierr = PetscNewLog(tao,&lmP);CHKERRQ(ierr);
   lmP->D = 0;

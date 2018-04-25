@@ -758,6 +758,7 @@ static PetscErrorCode TaoDestroy_NTL(Tao tao)
   ierr = VecDestroy(&tl->Diag);CHKERRQ(ierr);
   ierr = MatDestroy(&tl->M);CHKERRQ(ierr);
   ierr = PetscFree(tao->data);CHKERRQ(ierr);
+  ierr = PetscFree(tao->compatible_probs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -897,6 +898,12 @@ PETSC_EXTERN PetscErrorCode TaoCreate_NTL(Tao tao)
   tao->ops->view = TaoView_NTL;
   tao->ops->setfromoptions = TaoSetFromOptions_NTL;
   tao->ops->destroy = TaoDestroy_NTL;
+  
+  tao->num_compatible = 3;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_LINEAR;
+  tao->compatible_probs[1] = TAO_PROBLEM_QUADRATIC;
+  tao->compatible_probs[2] = TAO_PROBLEM_NONLINEAR;
 
   /* Override default settings (unless already changed) */
   if (!tao->max_it_changed) tao->max_it = 50;

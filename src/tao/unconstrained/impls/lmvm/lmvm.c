@@ -242,7 +242,7 @@ static PetscErrorCode TaoDestroy_LMVM(Tao tao)
   }
 
   ierr = PetscFree(tao->data);CHKERRQ(ierr);
-
+  ierr = PetscFree(tao->compatible_probs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -328,6 +328,12 @@ PETSC_EXTERN PetscErrorCode TaoCreate_LMVM(Tao tao)
   tao->ops->view = TaoView_LMVM;
   tao->ops->setfromoptions = TaoSetFromOptions_LMVM;
   tao->ops->destroy = TaoDestroy_LMVM;
+  
+  tao->num_compatible = 3;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_LINEAR;
+  tao->compatible_probs[1] = TAO_PROBLEM_QUADRATIC;
+  tao->compatible_probs[2] = TAO_PROBLEM_NONLINEAR;
 
   ierr = PetscNewLog(tao,&lmP);CHKERRQ(ierr);
   lmP->D = 0;

@@ -379,6 +379,7 @@ int main(int argc, char **argv)
   ierr = TaoSetObjectiveAndGradientRoutine(tao, ReducedFunctionGradient, &user);CHKERRQ(ierr);
   ierr = TaoSetVariableBounds(tao, lb, ub);CHKERRQ(ierr);
   ierr = TaoSetType(tao, TAOBLMVM);CHKERRQ(ierr);
+  ierr = TaoSetProblemType(tao, TAO_PROBLEM_NONLINEAR, PETSC_FALSE);CHKERRQ(ierr);
   ierr = TaoSetFromOptions(tao);CHKERRQ(ierr);
 
   if (user.use_riesz) {

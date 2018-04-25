@@ -24,6 +24,7 @@ static PetscErrorCode TaoDestroy_GPCG(Tao tao)
   ierr = MatDestroy(&gpcg->Hsub_pre);CHKERRQ(ierr);
   ierr = ISDestroy(&gpcg->Free_Local);CHKERRQ(ierr);
   ierr = PetscFree(tao->data);CHKERRQ(ierr);
+  ierr = PetscFree(tao->compatible_probs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -328,6 +329,12 @@ PETSC_EXTERN PetscErrorCode TaoCreate_GPCG(Tao tao)
   tao->ops->setfromoptions = TaoSetFromOptions_GPCG;
   tao->ops->destroy = TaoDestroy_GPCG;
   tao->ops->computedual = TaoComputeDual_GPCG;
+  
+  tao->solves_bounds = PETSC_TRUE;
+  tao->needs_convex = PETSC_TRUE;
+  tao->num_compatible = 1;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_QUADRATIC;
 
   ierr = PetscNewLog(tao,&gpcg);CHKERRQ(ierr);
   tao->data = (void*)gpcg;

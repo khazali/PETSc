@@ -220,6 +220,7 @@ int main(int argc, char **argv)
   /* Create TAO solver and set desired solution method  */
   ierr = TaoCreate(PETSC_COMM_WORLD, &tao);CHKERRQ(ierr);
   ierr = TaoSetType(tao,TAOSSILS);CHKERRQ(ierr);
+  ierr = TaoSetProblemType(tao, TAO_PROBLEM_COMPLEMENTARITY, PETSC_FALSE);CHKERRQ(ierr);
 
   /* Set routines for constraints function and Jacobian evaluation */
   ierr = TaoSetConstraintsRoutine(tao, c, FormConstraints, (void *)&user);CHKERRQ(ierr);

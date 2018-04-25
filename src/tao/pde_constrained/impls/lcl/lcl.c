@@ -57,6 +57,7 @@ static PetscErrorCode TaoDestroy_LCL(Tao tao)
     ierr = VecScatterDestroy(&lclP->design_scatter);CHKERRQ(ierr);
   }
   ierr = PetscFree(tao->data);CHKERRQ(ierr);
+  ierr = PetscFree(tao->compatible_probs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -600,6 +601,12 @@ PETSC_EXTERN PetscErrorCode TaoCreate_LCL(Tao tao)
   tao->ops->destroy = TaoDestroy_LCL;
   ierr = PetscNewLog(tao,&lclP);CHKERRQ(ierr);
   tao->data = (void*)lclP;
+  
+  tao->solves_bounds = PETSC_TRUE;
+  tao->solves_nonlincon = PETSC_TRUE;
+  tao->num_compatible = 1;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_FULLSPACEPDE;
 
   /* Override default settings (unless already changed) */
   if (!tao->max_it_changed) tao->max_it = 200;

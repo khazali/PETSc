@@ -91,6 +91,7 @@ PetscErrorCode main(int argc,char **argv)
 
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
   ierr = TaoSetType(tao,TAOIPM);CHKERRQ(ierr);
+  ierr = TaoSetProblemType(tao, TAO_PROBLEM_NONLINEAR, PETSC_FALSE);CHKERRQ(ierr);
   ierr = TaoSetInitialVector(tao,x);CHKERRQ(ierr);
   ierr = TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,(void*)&user);CHKERRQ(ierr);
   ierr = TaoSetEqualityConstraintsRoutine(tao,ceq,FormEqualityConstraints,(void*)&user);CHKERRQ(ierr);

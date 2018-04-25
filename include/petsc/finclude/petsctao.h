@@ -9,6 +9,14 @@
 #define TaoType character*(80)
 #define TaoLineSearchType character*(80)
 
+#define TaoProblemType PetscEnum
+#define TAO_PROBLEM_UNKNOWN         1
+#define TAO_PROBLEM_LINEAR          2
+#define TAO_PROBLEM_QUADRATIC       3
+#define TAO_PROBLEM_NONLINEAR       4
+#define TAO_PROBLEM_COMPLEMENTARITY 5
+#define TAO_PROBLEM_FULLSPACEPDE    6
+
 #define TAOLMVM     "lmvm"
 #define TAONLS      "nls"
 #define TAONTR      "ntr"

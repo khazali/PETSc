@@ -168,6 +168,8 @@
       CHKERRA(ierr)
       call TaoSetType(tao,TAOBLMVM,ierr)
       CHKERRA(ierr)
+      call TaoSetProblemType(tao,TAO_PROBLEM_QUADRATIC,0,ierr)
+      CHKERRA(ierr)
 
 !     Set minimization function and gradient, hessian evaluation functions
 

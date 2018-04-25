@@ -68,6 +68,23 @@ J*/
 PETSC_EXTERN PetscClassId TAO_CLASSID;
 PETSC_EXTERN PetscFunctionList TaoList;
 
+/*J
+        TaoProblemType - Flags for defining the form of the problem to be solved by TAO.
+          This is used to avoid mismatches between problem type and algorithm.
+
+       Level: beginner
+
+J*/
+typedef enum {
+  TAO_PROBLEM_NONE            = 0,
+  TAO_PROBLEM_UNKNOWN         = 1,
+  TAO_PROBLEM_LINEAR          = 2,
+  TAO_PROBLEM_QUADRATIC       = 3,
+  TAO_PROBLEM_NONLINEAR       = 4,
+  TAO_PROBLEM_COMPLEMENTARITY = 5,
+  TAO_PROBLEM_FULLSPACEPDE    = 6,
+} TaoProblemType;
+
 /*E
     TaoConvergedReason - reason a TAO method was said to have converged or diverged
 
@@ -136,6 +153,8 @@ PETSC_EXTERN PetscErrorCode TaoGetGradientNorm(Tao, Mat*);
 PETSC_EXTERN PetscErrorCode TaoLMVMSetH0(Tao, Mat);
 PETSC_EXTERN PetscErrorCode TaoLMVMGetH0(Tao, Mat*);
 PETSC_EXTERN PetscErrorCode TaoLMVMGetH0KSP(Tao, KSP*);
+PETSC_EXTERN PetscErrorCode TaoSetProblemType(Tao, TaoProblemType, PetscBool);
+PETSC_EXTERN PetscErrorCode TaoCheckProblemType(Tao);
 PETSC_EXTERN PetscErrorCode TaoSetObjectiveRoutine(Tao, PetscErrorCode(*)(Tao, Vec, PetscReal*,void*), void*);
 PETSC_EXTERN PetscErrorCode TaoSetGradientRoutine(Tao, PetscErrorCode(*)(Tao, Vec, Vec, void*), void*);
 PETSC_EXTERN PetscErrorCode TaoSetObjectiveAndGradientRoutine(Tao, PetscErrorCode(*)(Tao, Vec, PetscReal*, Vec, void*), void*);

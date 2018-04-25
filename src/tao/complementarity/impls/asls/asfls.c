@@ -121,6 +121,7 @@ static PetscErrorCode TaoDestroy_ASFLS(Tao tao)
   ierr = MatDestroy(&ssls->Jpre_sub);CHKERRQ(ierr);
   ierr = ISDestroy(&ssls->fixed);CHKERRQ(ierr);
   ierr = ISDestroy(&ssls->free);CHKERRQ(ierr);
+  ierr = PetscFree(tao->compatible_probs);CHKERRQ(ierr);
   ierr = PetscFree(tao->data);CHKERRQ(ierr);
   tao->data = NULL;
   PetscFunctionReturn(0);
@@ -319,6 +320,12 @@ PETSC_EXTERN PetscErrorCode TaoCreate_ASFLS(Tao tao)
   asls->t2 = NULL;
   asls->dxfree = NULL;
   asls->identifier = 1e-5;
+  
+  tao->solves_bounds = PETSC_TRUE;
+  tao->solves_nonlincon = PETSC_TRUE;
+  tao->num_compatible = 1;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_COMPLEMENTARITY;
 
   ierr = TaoLineSearchCreate(((PetscObject)tao)->comm, &tao->linesearch);CHKERRQ(ierr);
   ierr = PetscObjectIncrementTabLevel((PetscObject)tao->linesearch, (PetscObject)tao, 1);CHKERRQ(ierr);

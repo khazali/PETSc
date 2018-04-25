@@ -78,6 +78,7 @@
 !  Create TAO solver
       call TaoCreate(PETSC_COMM_SELF,tao,ierr);CHKERRA(ierr)
       call TaoSetType(tao,TAOPOUNDERS,ierr);CHKERRA(ierr)
+      call TaoSetProblemType(tao,TAO_PROBLEM_NONLINEAR,0,ierr);CHKERRA(ierr)
 !  Set routines for function, gradient, and hessian evaluation
 
       call TaoSetSeparableObjectiveRoutine(tao,f,                       &

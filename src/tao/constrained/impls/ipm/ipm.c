@@ -1087,6 +1087,14 @@ PETSC_EXTERN PetscErrorCode TaoCreate_IPM(Tao tao)
   tao->ops->setfromoptions = TaoSetFromOptions_IPM;
   tao->ops->destroy = TaoDestroy_IPM;
   /* tao->ops->computedual = TaoComputeDual_IPM; */
+  
+  tao->solves_bounds = PETSC_TRUE;
+  tao->solves_nonlincon = PETSC_TRUE;
+  tao->num_compatible = 3;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_LINEAR;
+  tao->compatible_probs[1] = TAO_PROBLEM_QUADRATIC;
+  tao->compatible_probs[2] = TAO_PROBLEM_NONLINEAR;
 
   ierr = PetscNewLog(tao,&ipmP);CHKERRQ(ierr);
   tao->data = (void*)ipmP;

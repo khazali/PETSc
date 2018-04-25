@@ -88,6 +88,8 @@
       CHKERRA(ierr)
       call TaoSetType(tao,TAOLMVM,ierr)
       CHKERRA(ierr)
+      call TaoSetProblemType(tao,TAO_PROBLEM_NONLINEAR,0,ierr)
+      CHKERRA(ierr)
 
 !  Set routines for function, gradient, and hessian evaluation
       call TaoSetObjectiveAndGradientRoutine(tao,                       &

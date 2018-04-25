@@ -1,13 +1,13 @@
 Solution should be f(1,1)=-2 
-  0 TAO,  Function value: 8.,  Residual: 24496.1 
-  0 TAO,  Function value: -5.43278,  Residual: 955.461 
-  1 TAO,  Function value: -1.91991,  Residual: 203.127 
-  2 TAO,  Function value: -1.89878,  Residual: 2.30255 
-  3 TAO,  Function value: -1.95114,  Residual: 0.143794 
-  4 TAO,  Function value: -1.99671,  Residual: 0.0248563 
-  5 TAO,  Function value: -1.99999,  Residual: 0.00206264 
-  6 TAO,  Function value: -2.,  Residual: 7.6949e-06 
-  7 TAO,  Function value: -2.,  Residual: 1.06901e-09 
+  0 TAO,  Function value: 8.,  Residual: 14142.8 
+  0 TAO,  Function value: -6.53791,  Residual: 525.159 
+  1 TAO,  Function value: -2.14827,  Residual: 73.2884 
+  2 TAO,  Function value: -1.9043,  Residual: 0.39542 
+  3 TAO,  Function value: -1.96197,  Residual: 0.055129 
+  4 TAO,  Function value: -1.99756,  Residual: 0.0202822 
+  5 TAO,  Function value: -2.,  Residual: 0.00152479 
+  6 TAO,  Function value: -2.,  Residual: 3.88379e-06 
+  7 TAO,  Function value: -2.,  Residual: 3.76021e-10 
 Tao Object: 1 MPI processes
   type: ipm
   KSP Object: 1 MPI processes
@@ -25,7 +25,7 @@ Tao Object: 1 MPI processes
         Factored matrix follows:
           Mat Object: 1 MPI processes
             type: superlu
-            rows=15, cols=15
+            rows=7, cols=7
             package used to perform factorization: superlu
             total: nonzeros=0, allocated nonzeros=0
             total number of mallocs used during MatSetValues calls =0
@@ -44,14 +44,13 @@ Tao Object: 1 MPI processes
     linear system matrix = precond matrix:
     Mat Object: 1 MPI processes
       type: seqaij
-      rows=15, cols=15
-      total: nonzeros=40, allocated nonzeros=48
+      rows=7, cols=7
+      total: nonzeros=20, allocated nonzeros=20
       total number of mallocs used during MatSetValues calls =0
         not using I-node routines
   total KSP iterations: 16
-  Active Set subset type: subvec
   convergence tolerances: gatol=1e-08,   steptol=0.,   gttol=0.
-  Residual in Function/Gradient:=1.06901e-09
+  Residual in Function/Gradient:=3.76021e-10
   Objective value=-2.
   total number of iterations=8,                          (max: 200)
   total number of function/gradient evaluations=9,      (max: 500)

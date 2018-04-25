@@ -44,8 +44,8 @@
 
       call TaoCreate(PETSC_COMM_SELF,tao,ierr);CHKERRA(ierr)
       call TaoSetType(tao,TAOIPM,ierr);CHKERRA(ierr)
+      call TaoSetProblemType(tao,TAO_PROBLEM_NONLINEAR,0,ierr);CHKERRA(ierr)
       call TaoSetInitialVector(tao,x0,ierr);CHKERRA(ierr)
-      call TaoSetVariableBounds(tao,xl,xu,ierr);CHKERRA(ierr)
       call TaoSetObjectiveAndGradientRoutine(tao,FormFunctionGradient,0,ierr);CHKERRA(ierr)
       call TaoSetEqualityConstraintsRoutine(tao,ce,FormEqualityConstraints,0,ierr);CHKERRA(ierr)
       call TaoSetInequalityConstraintsRoutine(tao,ci,FormInequalityConstraints,0,ierr);CHKERRA(ierr)

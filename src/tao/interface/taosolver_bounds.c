@@ -33,6 +33,7 @@ PetscErrorCode TaoSetVariableBounds(Tao tao, Vec XL, Vec XU)
   ierr = VecDestroy(&tao->XU);CHKERRQ(ierr);
   tao->XL = XL;
   tao->XU = XU;
+  tao->has_bounds = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
 
@@ -68,6 +69,7 @@ PetscErrorCode TaoSetVariableBoundsRoutine(Tao tao, PetscErrorCode (*func)(Tao, 
   PetscValidHeaderSpecific(tao,TAO_CLASSID,1);
   tao->user_boundsP = ctx;
   tao->ops->computebounds = func;
+  tao->has_bounds = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
 
@@ -235,6 +237,7 @@ PetscErrorCode TaoSetConstraintsRoutine(Tao tao, Vec c, PetscErrorCode (*func)(T
     tao->constraints = c;
     tao->user_conP = ctx;
     tao->ops->computeconstraints = func;
+    tao->has_nonlincon = PETSC_TRUE;
     PetscFunctionReturn(0);
 }
 
@@ -344,10 +347,10 @@ PetscErrorCode TaoSetEqualityConstraintsRoutine(Tao tao, Vec ce, PetscErrorCode 
     PetscObjectReference((PetscObject)ce);
   }
   ierr = VecDestroy(&tao->constraints_equality);CHKERRQ(ierr);
-
   tao->constraints_equality = ce;
   tao->user_con_equalityP = ctx;
   tao->ops->computeequalityconstraints = func;
+  tao->has_nonlincon = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
 
@@ -388,9 +391,9 @@ PetscErrorCode TaoSetInequalityConstraintsRoutine(Tao tao, Vec ci, PetscErrorCod
   }
   ierr = VecDestroy(&tao->constraints_inequality);CHKERRQ(ierr);
   tao->constraints_inequality = ci;
-
   tao->user_con_inequalityP = ctx;
   tao->ops->computeinequalityconstraints = func;
+  tao->has_nonlincon = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
 

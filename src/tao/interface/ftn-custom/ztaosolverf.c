@@ -3,6 +3,7 @@
 
 
 #if defined(PETSC_HAVE_FORTRAN_CAPS)
+#define taosetproblemtype_                  TAOSETPROBLEMTYPE
 #define taosetobjectiveroutine_             TAOSETOBJECTIVEROUTINE
 #define taosetgradientroutine_              TAOSETGRADIENTROUTINE
 #define taosetobjectiveandgradientroutine_  TAOSETOBJECTIVEANDGRADIENTROUTINE
@@ -28,6 +29,7 @@
 #define taogettype_                         TAOGETTYPE
 #elif !defined(PETSC_HAVE_FORTRAN_UNDERSCORE)
 
+#define taosetproblemtype_                  taosetproblemtype
 #define taosetobjectiveroutine_             taosetobjectiveroutine
 #define taosetgradientroutine_              taosetgradientroutine
 #define taosetobjectiveandgradientroutine_  taosetobjectiveandgradientroutine
@@ -227,6 +229,10 @@ static PetscErrorCode ourtaoequalityconstraintsroutine(Tao tao, Vec x, Vec c, vo
 
 EXTERN_C_BEGIN
 
+PETSC_EXTERN void PETSC_STDCALL taosetproblemtype_(Tao *tao, TaoProblemType *probtype, PetscBool *convex, PetscErrorCode *ierr)
+{
+    *ierr = TaoSetProblemType(*tao, *probtype, *convex);
+}
 
 PETSC_EXTERN void PETSC_STDCALL taosetobjectiveroutine_(Tao *tao, void (PETSC_STDCALL *func)(Tao*, Vec *, PetscReal *, void *, PetscErrorCode *), void *ctx, PetscErrorCode *ierr)
 {

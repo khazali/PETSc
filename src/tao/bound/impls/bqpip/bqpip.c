@@ -517,6 +517,7 @@ static PetscErrorCode TaoDestroy_BQPIP(Tao tao)
     ierr = VecDestroy(&qp->C);CHKERRQ(ierr);
   }
   ierr = PetscFree(tao->data);CHKERRQ(ierr);
+  ierr = PetscFree(tao->compatible_probs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -560,6 +561,12 @@ PETSC_EXTERN PetscErrorCode TaoCreate_BQPIP(Tao tao)
   tao->ops->setfromoptions = TaoSetFromOptions_BQPIP;
   tao->ops->destroy = TaoDestroy_BQPIP;
   tao->ops->computedual = TaoComputeDual_BQPIP;
+  
+  tao->solves_bounds = PETSC_TRUE;
+  tao->needs_convex = PETSC_TRUE;
+  tao->num_compatible = 1;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_QUADRATIC;
 
   /* Override default settings (unless already changed) */
   if (!tao->max_it_changed) tao->max_it=100;

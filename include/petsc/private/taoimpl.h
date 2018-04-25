@@ -5,6 +5,9 @@
 #include <petsc/private/petscimpl.h>
 #include <petscksp.h>
 
+static const char *TAO_PROBLEM_TYPES[7] = {"none", "unknown", "linear", "quadratic", "nonlinear", "complimentarity", "pde-constrained"};
+static const char *TAO_CONVEXITY[2] = {"nonconvex", "convex"};
+
 PETSC_EXTERN PetscErrorCode TaoRegisterAll(void);
 
 typedef struct _TaoOps *TaoOps;
@@ -132,12 +135,18 @@ struct _p_Tao {
     PetscInt  ksp_its; /* KSP iterations for this solver iteration */
     PetscInt  ksp_tot_its; /* Total (cumulative) KSP iterations */
 
-
     TaoLineSearch linesearch;
     PetscBool lsflag; /* goes up when line search fails */
     KSP ksp;
     PetscReal trust0; /* initial trust region radius */
     PetscReal trust;  /* Current trust region */
+    
+    TaoProblemType prob_type;
+    TaoProblemType *compatible_probs;
+    PetscInt num_compatible;
+    PetscBool is_convex, needs_convex;
+    PetscBool has_bounds, has_lincon, has_nonlincon;
+    PetscBool solves_bounds, solves_lincon, solves_nonlincon;
 
     PetscReal gatol;
     PetscReal grtol;

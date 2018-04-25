@@ -129,6 +129,7 @@ int main( int argc, char **argv )
   */
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
   ierr = TaoSetType(tao,TAOBLMVM);CHKERRQ(ierr);
+  ierr = TaoSetProblemType(tao, TAO_PROBLEM_QUADRATIC, PETSC_TRUE);CHKERRQ(ierr);
 
   /* Set initial solution guess; */
   ierr = MSA_BoundaryConditions(&user);CHKERRQ(ierr);

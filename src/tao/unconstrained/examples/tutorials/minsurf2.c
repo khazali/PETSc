@@ -93,7 +93,8 @@ int main( int argc, char **argv )
   /* Create TAO solver and set desired solution method.*/
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
   ierr = TaoSetType(tao,TAOCG);CHKERRQ(ierr);
-
+  ierr = TaoSetProblemType(tao,TAO_PROBLEM_NONLINEAR,PETSC_FALSE);CHKERRQ(ierr);
+  
   /*
      Extract global vector from DA for the vector of variables --  PETSC routine
      Compute the initial solution                              --  application specific, see below

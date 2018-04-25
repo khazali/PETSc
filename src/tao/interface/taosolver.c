@@ -113,6 +113,17 @@ PetscErrorCode TaoCreate(MPI_Comm comm, Tao *newtao)
   tao->jacobian_inequality_pre = NULL;
   tao->state_is = NULL;
   tao->design_is = NULL;
+  
+  tao->num_compatible = 0;
+  tao->prob_type = TAO_PROBLEM_NONE;
+  tao->is_convex = PETSC_FALSE;
+  tao->needs_convex = PETSC_FALSE;
+  tao->has_bounds = PETSC_FALSE;
+  tao->has_lincon = PETSC_FALSE;
+  tao->has_nonlincon = PETSC_FALSE;
+  tao->solves_bounds = PETSC_FALSE;
+  tao->solves_lincon = PETSC_FALSE;
+  tao->solves_nonlincon = PETSC_FALSE;
 
   tao->max_it     = 10000;
   tao->max_funcs   = 10000;
@@ -243,11 +254,14 @@ PetscErrorCode TaoSolve(Tao tao)
 PetscErrorCode TaoSetUp(Tao tao)
 {
   PetscErrorCode ierr;
+  PetscInt i;
+  PetscBool compatible = PETSC_FALSE;
+  const TaoType taoType;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(tao, TAO_CLASSID,1);
   if (tao->setupcalled) PetscFunctionReturn(0);
-
+  ierr = TaoCheckProblemType(tao);CHKERRQ(ierr);
   if (!tao->solution) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call TaoSetInitialVector");
   if (tao->ops->setup) {
     ierr = (*tao->ops->setup)(tao);CHKERRQ(ierr);

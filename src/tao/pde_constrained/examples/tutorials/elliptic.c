@@ -153,6 +153,7 @@ int main(int argc, char **argv)
   /* Create TAO solver and set desired solution method */
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
   ierr = TaoSetType(tao,TAOLCL);CHKERRQ(ierr);
+  ierr = TaoSetProblemType(tao,TAO_PROBLEM_FULLSPACEPDE,PETSC_FALSE);CHKERRQ(ierr);
 
   /* Set up initial vectors and matrices */
   ierr = EllipticInitialize(&user);CHKERRQ(ierr);

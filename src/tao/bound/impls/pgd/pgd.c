@@ -121,6 +121,13 @@ PETSC_EXTERN PetscErrorCode TaoCreate_PGD(Tao tao)
   tao->ops->setfromoptions = TaoSetFromOptions_PGD;
   tao->ops->destroy        = TaoDestroy_PGD;
   
+  tao->solves_bounds = PETSC_TRUE;
+  tao->num_compatible = 3;
+  ierr = PetscMalloc1(tao->num_compatible, &tao->compatible_probs);CHKERRQ(ierr);
+  tao->compatible_probs[0] = TAO_PROBLEM_LINEAR;
+  tao->compatible_probs[1] = TAO_PROBLEM_QUADRATIC;
+  tao->compatible_probs[2] = TAO_PROBLEM_NONLINEAR;
+  
   ierr = PetscNewLog(tao,&pg);CHKERRQ(ierr);
   tao->data = (void*)pg;
   

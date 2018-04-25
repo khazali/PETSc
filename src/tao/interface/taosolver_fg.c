@@ -196,6 +196,68 @@ PetscErrorCode TaoComputeObjectiveAndGradient(Tao tao, Vec X, PetscReal *f, Vec 
 }
 
 /*@C
+  TaoSetProblemType - Sets the type of the problem being solved by the TAO solver.
+
+  Logically collective on Tao
+
+  Input Parameter:
++ tao - the Tao context
+. probType - Tao problem type
+- convex - flag for defining the problem as convex (PETSC_TRUE) or non-convex/unknown (PETSC_FALSE)
+
+  Level: beginner
+
+.seealso: TaoSetObjectiveRoutine(), TaoSetGradientRoutine(), TaoSetHessianRoutine() TaoSetObjectiveAndGradientRoutine()
+@*/
+PetscErrorCode TaoSetProblemType(Tao tao, TaoProblemType probType, PetscBool convex)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(tao, TAO_CLASSID, 1);
+  tao->prob_type = probType;
+  if (convex) tao->is_convex = PETSC_TRUE;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode TaoCheckProblemType(Tao tao)
+{
+  PetscErrorCode ierr;
+  PetscInt i;
+  PetscBool compatible = PETSC_FALSE;
+  const TaoType type;
+  MPI_Comm comm = PetscObjectComm((PetscObject)tao);
+  
+  PetscFunctionBegin;
+  if (tao->prob_type == TAO_PROBLEM_NONE) {
+    SETERRQ(comm, PETSC_ERR_ORDER, "Problem type must be defined with TaoSetProblemType()");
+  } else {
+    for (i=0;i<tao->num_compatible;++i) {
+      if (tao->prob_type == tao->compatible_probs[i]) compatible = PETSC_TRUE;
+    }
+    if (!compatible) {
+      ierr = TaoGetType(tao, &type);CHKERRQ(ierr);
+      SETERRQ3(comm, PETSC_ERR_SUP, "%s algorithm cannot solve %s %s problems", type, TAO_CONVEXITY[tao->is_convex], TAO_PROBLEM_TYPES[tao->prob_type]);
+    }
+  }
+  if (tao->has_bounds && !tao->solves_bounds) {
+    ierr = TaoGetType(tao, &type);CHKERRQ(ierr);
+    SETERRQ1(comm, PETSC_ERR_SUP, "%s algorithm does not support bound constraints", type);
+  }
+  if (tao->has_lincon && !tao->solves_lincon) {
+    ierr = TaoGetType(tao, &type);CHKERRQ(ierr);
+    SETERRQ1(comm, PETSC_ERR_SUP, "%s algorithm does not support linear constraints", type);
+  }
+  if (tao->has_nonlincon && !tao->solves_nonlincon) {
+    ierr = TaoGetType(tao, &type);CHKERRQ(ierr);
+    SETERRQ1(comm, PETSC_ERR_SUP, "%s algorithm does not support nonlinear constraints", type);
+  }
+  if (tao->needs_convex && !tao->is_convex) {
+    ierr = TaoGetType(tao, &type);CHKERRQ(ierr);
+    SETERRQ1(comm, PETSC_ERR_SUP, "%s algorithm cannot solve nonconvex problems", type);
+  }
+  PetscFunctionReturn(0);
+}
+
+/*@C
   TaoSetObjectiveRoutine - Sets the function evaluation routine for minimization
 
   Logically collective on Tao
