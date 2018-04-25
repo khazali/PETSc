@@ -1358,6 +1358,7 @@ PetscErrorCode MatDestroy_MPIBAIJ(Mat mat)
 #if defined(PETSC_HAVE_HYPRE)
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatConvert_mpibaij_hypre_C",NULL);CHKERRQ(ierr);
 #endif
+  ierr = PetscObjectComposeFunction((PetscObject)mat,"MatConvert_mpibaij_is_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)mat,"MatPtAP_is_mpibaij_C",NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -2734,7 +2735,8 @@ static struct _MatOps MatOps_Values = {MatSetValues_MPIBAIJ,
 };
 
 
-PETSC_INTERN PetscErrorCode MatConvert_MPIBAIJ_MPISBAIJ(Mat, MatType,MatReuse,Mat*);
+PETSC_INTERN PetscErrorCode MatConvert_MPIBAIJ_MPISBAIJ(Mat,MatType,MatReuse,Mat*);
+PETSC_INTERN PetscErrorCode MatConvert_MPIXAIJ_IS(Mat,MatType,MatReuse,Mat*);
 
 PetscErrorCode MatMPIBAIJSetPreallocationCSR_MPIBAIJ(Mat B,PetscInt bs,const PetscInt ii[],const PetscInt jj[],const PetscScalar V[])
 {
@@ -3084,6 +3086,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_MPIBAIJ(Mat B)
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatMPIBAIJSetPreallocationCSR_C",MatMPIBAIJSetPreallocationCSR_MPIBAIJ);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatDiagonalScaleLocal_C",MatDiagonalScaleLocal_MPIBAIJ);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatSetHashTableFactor_C",MatSetHashTableFactor_MPIBAIJ);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)B,"MatConvert_mpibaij_is_C",MatConvert_MPIXAIJ_IS);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatPtAP_is_mpibaij_C",MatPtAP_IS_XAIJ);CHKERRQ(ierr);
   ierr = PetscObjectChangeTypeName((PetscObject)B,MATMPIBAIJ);CHKERRQ(ierr);
 
