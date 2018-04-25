@@ -233,6 +233,7 @@ PetscErrorCode TaoCheckProblemType(Tao tao)
     for (i=0;i<tao->num_compatible;++i) {
       if (tao->prob_type == tao->compatible_probs[i]) compatible = PETSC_TRUE;
     }
+    if (tao->needs_convex && !tao->is_convex) compatible = PETSC_FALSE;
     if (!compatible) {
       ierr = TaoGetType(tao, &type);CHKERRQ(ierr);
       SETERRQ3(comm, PETSC_ERR_SUP, "%s algorithm cannot solve %s %s problems", type, TAO_CONVEXITY[tao->is_convex], TAO_PROBLEM_TYPES[tao->prob_type]);
@@ -249,10 +250,6 @@ PetscErrorCode TaoCheckProblemType(Tao tao)
   if (tao->has_nonlincon && !tao->solves_nonlincon) {
     ierr = TaoGetType(tao, &type);CHKERRQ(ierr);
     SETERRQ1(comm, PETSC_ERR_SUP, "%s algorithm does not support nonlinear constraints", type);
-  }
-  if (tao->needs_convex && !tao->is_convex) {
-    ierr = TaoGetType(tao, &type);CHKERRQ(ierr);
-    SETERRQ1(comm, PETSC_ERR_SUP, "%s algorithm cannot solve nonconvex problems", type);
   }
   PetscFunctionReturn(0);
 }
