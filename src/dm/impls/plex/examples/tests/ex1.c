@@ -160,14 +160,14 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     DM edm;
 
     ierr = DMPlexCreateFromFile(comm, extfilename, interpolate, &edm);CHKERRQ(ierr);
-    ierr = DMPlexExtrudeMeshWedge(edm, user->extrude_layers, user->extrude_thickness, interpolate, dm);CHKERRQ(ierr);
+    ierr = DMPlexExtrude(edm, user->extrude_layers, user->extrude_thickness, PETSC_TRUE, interpolate, dm);CHKERRQ(ierr);
     ierr = DMDestroy(&edm);CHKERRQ(ierr);
   } else {
     switch (user->domainShape) {
     case BOX:
       if (cellWedge) {
         if (dim != 3) SETERRQ1(comm, PETSC_ERR_ARG_WRONG, "Dimension must be 3 for a wedge mesh, not %D", dim);
-        ierr = DMPlexCreateWedgeBoxMesh(comm, user->domainBoxSizes, NULL, NULL, user->periodicity, interpolate, dm);CHKERRQ(ierr);
+        ierr = DMPlexCreateWedgeBoxMesh(comm, user->domainBoxSizes, NULL, NULL, user->periodicity, PETSC_FALSE, interpolate, dm);CHKERRQ(ierr);
       } else {
         ierr = DMPlexCreateBoxMesh(comm, dim, cellSimplex, user->domainBoxSizes, NULL, NULL, user->periodicity, interpolate, dm);CHKERRQ(ierr);
       }
@@ -600,7 +600,6 @@ int main(int argc, char **argv)
     suffix: gmsh_16_spheresurface_extruded_s2t
     nsize : 4
     args: -ext_layers 3 -ext_filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/surfacesphere_bin.msh -dm_plex_gmsh_spacedim 3 -simplex2tensor -check_symmetry -check_faces -check_skeleton -dm_view -interpolate -test_shape -petscpartitioner_type simple
-
 
   # Fluent mesh reader tests
   test:
