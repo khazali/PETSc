@@ -975,9 +975,7 @@ static PetscErrorCode TSForwardSetUp_Theta(TS ts)
     ierr = VecDuplicateVecs(ts->vecs_integral_sensip[0],ts->numcost,&th->VecsIntegralSensip0);CHKERRQ(ierr);
   }
   ierr = VecDuplicate(ts->vec_sol,&th->VecDeltaFwdSensipCol);CHKERRQ(ierr);
-  if (th->endpoint) {
-    ierr = VecDuplicate(ts->vec_sol,&ts->vec_sensip_col);CHKERRQ(ierr); ////
-  }
+  ierr = VecDuplicate(ts->vec_sol,&ts->vec_sensip_col);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
