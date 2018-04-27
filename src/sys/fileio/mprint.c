@@ -179,7 +179,6 @@ PetscErrorCode PetscVSNPrintf(char *str,size_t len,const char *format,size_t *fu
 #else
 #error "vsnprintf not found"
 #endif
-  if (fullLength) *fullLength = 1 + (size_t) flen;
   if (newLength > PETSCDEFAULTBUFFERSIZE-1) {
     ierr = PetscFree(newformat);CHKERRQ(ierr);
   }
@@ -190,19 +189,20 @@ PetscErrorCode PetscVSNPrintf(char *str,size_t len,const char *format,size_t *fu
     if (leng > 4) {
       for (cnt=0; cnt<leng-4; cnt++) {
         if (str[cnt] == '[' && str[cnt+1] == '|'){
-           cnt++; cnt++;
-           foundedot = PETSC_FALSE;
-           for (; cnt<leng-1; cnt++) {
-             if (str[cnt] == '|' && str[cnt+1] == ']'){
-               cnt++;
-               if (!foundedot) str[ncnt++] = '.';
-               ncnt--;
-               break;
-             } else {
-               if (str[cnt] == 'e' || str[cnt] == '.') foundedot = PETSC_TRUE;
-               str[ncnt++] = str[cnt];
-             }
-           }
+          flen -= 4;
+          cnt++; cnt++;
+          foundedot = PETSC_FALSE;
+          for (; cnt<leng-1; cnt++) {
+            if (str[cnt] == '|' && str[cnt+1] == ']'){
+              cnt++;
+              if (!foundedot) str[ncnt++] = '.';
+              ncnt--;
+              break;
+            } else {
+              if (str[cnt] == 'e' || str[cnt] == '.') foundedot = PETSC_TRUE;
+              str[ncnt++] = str[cnt];
+            }
+          }
         } else {
           str[ncnt] = str[cnt];
         }
@@ -237,6 +237,7 @@ PetscErrorCode PetscVSNPrintf(char *str,size_t len,const char *format,size_t *fu
     }
   }
 #endif
+  if (fullLength) *fullLength = 1 + (size_t) flen;
   PetscFunctionReturn(0);
 }
 
@@ -344,8 +345,10 @@ PetscErrorCode PetscSNPrintf(char *str,size_t len,const char format[],...)
 +   str - the string to print to
 .   len - the length of str
 .   format - the usual printf() format string
-.   countused - number of characters used
 -   any arguments
+
+    Output Parameter:
+.   countused - number of characters used
 
    Level: intermediate
 
