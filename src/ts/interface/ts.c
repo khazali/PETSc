@@ -546,8 +546,6 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B)
       ierr = MatShift(B,-ts->rhsjacobian.shift);CHKERRQ(ierr);
       ierr = MatScale(B,1./ts->rhsjacobian.scale);CHKERRQ(ierr);
     }
-    ts->rhsjacobian.shift = 0;
-    ts->rhsjacobian.scale = 1.;
   }
 
   if (rhsjacobianfunc) {
@@ -569,7 +567,9 @@ PetscErrorCode  TSComputeRHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B)
     ierr = MatZeroEntries(A);CHKERRQ(ierr);
     if (A != B) {ierr = MatZeroEntries(B);CHKERRQ(ierr);}
   }
-  ts->rhsjacobian.time       = t;
+  ts->rhsjacobian.time  = t;
+  ts->rhsjacobian.shift = 0;
+  ts->rhsjacobian.scale = 1.;
   ierr                       = PetscObjectGetId((PetscObject)U,&ts->rhsjacobian.Xid);CHKERRQ(ierr);
   ierr                       = PetscObjectStateGet((PetscObject)U,&ts->rhsjacobian.Xstate);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -946,18 +946,22 @@ PetscErrorCode TSComputeIJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal shi
     }
     if (Arhs == A) {           /* No IJacobian, so we only have the RHS matrix */
       PetscBool flg;
-      ts->rhsjacobian.scale = -1;
-      ts->rhsjacobian.shift = shift;
       ierr = SNESGetUseMatrixFree(ts->snes,NULL,&flg);CHKERRQ(ierr);
       /* since -snes_mf_operator uses the full SNES function it does not need to be shifted or scaled here */
       if (!flg) {
-        ierr = MatScale(A,-1);CHKERRQ(ierr);
-        ierr = MatShift(A,shift);CHKERRQ(ierr);
+        if (ts->rhsjacobian.shift) { /* revert the old shift and add the new shift, nonzero shift indicates the previous RHS matrix already shifted */
+          ierr = MatShift(A,shift-ts->rhsjacobian.shift);CHKERRQ(ierr);
+        } else {
+          ierr = MatScale(A,-1);CHKERRQ(ierr);
+          ierr = MatShift(A,shift);CHKERRQ(ierr);
+        }
       }
       if (A != B) {
         ierr = MatScale(B,-1);CHKERRQ(ierr);
         ierr = MatShift(B,shift);CHKERRQ(ierr);
       }
+      ts->rhsjacobian.scale = -1;
+      ts->rhsjacobian.shift = shift;
     } else if (Arhs) {          /* Both IJacobian and RHSJacobian */
       MatStructure axpy = DIFFERENT_NONZERO_PATTERN;
       if (!ijacobian) {         /* No IJacobian provided, but we have a separate RHS matrix */
