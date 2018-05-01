@@ -88,6 +88,7 @@ typedef const char* MatType;
 #define MATSEQSELL         "seqsell"
 #define MATMPISELL         "mpisell"
 #define MATDUMMY           "dummy"
+#define MATCOMBBLAS        "combblas"
 
 /*J
     MatSolverType - String with the name of a PETSc matrix solver type.

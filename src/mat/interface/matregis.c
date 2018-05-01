@@ -64,6 +64,10 @@ PETSC_EXTERN PetscErrorCode MatCreate_Dummy(Mat);
 PETSC_EXTERN PetscErrorCode MatCreate_HYPRE(Mat);
 #endif
 
+#if defined PETSC_HAVE_COMBBLAS
+PETSC_EXTERN PetscErrorCode MatCreate_CombBLAS(Mat);
+#endif
+
 /*@C
   MatRegisterAll - Registers all of the matrix types in PETSc
 
@@ -160,6 +164,10 @@ PetscErrorCode  MatRegisterAll(void)
 
 #if defined PETSC_HAVE_HYPRE
   ierr = MatRegister(MATHYPRE,          MatCreate_HYPRE);CHKERRQ(ierr);
+#endif
+
+#if defined(PETSC_HAVE_COMBBLAS)
+  ierr = MatRegister(MATCOMBBLAS,      MatCreate_CombBLAS);CHKERRQ(ierr);
 #endif
   PetscFunctionReturn(0);
 }
