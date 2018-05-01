@@ -81,6 +81,7 @@ class Package(config.base.Configure):
     self.installedpetsc         = 0
     self.installwithbatch       = 0  # install the package even though configure is running in the initial batch mode; f2blaslapack and fblaslapack for example
     self.builtafterpetsc        = 0  # package is compiled/installed after PETSc is compiled
+    self.cmakelistdir           = '' # subdirectory where the CMakeLists.txt is located
     return
 
   def __str__(self):
@@ -1423,7 +1424,7 @@ class CMakePackage(Package):
 
       try:
         self.logPrintBox('Configuring '+self.PACKAGE+' with cmake, this may take several minutes')
-        output1,err1,ret1  = config.package.Package.executeShellCommand('cd '+folder+' && '+self.cmake.cmake+' .. '+args, timeout=900, log = self.log)
+        output1,err1,ret1  = config.package.Package.executeShellCommand('cd '+folder+' && '+self.cmake.cmake+' ..'+self.cmakelistdir+' '+args, timeout=900, log = self.log)
       except RuntimeError as e:
         raise RuntimeError('Error configuring '+self.PACKAGE+' with cmake '+str(e))
       try:

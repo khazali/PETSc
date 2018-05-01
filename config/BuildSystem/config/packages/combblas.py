@@ -3,13 +3,16 @@ import config.package
 class Configure(config.package.CMakePackage):
   def __init__(self, framework):
     config.package.CMakePackage.__init__(self, framework)
-    self.download          = ['http://eecs.berkeley.edu/~aydin/CombBLAS_FILES/CombBLAS_beta_16_1.tgz']
-    self.functions         = ['ParMETIS_V3_PartKway']
-    self.includes          = ['parmetis.h']
-    self.liblist           = [['libparmetis.a']]
+    self.gitcommit         = 'master'
+    self.download          = ['git://https://bitbucket.org/berkeleylab/combinatorial-blas-2.0.git','https://bitbucket.org/berkeleylab/combinatorial-blas-2.0/get/'+self.gitcommit+'.tar.gz']
+  #  self.functions         = []
+#    self.functionsCxx      = 1
+    self.includes          = ['CombBLAS/CombBLAS.h']
+    self.liblist           = [['libCombBLAS.a','libGraphGenlib.a','libUsortlib.a']]
     self.hastests          = 1
     self.cxx               = 1
     self.requirescxx11     = 1
+    self.cmakelistdir      = '/CombBLAS'
     self.downloaddirnames  = ['CombBLAS']
 
 
@@ -19,6 +22,5 @@ class Configure(config.package.CMakePackage):
     self.mpi           = framework.require('config.packages.MPI',self)
     self.mathlib       = framework.require('config.packages.mathlib',self)
     self.deps          = [self.mpi, self.mathlib]
-
 
 
