@@ -12,7 +12,6 @@ configure_options = [
 
   '--download-mpich=1',
   '--download-cmake=1',
-  '--download-make=1',
   '--download-metis=1',
   '--download-parmetis=1',
   '--download-pastix=1',
