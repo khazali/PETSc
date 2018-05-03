@@ -92,6 +92,7 @@ extern PetscErrorCode TrueSolution(Vec,AppCtx*);
 extern PetscErrorCode ComputeObjective(PetscReal,Vec,AppCtx*);
 extern PetscErrorCode MonitorError(Tao,void*);
 extern PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
+extern PetscErrorCode RHSFunctionPETSC(TS,PetscReal,Vec,Vec,void*);
 extern PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode MyMatMult(Mat,Vec,Vec);
 extern PetscErrorCode MyMatMultTransp(Mat,Vec,Vec);
@@ -172,8 +173,8 @@ int main(int argc,char **argv)
   
   /* Compute function over the locally owned part of the grid */
   
-    xs=xs/(appctx.param.N-1);
-    xm=xm/(appctx.param.N-1);
+  xs=xs/(appctx.param.N-1);
+  xm=xm/(appctx.param.N-1);
   
   /* 
      Build total grid and mass over entire mesh (multi-elemental) 
@@ -256,10 +257,11 @@ int main(int argc,char **argv)
   ierr = TrueSolution(appctx.dat.true_solution,&appctx);CHKERRQ(ierr);
   ierr = ComputeObjective(appctx.param.Tend,appctx.dat.obj,&appctx);CHKERRQ(ierr);
 
+/////////////////////////Temporary testing for jacobian
 
-  Vec   ref, wrk_vec, jac, vec_jac, vec_rhs, temp, vec_trans;
+  Vec   ref, wrk_vec, jac, vec_jac, vec_rhs, temp, vec_trans,ref2;
   PetscScalar vareps;
- PetscViewer     viewfile;
+  PetscViewer viewfile;
   PetscInt its=0;
   char var[15] ;
   
@@ -269,30 +271,31 @@ int main(int argc,char **argv)
   ierr = VecDuplicate(appctx.dat.ic,&vec_rhs);CHKERRQ(ierr);
   ierr = VecDuplicate(appctx.dat.ic,&vec_trans);CHKERRQ(ierr);
   ierr = VecDuplicate(appctx.dat.ic,&ref);CHKERRQ(ierr);
+  ierr = VecDuplicate(appctx.dat.ic,&ref2);CHKERRQ(ierr);
   ierr = VecDuplicate(appctx.dat.ic,&jac);CHKERRQ(ierr);
 
   ierr = VecCopy(appctx.dat.ic,appctx.dat.pass_sol);CHKERRQ(ierr);
-  //VecSet(appctx.dat.pass_sol,1.0);
+  VecSet(ref,0.0);
 
-  RHSFunction(appctx.ts,0.0,appctx.dat.ic,ref,&appctx);
+  RHSFunctionPETSC(appctx.ts,0.0,appctx.dat.ic,ref,&appctx);
+
   //ierr = FormFunctionGradient(tao,wrk_vec,&wrk1,wrk2_vec,&appctx);CHKERRQ(ierr);
   // Note computed gradient is in wrk2_vec, original cost is in wrk1 
   ierr = VecZeroEntries(vec_jac);
   ierr = VecZeroEntries(vec_rhs); 
   vareps = 1e-05;
     for (i=0; i<lenglob; i++) 
-    //for (i=0; i<6; i++) 
      {
       its=its+1;
       ierr = VecCopy(appctx.dat.ic,wrk_vec); CHKERRQ(ierr); //reset J(eps) for each point
       ierr = VecZeroEntries(jac);
       VecSetValue(wrk_vec,i, vareps,ADD_VALUES);
       VecSetValue(jac,i,1.0,ADD_VALUES);
-      RHSFunction(appctx.ts,0.0,wrk_vec,vec_rhs,&appctx);
+      RHSFunctionPETSC(appctx.ts,0.0,wrk_vec,vec_rhs,&appctx);
       VecAXPY(vec_rhs,-1.0,ref);
       VecScale(vec_rhs, 1.0/vareps);
       MyMatMult(H_shell,jac,vec_jac);
-      //VecView(jac,0);
+      //VecView(vec_rhs,0);
       MyMatMultTransp(H_shell,jac,vec_trans);
     ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"testjac.m",&viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
@@ -444,11 +447,12 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
    AppCtx         *appctx;
    
    PetscScalar     *ul, *uj, *outl;
-   PetscScalar     **stiff, **mass, **grad;
+   PetscScalar     **stiff, **grad;
    PetscInt        Nl;
    PetscInt        xs,xm,ix,jx,jy, indx,indy, i;
    PetscErrorCode  ierr;
-   Vec             uloc, outloc, ujloc;
+  const Vec             uloc, ujloc;
+  Vec outloc;
    PetscViewer     viewfile;
    char var[12] ;
 
@@ -492,7 +496,7 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
       
         for (jy=0; jy<Nl; jy++) 
         {indy=ix*(Nl-1)+jy;
-         outl[indx] += grad[jx][jy]*ul[indy]*uj[indx]+grad[jx][jy]*uj[indy]*ul[indx]+appctx->param.mu*2.0/appctx->param.Le*stiff[jx][jy]*ul[indx];
+         outl[indx] += appctx->param.mu*2.0/appctx->param.Le*stiff[jx][jy]*ul[indy]+grad[jx][jy]*ul[indy]*uj[indx]+grad[jx][jy]*uj[indy]*ul[indx];
         }
        }
      }
@@ -509,30 +513,9 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   VecScale(out, -1.0);
   ierr = VecPointwiseDivide(out,out,appctx->SEMop.mass);CHKERRQ(ierr);
 
-  //VecView(out,0);
-
   ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
-   
-  
-
-/*
-  its=its+1;
-  //printf("time to write %f ",&t); 
-  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jacin.m",&viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-  PetscSNPrintf(var,sizeof(var),"in(:,%d)",its);
-  ierr = PetscObjectSetName((PetscObject)in,var);
-  ierr = VecView(in,viewfile);CHKERRQ(ierr);
-  PetscSNPrintf(var,sizeof(var),"out(:,%d)",its);
-  ierr = PetscObjectSetName((PetscObject)out,var);
-  ierr = VecView(out,viewfile);CHKERRQ(ierr);
-  //PetscSNPrintf(var,sizeof(var),"mass",its);
-  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass,var);
-  //ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPopFormat(viewfile);
-
- */
+ 
    return(0);
  }
 
@@ -544,11 +527,12 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
    AppCtx         *appctx;
    
    PetscScalar     *ul, *uj, *outl;
-   PetscScalar     **stiff, **mass, **grad;
+   PetscScalar     **stiff,  **grad;
    PetscInt        Nl;
    PetscInt        xs,xm,ix,jx,jy, indx,indy, i;
    PetscErrorCode  ierr;
-   Vec             uloc, outloc, ujloc, incopy;
+   const Vec       incopy, uloc, ujloc;
+   Vec outloc;
    PetscViewer     viewfile;
    char var[12] ;
 
@@ -587,9 +571,7 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
  
   ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xm,NULL,NULL);CHKERRQ(ierr);
   Nl    = appctx->param.N; 
-    
-  //         outl[indx] += grad[jx][jy]*ul[indx];//*uj[indx];//grad[jx][jy]*uj[indy]*ul[indx]+//-stiff[jx][jy]*
-      
+  
   xs=xs/(Nl-1);
   xm=xm/(Nl-1);
   
@@ -598,7 +580,7 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
         {indx=ix*(Nl-1)+jx;
         for (jy=0; jy<Nl; jy++) 
         {indy=ix*(Nl-1)+jy;
-         outl[indx] += grad[jy][jx]*ul[indy]*uj[indy]+grad[jx][jy]*uj[indy]*ul[indx]+appctx->param.mu*2.0/appctx->param.Le*stiff[jy][jx]*ul[indx];
+         outl[indx] += appctx->param.mu*2.0/appctx->param.Le*stiff[jy][jx]*ul[indy]+grad[jy][jx]*ul[indy]*uj[indy]+grad[jx][jy]*uj[indy]*ul[indx];
         }
        }
      }
@@ -624,6 +606,73 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
 #define __FUNCT__ "RHSFunction"
 PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
 {
+  PetscErrorCode  ierr;
+  AppCtx          *appctx = (AppCtx*)ctx;  
+  PetscScalar     *ul, *outl;
+  PetscScalar     **stiff, **grad;
+  PetscInt        Nl;
+  PetscInt        xs,xm,ix,jx,jy, indx,indy, i;
+  Vec             uloc, outloc;
+  PetscViewer     viewfile;
+  char var[12] ;
+
+ 
+  ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionCreate(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+
+  /* unwrap local vector for the input solution */
+  DMCreateLocalVector(appctx->da,&uloc);
+
+  DMGlobalToLocalBegin(appctx->da,globalin,INSERT_VALUES,uloc);
+  DMGlobalToLocalEnd(appctx->da,globalin,INSERT_VALUES,uloc);
+
+  DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
+
+ 
+  /* unwrap local vector for the output solution */
+  DMCreateLocalVector(appctx->da,&outloc);
+  VecSet(outloc,0.0);
+
+  ierr = DMDAVecGetArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
+ 
+  ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xm,NULL,NULL);CHKERRQ(ierr);
+  Nl    = appctx->param.N; 
+    
+  xs=xs/(Nl-1);
+  xm=xm/(Nl-1);
+  
+   for (ix=xs; ix<xs+xm; ix++) 
+     {for (jx=0; jx<Nl; jx++) 
+        {indx=ix*(Nl-1)+jx;
+      
+        for (jy=0; jy<Nl; jy++) 
+        {indy=ix*(Nl-1)+jy;
+         outl[indx] += appctx->param.mu*2.0/appctx->param.Le*stiff[jx][jy]*ul[indy]+grad[jx][jy]*ul[indy]*ul[indx];
+        }
+       }
+     }
+  
+  ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
+  DMDAVecRestoreArrayRead(appctx->da,globalin,&uloc);CHKERRQ(ierr);
+  VecSet(globalout,0.0);
+
+  DMLocalToGlobalBegin(appctx->da,outloc,ADD_VALUES,globalout);
+  DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,globalout);
+  VecScale(globalout, -1.0);
+
+  ierr = VecPointwiseDivide(globalout,globalout,appctx->SEMop.mass);CHKERRQ(ierr);
+
+  ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+  
+  PetscFunctionReturn(0);
+}
+
+
+#undef __FUNCT__
+#define __FUNCT__ "RHSFunctionPETSC"
+PetscErrorCode RHSFunctionPETSC(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
+{
   PetscErrorCode ierr;
   AppCtx          *appctx = (AppCtx*)ctx;  
 
@@ -634,6 +683,7 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   ierr = MatMultAdd(appctx->SEMop.keptstiff,globalin,globalout,globalout);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
 
 #undef __FUNCT__
 #define __FUNCT__ "RHSJacobian"
@@ -657,21 +707,6 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec globalin,Mat A, Mat B,void *ctx
 
   VecCopy(globalin, appctx->dat.pass_sol);
  
-
-  /*    A = diag(u) G */
-  
-//  ierr = MatCopy(appctx->SEMop.grad,A,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
-//  ierr = MatDiagonalScale(A,globalin,NULL);CHKERRQ(ierr);
-
-  /*    A  = A + diag(Gu) */
-//  ierr = VecDuplicate(globalin,&Gglobalin);CHKERRQ(ierr);
-//  ierr = MatMult(appctx->SEMop.grad,globalin,Gglobalin);CHKERRQ(ierr);
-//  ierr = MatDiagonalSet(A,Gglobalin,ADD_VALUES);CHKERRQ(ierr);
-//  ierr = VecDestroy(&Gglobalin);CHKERRQ(ierr);
-
-  /*   A  = K - A    */
-//  ierr = MatScale(A,-1.0);CHKERRQ(ierr);
-//  ierr = MatAXPY(A,1.0,appctx->SEMop.keptstiff,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
