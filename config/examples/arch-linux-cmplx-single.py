@@ -3,7 +3,6 @@
 configure_options = [
   '--with-scalar-type=complex',
   '--with-precision=single',
-  '--download-make=1',
    ]
 
 if __name__ == '__main__':
