@@ -53,6 +53,9 @@ J*/
 #define TAOBMRM     "bmrm"
 #define TAOBLMVM    "blmvm"
 #define TAOBNCG     "bncg"
+#define TAOBNLS     "bnls"
+#define TAOBNTR     "bntr"
+#define TAOBNTL     "bntl"
 #define TAOBQPIP    "bqpip"
 #define TAOGPCG     "gpcg"
 #define TAONM       "nm"
@@ -78,7 +81,8 @@ $   1) an incorrectly coded or computed gradient or Hessian
 $   2) failure or lack of convergence in the linear system (in this case we recommend
 $      testing with -pc_type lu to eliminate the linear solver as the cause of the problem).
 
-   Developer Notes: this must match petsc/finclude/petsctao.h
+   Developer Notes:
+    this must match petsc/finclude/petsctao.h
 
        The string versions of these are in TAOConvergedReasons, if you change any value here you must
      also adjust that array.
@@ -220,6 +224,7 @@ PETSC_EXTERN PetscErrorCode TaoGetConvergenceHistory(Tao,PetscReal**,PetscReal**
 PETSC_EXTERN PetscErrorCode TaoSetMonitor(Tao, PetscErrorCode (*)(Tao,void*),void *,PetscErrorCode (*)(void**));
 PETSC_EXTERN PetscErrorCode TaoCancelMonitors(Tao);
 PETSC_EXTERN PetscErrorCode TaoMonitorDefault(Tao, void*);
+PETSC_EXTERN PetscErrorCode TaoDefaultGMonitor(Tao, void*);
 PETSC_EXTERN PetscErrorCode TaoDefaultSMonitor(Tao, void*);
 PETSC_EXTERN PetscErrorCode TaoDefaultCMonitor(Tao, void*);
 PETSC_EXTERN PetscErrorCode TaoSolutionMonitor(Tao, void*);

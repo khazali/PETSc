@@ -1005,9 +1005,7 @@ PetscErrorCode DMView_Plex(DM dm, PetscViewer viewer)
     }
   } else if (ishdf5) {
 #if defined(PETSC_HAVE_HDF5)
-    ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_VIZ);CHKERRQ(ierr);
     ierr = DMPlexView_HDF5_Internal(dm, viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
 #else
     SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "HDF5 not supported in this build.\nPlease reconfigure using --download-hdf5");
 #endif
@@ -1042,7 +1040,13 @@ PetscErrorCode DMLoad_Plex(DM dm, PetscViewer viewer)
   if (isbinary) {SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Do not yet support binary viewers");}
   else if (ishdf5) {
 #if defined(PETSC_HAVE_HDF5)
-    ierr = DMPlexLoad_HDF5_Internal(dm, viewer);CHKERRQ(ierr);
+    PetscViewerFormat format;
+    ierr = PetscViewerGetFormat(viewer, &format);CHKERRQ(ierr);
+    if (format == PETSC_VIEWER_HDF5_XDMF || format == PETSC_VIEWER_HDF5_VIZ) {
+      ierr = DMPlexLoad_HDF5_Xdmf_Internal(dm, viewer);CHKERRQ(ierr);
+    } else {
+      ierr = DMPlexLoad_HDF5_Internal(dm, viewer);CHKERRQ(ierr);
+    }
 #else
     SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "HDF5 not supported in this build.\nPlease reconfigure using --download-hdf5");
 #endif
@@ -3447,7 +3451,8 @@ static PetscErrorCode DMPlexCreateSectionBCIndices(DM dm, PetscSection section)
   Output Parameter:
 . section - The PetscSection object
 
-  Notes: numDof[f*(dim+1)+d] gives the number of dof for field f on points of dimension d. For instance, numDof[1] is the
+  Notes:
+    numDof[f*(dim+1)+d] gives the number of dof for field f on points of dimension d. For instance, numDof[1] is the
   number of dof for field 0 on each edge.
 
   The chart permutation is the same one set using PetscSectionSetPermutation()
@@ -6591,7 +6596,7 @@ PetscErrorCode DMCreateInterpolation_Plex(DM dmCoarse, DM dmFine, Mat *interpola
   PetscInt       m, n;
   void          *ctx;
   DM             cdm;
-  PetscBool      regular;
+  PetscBool      regular, ismatis;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -6600,9 +6605,10 @@ PetscErrorCode DMCreateInterpolation_Plex(DM dmCoarse, DM dmFine, Mat *interpola
   ierr = DMGetDefaultGlobalSection(dmCoarse, &gsc);CHKERRQ(ierr);
   ierr = PetscSectionGetConstrainedStorageSize(gsc, &n);CHKERRQ(ierr);
 
+  ierr = PetscStrcmp(dmCoarse->mattype, MATIS, &ismatis);CHKERRQ(ierr);
   ierr = MatCreate(PetscObjectComm((PetscObject) dmCoarse), interpolation);CHKERRQ(ierr);
   ierr = MatSetSizes(*interpolation, m, n, PETSC_DETERMINE, PETSC_DETERMINE);CHKERRQ(ierr);
-  ierr = MatSetType(*interpolation, dmCoarse->mattype);CHKERRQ(ierr);
+  ierr = MatSetType(*interpolation, ismatis ? MATAIJ : dmCoarse->mattype);CHKERRQ(ierr);
   ierr = DMGetApplicationContext(dmFine, &ctx);CHKERRQ(ierr);
 
   ierr = DMGetCoarseDM(dmFine, &cdm);CHKERRQ(ierr);

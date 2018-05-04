@@ -398,7 +398,7 @@ The Fortran interface files supplied by user go into the two directories  \trl{f
 \subsection{Manual Page Format}
 Each function, typedef, class, macro, enum, etc. in the public API should include the following data, correctly formatted
 (see above section) to generate complete manual pages and Fortran interfaces with Sowing.
-All entries below should be separated by blank lines.
+All entries below should be separated by blank lines. Except where noted, add a newline after the section headings.
 \begin{itemize}
   \item The item's name, followed by a dash and brief (one-sentence) description
   \item If documenting a function, a description of the function's ``collectivity'' (whether all ranks in an MPI communicator need to participate)
@@ -410,13 +410,13 @@ All entries below should be separated by blank lines.
   \item If documenting a function with input parameters, a list of input parameter descriptions in an \trl{Input Parameters: } section
   \item If documenting a function with output parameters, a list of output parameter descriptions in an \trl{Output Parameters: } section
   \item If documenting a function which interacts with the options database, a list of options database keys in an \trl{Options Database Keys: } section
-  \item (Optional) a \trl{Notes: } In-depth discussion, technical caveats, special cases, and so on should be listed here.
-    If it is ambiguous whether returned pointers need to be freed by the user or not, this information should be mentioned here.
-  \item (If applicable) a \trl{Fortran Notes: } Detailing any relevant differences in calling or using the item from Fortran.
-  \item \trl{Level: } followed by \trl{beginner}, \trl{intermediate}, \trl{advanced}, or \trl{developer}
-  \item (Optional) a list of \trl{Concepts: }
-  \item (Optional) a list of \trl{Keywords: }
-  \item The \trl{.seealso: } A list of related manual pages. These manual pages should usually also point back to this manual page in their seealso section.
+  \item (Optional) a \trl{Notes: } section. In-depth discussion, technical caveats, special cases, and so on should be listed here.
+    If it is ambiguous whether returned pointers/objects need to be freed/destroyed by the user or not, this information should be mentioned here.
+  \item (If applicable) a \trl{Fortran Notes: } section detailing any relevant differences in calling or using the item from Fortran.
+  \item \trl{Level: } (no newline) followed by \trl{beginner}, \trl{intermediate}, \trl{advanced}, or \trl{developer}.
+  \item (Optional) \trl{Concepts: } (no newline), followed by a list of concepts.
+  \item (Optional) \trl{Keywords: } (no newline), followed by a list of keywords.
+  \item \trl{.seealso: } (no newline), followed by a list of related manual pages. These manual pages should usually also point back to this manual page in their \trl{seealso:} sections.
 \end{itemize}
 
 % -----------------------------------------------------------------------------------
@@ -2102,12 +2102,23 @@ ${PETSC_DIR}/config/petsc_harness.sh
 \end{bashlisting}
 
 \section{Using the Test Harness for Regression Testing}
-The test system is primarily designed to to provide user-facing information and to be used in automated testing. However, it can also be helpful for contributing developers in regression testing, if one is willing to do a little investigation into the files that the test harness generates. A typical workflow might proceed as follows.
+The test system can also be helpful for contributing developers in regression testing.
+A typical workflow might proceed as follows.
 Note that the exact syntax of all input and output in this section is subject to change.
 
 \begin{enumerate}
-\item Make changes to the code base, and prepare a branch to submit upstream.
-\item To protect against unintended regressions, run the full test suite on your branch. (For information on how to run a subset of tests, consult the Users Manual and other sources referenced therein).
+\item Run the full test suite on the development machine, using the branch of PETSc you want to base your changes on (usually \trl{master}).
+\begin{bashlisting}
+git checkout master
+make -f gmakefile.test test
+\end{bashlisting}
+Confirm that all of the tests pass.
+\item Create a new branch and make your changes.
+\begin{bashlisting}
+git checkout -b myname/my-feature
+# make and commit changes
+\end{bashlisting}
+\item Run the full test suite on your branch \footnote{For information on how to run a subset of tests, consult the Users Manual and other sources referenced therein.}.
 \begin{bashlisting}
 make -f gmakefile.test test
 \end{bashlisting}
@@ -2127,7 +2138,7 @@ make -f gmakefile.test test
 # To rerun failed tests:
 #     /opt/local/bin/gmake -f gmakefile test search='ts_tutorials-ex11_adv_2d_quad_0 sys_classes_viewer_tests-ex4_4 ts_tutorials-ex11_adv_2d_quad'
 \end{outputlisting}
-The above indicates that three tests have failed and should be investigated. One would also probably check beforehand that no tests fail with an umodified version of PETSc on the development machine.
+The above indicates that three tests have failed and should be investigated.
 \item Rerun one of the failed tests, with additional verbosity.
 \begin{bashlisting}
 /opt/local/bin/gmake V=1 -f gmakefile test search='sys_classes_viewer_tests-ex4_4'
@@ -2151,27 +2162,36 @@ not ok diff-sys_classes_viewer_tests-ex4_4 /Users/patrick/petsc-master/lib/petsc
 #	> Testing PetscViewerASCIIPrintf 0
 #	> Testing PetscViewerASCIIPrintf 1
 \end{outputlisting}
-This suggests that the output does not match the reference output.
+This indicates that the output does not match the reference output.
 \item Take a look in the directory where the test was run from.
 \begin{outputlisting}
-cd arch-darwin-master-double-debug/tests/sys/classes/viewer/examples/tests/
+cd $PETSC_ARCH/tests/sys/classes/viewer/examples/tests/
 \end{outputlisting}
-\item Examine the scripts and output files there. In this example, these are \trl{runex4_4.sh} and \trl{runex4_4/}, which contains \trl{sys_classes_viewer_tests-ex4_4.sh} along with various output files.
-\item By examining these files, one can determine that
-\begin{tightitemize}
-\item The command to run the test was
+\item The name of the test indicates that the test was defined in \trl{ex4.c}, with the suffix \trl{4}. This is defined in \trl{ex4.c} as such:
 \begin{outputlisting}
-/Users/patrick/petsc-master/arch-darwin-master-double-debug/bin/mpiexec  -n 1 ../ex4 -myviewer ascii:ex4a1.tmp::append
+   test:
+      suffix: 4
+      args: -myviewer ascii:ex4a1.tmp::append
+      filter: cat ex4a1.tmp
+      output_file: output/ex4a.out
 \end{outputlisting}
-\item The reference output is in
+(Note that the default number of MPI processes is 1.)
+\item We can deduce now that the command to rerun the example are
 \begin{outputlisting}
-/Users/patrick/petsc-master/src/sys/classes/viewer/examples/tests/output/ex4a.out
+make ex4
+$PETSC_DIR/$PETSC_ARCH/bin/mpiexec -n 1 ./ex4 -myviewer ascii:ex4a1.tmp::append
+cat ex4a1.tmp
 \end{outputlisting}
-\end{tightitemize}
+\item Similarly, we can deduce that the reference output is in
+\begin{outputlisting}
+$PETSC_DIR/src/sys/classes/viewer/examples/tests/output/ex4a.out
+\end{outputlisting}
+(Note that there is a default output location in \trl{output/testname_suffix}.)
 \item This should provide enough information to iteratively debug the problem by making changes, recompiling, and re-running this example directly.
 \item Repeat with other errors.
 \end{enumerate}
 
+\subsection{Additional Tips}
 To rerun just the reporting,
 \begin{bashlisting}
 config/report_tests.py

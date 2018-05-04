@@ -1870,7 +1870,7 @@ PetscErrorCode DMPlexComputeResidual_Internal(DM dm, IS cellIS, PetscReal time, 
       if (dmGrad) {ierr = DMRestoreLocalVector(dmGrad, &locGrad);CHKERRQ(ierr);}
     }
   }
-  ierr = ISDestroy(&chunkIS);CHKERRQ(ierr);
+  if (useFEM) {ierr = ISDestroy(&chunkIS);CHKERRQ(ierr);}
   ierr = ISRestorePointRange(cellIS, &cStart, &cEnd, &cells);CHKERRQ(ierr);
 
   if (useFEM) {
@@ -2748,7 +2748,7 @@ PetscErrorCode DMPlexSNESComputeJacobianActionFEM(DM dm, Vec X, Vec Y, Vec Z, vo
     ierr = DMGetStratumIS(plex, "depth", depth, &cellIS);CHKERRQ(ierr);
   }
   ierr = DMPlexComputeJacobianAction_Internal(plex, cellIS, 0.0, 0.0, X, NULL, Y, Z, user);CHKERRQ(ierr);
-  ierr = ISDestroy(&cellIS);
+  ierr = ISDestroy(&cellIS);CHKERRQ(ierr);
   ierr = DMDestroy(&plex);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

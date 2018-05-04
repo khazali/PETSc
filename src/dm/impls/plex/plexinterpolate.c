@@ -506,7 +506,8 @@ static PetscErrorCode DMPlexInterpolatePointSF(DM dm, PetscSF pointSF, PetscInt 
 
   Level: intermediate
 
-  Notes: It does not copy over the coordinates.
+  Notes:
+    It does not copy over the coordinates.
 
 .keywords: mesh
 .seealso: DMPlexUninterpolate(), DMPlexCreateFromCellList(), DMPlexCopyCoordinates()
@@ -694,7 +695,8 @@ PetscErrorCode DMPlexCopyCoordinates(DM dmA, DM dmB)
 
   Level: intermediate
 
-  Notes: It does not copy over the coordinates.
+  Notes:
+    It does not copy over the coordinates.
 
 .keywords: mesh
 .seealso: DMPlexInterpolate(), DMPlexCreateFromCellList(), DMPlexCopyCoordinates()

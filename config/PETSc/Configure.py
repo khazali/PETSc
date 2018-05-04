@@ -84,7 +84,6 @@ class Configure(config.base.Configure):
     self.scalartypes   = framework.require('PETSc.options.scalarTypes', self)
     self.indexTypes    = framework.require('PETSc.options.indexTypes',  self)
     self.languages     = framework.require('PETSc.options.languages',   self.setCompilers)
-    self.debugging     = framework.require('PETSc.options.debugging',   self.compilers)
     self.indexTypes    = framework.require('PETSc.options.indexTypes',  self.compilers)
     self.compilers     = framework.require('config.compilers',          self)
     self.types         = framework.require('config.types',              self)
@@ -270,6 +269,9 @@ prepend-path PATH "%s"
       self.setCompilers.pushLanguage('Cxx')
       self.addDefine('HAVE_CXX','1')
       self.addMakeMacro('CXX_FLAGS',self.setCompilers.getCompilerFlags())
+      cxx_linker = self.setCompilers.getLinker()
+      self.addMakeMacro('CXX_LINKER',cxx_linker)
+      self.addMakeMacro('CXX_LINKER_FLAGS',self.setCompilers.getLinkerFlags())
       self.setCompilers.popLanguage()
 
     # C preprocessor values

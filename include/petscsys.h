@@ -1196,7 +1196,8 @@ M*/
 
    Level: developer
 
-   Notes: Memory must have been obtained with PetscMalloc2()
+   Notes:
+    Memory must have been obtained with PetscMalloc2()
 
 .seealso: PetscNew(), PetscMalloc(), PetscMalloc2(), PetscFree()
 
@@ -1221,7 +1222,8 @@ M*/
 
    Level: developer
 
-   Notes: Memory must have been obtained with PetscMalloc3()
+   Notes:
+    Memory must have been obtained with PetscMalloc3()
 
 .seealso: PetscNew(), PetscMalloc(), PetscMalloc2(), PetscFree(), PetscMalloc3()
 
@@ -1247,7 +1249,8 @@ M*/
 
    Level: developer
 
-   Notes: Memory must have been obtained with PetscMalloc4()
+   Notes:
+    Memory must have been obtained with PetscMalloc4()
 
 .seealso: PetscNew(), PetscMalloc(), PetscMalloc2(), PetscFree(), PetscMalloc3(), PetscMalloc4()
 
@@ -1274,7 +1277,8 @@ M*/
 
    Level: developer
 
-   Notes: Memory must have been obtained with PetscMalloc5()
+   Notes:
+    Memory must have been obtained with PetscMalloc5()
 
 .seealso: PetscNew(), PetscMalloc(), PetscMalloc2(), PetscFree(), PetscMalloc3(), PetscMalloc4(), PetscMalloc5()
 
@@ -1303,7 +1307,8 @@ M*/
 
    Level: developer
 
-   Notes: Memory must have been obtained with PetscMalloc6()
+   Notes:
+    Memory must have been obtained with PetscMalloc6()
 
 .seealso: PetscNew(), PetscMalloc(), PetscMalloc2(), PetscFree(), PetscMalloc3(), PetscMalloc4(), PetscMalloc5(), PetscMalloc6()
 
@@ -1333,7 +1338,8 @@ M*/
 
    Level: developer
 
-   Notes: Memory must have been obtained with PetscMalloc7()
+   Notes:
+    Memory must have been obtained with PetscMalloc7()
 
 .seealso: PetscNew(), PetscMalloc(), PetscMalloc2(), PetscFree(), PetscMalloc3(), PetscMalloc4(), PetscMalloc5(), PetscMalloc6(),
           PetscMalloc7()
@@ -1830,10 +1836,14 @@ PETSC_EXTERN PetscErrorCode PetscFPrintf(MPI_Comm,FILE*,const char[],...);
 PETSC_EXTERN PetscErrorCode PetscPrintf(MPI_Comm,const char[],...);
 PETSC_EXTERN PetscErrorCode PetscSNPrintf(char*,size_t,const char [],...);
 PETSC_EXTERN PetscErrorCode PetscSNPrintfCount(char*,size_t,const char [],size_t*,...);
+PETSC_EXTERN PetscErrorCode PetscFormatRealArray(char[],size_t,const char*,PetscInt,const PetscReal[]);
 
 PETSC_EXTERN PetscErrorCode PetscErrorPrintfDefault(const char [],...);
 PETSC_EXTERN PetscErrorCode PetscErrorPrintfNone(const char [],...);
 PETSC_EXTERN PetscErrorCode PetscHelpPrintfDefault(MPI_Comm,const char [],...);
+
+PETSC_EXTERN PetscErrorCode PetscFormatConvertGetSize(const char*,size_t*);
+PETSC_EXTERN PetscErrorCode PetscFormatConvert(const char*,char *);
 
 #if defined(PETSC_HAVE_POPEN)
 PETSC_EXTERN PetscErrorCode PetscPOpen(MPI_Comm,const char[],const char[],const char[],FILE **);
@@ -2159,7 +2169,7 @@ M*/
 
    Level: beginner
 
-.seealso: PetscReal, PetscComplex, PetscInt, MPIU_REAL, MPIU_SCALAR, MPIU_COMPLEX, MPIU_INT
+.seealso: PetscReal, PetscComplex, PetscInt, MPIU_REAL, MPIU_SCALAR, MPIU_COMPLEX, MPIU_INT, PetscRealPart(), PetscImaginaryPart()
 M*/
 
 /*MC
