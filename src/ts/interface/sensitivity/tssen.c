@@ -1,7 +1,7 @@
 #include <petsc/private/tsimpl.h>        /*I "petscts.h"  I*/
 #include <petscdraw.h>
 
-PetscLogEvent TS_AdjointStep, TS_ForwardStep;
+PetscLogEvent TS_AdjointStep,TS_ForwardStep,TS_JacobianPEval;
 
 /* ------------------------ Sensitivity Context ---------------------------*/
 
@@ -42,8 +42,8 @@ PetscErrorCode TSSetRHSJacobianP(TS ts,Mat Amat,PetscErrorCode (*func)(TS,PetscR
   ts->rhsjacobianpctx = ctx;
   if(Amat) {
     ierr = PetscObjectReference((PetscObject)Amat);CHKERRQ(ierr);
-    ierr = MatDestroy(&ts->Jacp);CHKERRQ(ierr);
-    ts->Jacp = Amat;
+    ierr = MatDestroy(&ts->Jacprhs);CHKERRQ(ierr);
+    ts->Jacprhs = Amat;
   }
   PetscFunctionReturn(0);
 }
@@ -73,6 +73,116 @@ PetscErrorCode TSComputeRHSJacobianP(TS ts,PetscReal t,Vec U,Mat Amat)
   PetscStackPush("TS user JacobianP function for sensitivity analysis");
   ierr = (*ts->rhsjacobianp)(ts,t,U,Amat,ts->rhsjacobianpctx);CHKERRQ(ierr);
   PetscStackPop;
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  TSSetIJacobianP - Sets the function that computes the Jacobian of F w.r.t. the parameters P where F(Udot,U,t) = G(U,P,t), as well as the location to store the matrix.
+
+  Logically Collective on TS
+
+  Input Parameters:
++ ts - TS context obtained from TSCreate()
+. Amat - JacobianP matrix
+- func - function
+
+  Calling sequence of func:
+$ func (TS ts,PetscReal t,Vec y,Mat A,void *ctx);
++   t - current timestep
+.   U - input vector (current ODE solution)
+.   Udot - time derivative of state vector
+.   shift - shift to apply, see note below
+.   A - output matrix
+-   ctx - [optional] user-defined function context
+
+  Level: intermediate
+
+  Notes:
+    Amat has the same number of rows and the same row parallel layout as u, Amat has the same number of columns and parallel layout as p
+
+.keywords: TS, sensitivity
+.seealso:
+@*/
+PetscErrorCode TSSetIJacobianP(TS ts,Mat Amat,PetscErrorCode (*func)(TS,PetscReal,Vec,Vec,PetscReal,Mat,void*),void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts, TS_CLASSID,1);
+  PetscValidHeaderSpecific(Amat,MAT_CLASSID,2);
+
+  ts->ijacobianp    = func;
+  ts->ijacobianpctx = ctx;
+  if(Amat) {
+    ierr = PetscObjectReference((PetscObject)Amat);CHKERRQ(ierr);
+    ierr = MatDestroy(&ts->Jacp);CHKERRQ(ierr);
+    ts->Jacp = Amat;
+  }
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  TSComputeIJacobianP - Runs the user-defined IJacobianP function.
+
+  Collective on TS
+
+  Input Parameters:
++ ts - the TS context
+. t - current timestep
+. U - state vector
+. Udot - time derivative of state vector
+. shift - shift to apply, see note below
+- imex - flag indicates if the method is IMEX so that the RHSJacobian should be kept separate
+
+  Output Parameters:
+. A - Jacobian matrix
+
+  Level: developer
+
+.keywords: TS, sensitivity
+.seealso: TSSetIJacobianP()
+@*/
+PetscErrorCode TSComputeIJacobianP(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal shift,Mat Amat,PetscBool imex)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidHeaderSpecific(U,VEC_CLASSID,3);
+  PetscValidHeaderSpecific(Udot,VEC_CLASSID,4);
+  PetscValidPointer(Amat,5);
+
+  ierr = PetscLogEventBegin(TS_JacobianPEval,ts,U,Amat,0);CHKERRQ(ierr);
+  if (ts->ijacobianp) {
+    PetscStackPush("TS user JacobianP function for sensitivity analysis");
+    ierr = (*ts->ijacobianp)(ts,t,U,Udot,shift,Amat,ts->ijacobianpctx);CHKERRQ(ierr);
+    PetscStackPop;
+  }
+  if (imex) {
+    if (!ts->ijacobianp) {  /* system was written as Udot = G(t,U) */
+      PetscBool assembled;
+      ierr = MatZeroEntries(Amat);CHKERRQ(ierr);
+      ierr = MatAssembled(Amat,&assembled);CHKERRQ(ierr);
+      if (!assembled) {
+        ierr = MatAssemblyBegin(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+        ierr = MatAssemblyEnd(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      }
+    }
+  } else {
+    if (ts->rhsjacobianp) {
+      ierr = TSComputeRHSJacobianP(ts,t,U,ts->Jacprhs);CHKERRQ(ierr);
+    }
+    if (ts->Jacprhs == Amat) { /* No IJacobian, so we only have the RHS matrix */
+      ierr = MatScale(Amat,-1);CHKERRQ(ierr);
+    } else if (ts->Jacprhs) { /* Both IJacobian and RHSJacobian */
+      MatStructure axpy = DIFFERENT_NONZERO_PATTERN;
+      if (!ts->ijacobianp) { /* No IJacobianp provided, but we have a separate RHS matrix */
+        ierr = MatZeroEntries(Amat);CHKERRQ(ierr);
+      }
+      ierr = MatAXPY(Amat,-1,ts->Jacprhs,axpy);CHKERRQ(ierr);
+    }
+  }
+  ierr = PetscLogEventEnd(TS_JacobianPEval,ts,U,Amat,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -568,7 +678,7 @@ PetscErrorCode TSSetCostHessianProducts(TS ts,PetscInt numcost,Vec *lambda2,Vec 
   if (ts->numcost && ts->numcost!=numcost) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"The number of cost functions (2rd parameter of TSSetCostIntegrand()) is inconsistent with the one set by TSSetCostIntegrand");
   ts->numcost       = numcost;
   ts->vecs_sensi2   = lambda2;
-  ts->vecs_sensip2  = mu2;
+  ts->vecs_sensi2p  = mu2;
   ts->vec_dir       = dir;
   PetscFunctionReturn(0);
 }
@@ -600,7 +710,7 @@ PetscErrorCode TSGetCostHessianProducts(TS ts,PetscInt *numcost,Vec **lambda2,Ve
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   if (numcost) *numcost = ts->numcost;
   if (lambda2) *lambda2 = ts->vecs_sensi2;
-  if (mu2)     *mu2     = ts->vecs_sensip2;
+  if (mu2)     *mu2     = ts->vecs_sensi2p;
   if (dir)     *dir     = ts->vec_dir;
   PetscFunctionReturn(0);
 }
@@ -629,7 +739,7 @@ PetscErrorCode TSAdjointInitializeForward(TS ts,Mat didp)
   PetscFunctionBegin;
   ts->forward_solve = PETSC_TRUE; /* turn on TLM mode */
   if (!ts->vecs_sensi2) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetCostHessianProducts() first");
-  if (ts->vecs_sensip2 && !didp) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"The fourth argument is not NULL, indicating parametric sensitivities are desired, so the dIdP matrix must be provided"); /* check conflicted settings */
+  if (ts->vecs_sensi2p && !didp) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"The fourth argument is not NULL, indicating parametric sensitivities are desired, so the dIdP matrix must be provided"); /* check conflicted settings */
   ierr = TSForwardSetInitialSensitivities(ts,didp);CHKERRQ(ierr); /* if didp is NULL, identity matrix is assumed */
   PetscFunctionReturn(0);
 }
@@ -657,7 +767,9 @@ PetscErrorCode TSAdjointSetUp(TS ts)
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   if (ts->adjointsetupcalled) PetscFunctionReturn(0);
   if (!ts->vecs_sensi) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_ARG_WRONGSTATE,"Must call TSSetCostGradients() first");
-  if (ts->vecs_sensip && !ts->Jacp) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_ARG_WRONGSTATE,"Must call TSAdjointSetRHSJacobian() first");
+  if (ts->vecs_sensip && !ts->Jacp && !ts->Jacprhs) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_ARG_WRONGSTATE,"Must call TSSetRHSJacobianP() or TSSetIJacobianP() first");
+
+  if (!ts->Jacp && ts->Jacprhs) ts->Jacp = ts->Jacprhs;
 
   if (ts->vec_costintegral) { /* if there is integral in the cost function */
     ierr = VecDuplicateVecs(ts->vecs_sensi[0],ts->numcost,&ts->vecs_drdu);CHKERRQ(ierr);
@@ -702,7 +814,7 @@ PetscErrorCode TSAdjointReset(TS ts)
   ts->vecs_sensi         = NULL;
   ts->vecs_sensip        = NULL;
   ts->vecs_sensi2        = NULL;
-  ts->vecs_sensip2       = NULL;
+  ts->vecs_sensi2p       = NULL;
   ts->vec_dir            = NULL;
   ts->adjointsetupcalled = PETSC_FALSE;
   PetscFunctionReturn(0);
@@ -1294,6 +1406,7 @@ PetscErrorCode TSForwardSetUp(TS ts)
     ierr = VecDuplicateVecs(ts->vec_sol,ts->numcost,&ts->vecs_drdu);CHKERRQ(ierr);
     ierr = VecDuplicateVecs(ts->vecs_integral_sensip[0],ts->numcost,&ts->vecs_drdp);CHKERRQ(ierr);
   }
+  if (!ts->Jacp && ts->Jacprhs) ts->Jacp = ts->Jacprhs;
 
   if (ts->ops->forwardsetup) {
     ierr = (*ts->ops->forwardsetup)(ts);CHKERRQ(ierr);
