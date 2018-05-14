@@ -35,6 +35,11 @@ static char help[] ="Solves a simple data assimilation problem with one dimensio
 #include <petscgll.h>
 #include <petscdraw.h>
 #include <petscdmda.h>
+#include <codi.hpp>
+
+typedef codi::RealForwardGen<double> t1s;
+typedef codi::RealForwardGen<t1s> t2s;
+typedef codi::RealReverseGen<double> a1s;
 
 /*
    User-defined application context - contains data needed by the
@@ -277,7 +282,7 @@ int main(int argc,char **argv)
   ierr = VecCopy(appctx.dat.ic,appctx.dat.pass_sol);CHKERRQ(ierr);
   VecSet(ref,0.0);
 
-  RHSFunctionPETSC(appctx.ts,0.0,appctx.dat.ic,ref,&appctx);
+  RHSFunction(appctx.ts,0.0,appctx.dat.ic,ref,&appctx);
 
   //ierr = FormFunctionGradient(tao,wrk_vec,&wrk1,wrk2_vec,&appctx);CHKERRQ(ierr);
   // Note computed gradient is in wrk2_vec, original cost is in wrk1 
@@ -291,7 +296,7 @@ int main(int argc,char **argv)
       ierr = VecZeroEntries(jac);
       VecSetValue(wrk_vec,i, vareps,ADD_VALUES);
       VecSetValue(jac,i,1.0,ADD_VALUES);
-      RHSFunctionPETSC(appctx.ts,0.0,wrk_vec,vec_rhs,&appctx);
+      RHSFunction(appctx.ts,0.0,wrk_vec,vec_rhs,&appctx);
       VecAXPY(vec_rhs,-1.0,ref);
       VecScale(vec_rhs, 1.0/vareps);
       MyMatMult(H_shell,jac,vec_jac);
@@ -440,6 +445,39 @@ PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
   return 0;
 }
 
+template <class T> PetscErrorCode ADRHSFunction (T* out, T* in, void *ctx) 
+{
+  PetscErrorCode  ierr;
+  AppCtx          *appctx = (AppCtx*)ctx;  
+  PetscInt        Nl, xs, xm, ix, jx, jy, indx, indy, i;
+  PetscScalar     **stiff, **grad;
+
+  ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionCreate(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+  ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xm,NULL,NULL);CHKERRQ(ierr);
+  Nl    = appctx->param.N; 
+    
+  xs=xs/(Nl-1);
+  xm=xm/(Nl-1);
+
+  for (ix = xs; ix < xs + xm; ix++)
+  {
+    for (jx = 0; jx < Nl; jx++)
+    {
+      indx = ix * (Nl - 1) + jx;
+
+      for (jy = 0; jy < Nl; jy++)
+      {
+        indy = ix * (Nl - 1) + jy;
+        //  printf("[ADFuncRHS] indx: %d, indy: %d, Nl: %d, xm: %d \n", indx, indy, Nl, xm);
+        out[indx] += appctx->param.mu * 2.0 / appctx->param.Le * stiff[jx][jy] * in[indy] + grad[jx][jy] * in[indy] * in[indx];
+      }
+    }
+  }
+  ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "MyMatMult"
 PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
@@ -451,8 +489,8 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
    PetscInt        Nl;
    PetscInt        xs,xm,ix,jx,jy, indx,indy, i;
    PetscErrorCode  ierr;
-  const Vec             uloc, ujloc;
-  Vec outloc;
+   Vec             uloc, ujloc;
+   Vec outloc;
    PetscViewer     viewfile;
    char var[12] ;
 
@@ -486,21 +524,25 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
  
   ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xm,NULL,NULL);CHKERRQ(ierr);
   Nl    = appctx->param.N; 
-    
+
   xs=xs/(Nl-1);
   xm=xm/(Nl-1);
-  
-   for (ix=xs; ix<xs+xm; ix++) 
-     {for (jx=0; jx<Nl; jx++) 
-        {indx=ix*(Nl-1)+jx;
-      
-        for (jy=0; jy<Nl; jy++) 
-        {indy=ix*(Nl-1)+jy;
-         outl[indx] += appctx->param.mu*2.0/appctx->param.Le*stiff[jx][jy]*ul[indy]+grad[jx][jy]*ul[indy]*uj[indx]+grad[jx][jy]*uj[indy]*ul[indx];
-        }
-       }
-     }
-  
+  t1s *t1s_ul = new t1s[Nl*xm];
+  t1s *t1s_outl = new t1s[Nl*xm];
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++) 
+  {
+    t1s_ul[ix] = uj[ix];
+    t1s_ul[ix].setGradient(ul[ix]);
+    t1s_outl[ix] = 0.0;
+  }
+  ierr = ADRHSFunction<t1s>(t1s_outl, t1s_ul, appctx);
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++) 
+  {
+    outl[ix] = t1s_outl[ix].gradient();
+  }
+  delete [] t1s_ul;
+  delete [] t1s_outl;
+
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
   DMDAVecRestoreArrayRead(appctx->da,in,&uloc);CHKERRQ(ierr);
   DMDAVecRestoreArrayRead(appctx->da,appctx->dat.pass_sol,&ujloc);CHKERRQ(ierr);
@@ -531,7 +573,7 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
    PetscInt        Nl;
    PetscInt        xs,xm,ix,jx,jy, indx,indy, i;
    PetscErrorCode  ierr;
-   const Vec       incopy, uloc, ujloc;
+   Vec       incopy, uloc, ujloc;
    Vec outloc;
    PetscViewer     viewfile;
    char var[12] ;
@@ -568,22 +610,37 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   VecSet(outloc,0.0);
 
   ierr = DMDAVecGetArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
- 
+
   ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xm,NULL,NULL);CHKERRQ(ierr);
   Nl    = appctx->param.N; 
-  
+
   xs=xs/(Nl-1);
   xm=xm/(Nl-1);
-  
-   for (ix=xs; ix<xs+xm; ix++) 
-     {for (jx=0; jx<Nl; jx++) 
-        {indx=ix*(Nl-1)+jx;
-        for (jy=0; jy<Nl; jy++) 
-        {indy=ix*(Nl-1)+jy;
-         outl[indx] += appctx->param.mu*2.0/appctx->param.Le*stiff[jy][jx]*ul[indy]+grad[jy][jx]*ul[indy]*uj[indy]+grad[jx][jy]*uj[indy]*ul[indx];
-        }
-       }
-     }
+
+  codi::RealReverse::TapeType& tape = codi::RealReverse::getGlobalTape();  
+  a1s *a1s_ul = new a1s[Nl*xm];
+  a1s *a1s_outl = new a1s[Nl*xm];
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++) 
+  {
+    a1s_ul[ix] = uj[ix];
+    a1s_outl[ix] = 0.0;
+    tape.registerInput(a1s_ul[ix]);
+  }
+  tape.setActive();
+  ierr = ADRHSFunction<a1s>(a1s_outl, a1s_ul, appctx);
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++)
+  {
+    tape.registerOutput(a1s_outl[ix]);
+    a1s_outl[ix].setGradient(ul[ix]);
+  } 
+  tape.setPassive();
+  tape.evaluate();
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++) 
+  {
+    outl[ix] = a1s_ul[ix].gradient();
+  }
+  delete [] a1s_ul;
+  delete [] a1s_outl;
 
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
   DMDAVecRestoreArrayRead(appctx->da,in,&uloc);CHKERRQ(ierr);
@@ -636,21 +693,22 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   ierr = DMDAVecGetArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
  
   ierr = DMDAGetCorners(appctx->da,&xs,NULL,NULL,&xm,NULL,NULL);CHKERRQ(ierr);
-  Nl    = appctx->param.N; 
+  ierr = ADRHSFunction<PetscScalar> (outl, ul, ctx); 
+  // Nl    = appctx->param.N; 
     
-  xs=xs/(Nl-1);
-  xm=xm/(Nl-1);
+  // xs=xs/(Nl-1);
+  // xm=xm/(Nl-1);
   
-   for (ix=xs; ix<xs+xm; ix++) 
-     {for (jx=0; jx<Nl; jx++) 
-        {indx=ix*(Nl-1)+jx;
+  //  for (ix=xs; ix<xs+xm; ix++) 
+  //    {for (jx=0; jx<Nl; jx++) 
+  //       {indx=ix*(Nl-1)+jx;
       
-        for (jy=0; jy<Nl; jy++) 
-        {indy=ix*(Nl-1)+jy;
-         outl[indx] += appctx->param.mu*2.0/appctx->param.Le*stiff[jx][jy]*ul[indy]+grad[jx][jy]*ul[indy]*ul[indx];
-        }
-       }
-     }
+  //       for (jy=0; jy<Nl; jy++) 
+  //       {indy=ix*(Nl-1)+jy;
+  //        outl[indx] += appctx->param.mu*2.0/appctx->param.Le*stiff[jx][jy]*ul[indy]+grad[jx][jy]*ul[indy]*ul[indx];
+  //       }
+  //      }
+  //    }
   
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
   DMDAVecRestoreArrayRead(appctx->da,globalin,&uloc);CHKERRQ(ierr);
