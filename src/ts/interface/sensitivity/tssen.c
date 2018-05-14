@@ -734,13 +734,40 @@ PetscErrorCode TSGetCostHessianProducts(TS ts,PetscInt *numcost,Vec **lambda2,Ve
 @*/
 PetscErrorCode TSAdjointInitializeForward(TS ts,Mat didp)
 {
+  Mat            A;
+  Vec            sp;
+  PetscScalar    *xarr;
+  PetscInt       lsize;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ts->forward_solve = PETSC_TRUE; /* turn on TLM mode */
   if (!ts->vecs_sensi2) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetCostHessianProducts() first");
-  if (ts->vecs_sensi2p && !didp) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"The fourth argument is not NULL, indicating parametric sensitivities are desired, so the dIdP matrix must be provided"); /* check conflicted settings */
-  ierr = TSForwardSetInitialSensitivities(ts,didp);CHKERRQ(ierr); /* if didp is NULL, identity matrix is assumed */
+  if (!ts->vec_dir) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Directional vector is missing. Call TSSetCostHessianProducts() to set it.");
+  /* create a single-column dense matrix */
+  ierr = VecGetLocalSize(ts->vec_dir,&lsize);CHKERRQ(ierr);
+  ierr = MatCreateDense(PETSC_COMM_WORLD,lsize,PETSC_DECIDE,PETSC_DECIDE,1,NULL,&A);CHKERRQ(ierr);
+
+  ierr = VecDuplicate(ts->vec_dir,&sp);CHKERRQ(ierr);
+  ierr = MatDenseGetColumn(A,0,&xarr);CHKERRQ(ierr);
+  ierr = VecPlaceArray(sp,xarr);CHKERRQ(ierr);
+  if (ts->vecs_sensi2p) { /* TLM variable initialized as 2*dIdP*dir */
+    if (didp) {
+      ierr = MatMult(didp,ts->vec_dir,sp);CHKERRQ(ierr);
+      ierr = VecScale(sp,2.);CHKERRQ(ierr);
+    } else {
+      ierr = VecZeroEntries(sp);CHKERRQ(ierr);
+    }
+  } else { /* TLM variable initialized as dir */
+    ierr = VecCopy(ts->vec_dir,sp);CHKERRQ(ierr);
+  }
+  ierr = VecResetArray(sp);CHKERRQ(ierr);
+  ierr = MatDenseRestoreColumn(A,&xarr);CHKERRQ(ierr);
+  ierr = VecDestroy(&sp);CHKERRQ(ierr);
+
+  ierr = TSForwardSetInitialSensitivities(ts,A);CHKERRQ(ierr); /* if didp is NULL, identity matrix is assumed */
+
+  ierr = MatDestroy(&A);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1628,36 +1655,12 @@ PetscErrorCode TSForwardCostIntegral(TS ts)
 @*/
 PetscErrorCode TSForwardSetInitialSensitivities(TS ts,Mat didp)
 {
-  Vec            sp;
-  PetscInt       lsize;
-  PetscScalar    *xarr;
   PetscErrorCode ierr;
 
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
-  if (ts->vec_dir) { /* indicates second-order adjoint caculation */
-    Mat A;
-    ierr = TSForwardGetSensitivities(ts,NULL,&A);CHKERRQ(ierr);
-    if (!A) { /* create a single-column dense matrix */
-      ierr = VecGetLocalSize(ts->vec_dir,&lsize);CHKERRQ(ierr);
-      ierr = MatCreateDense(PETSC_COMM_WORLD,lsize,PETSC_DECIDE,PETSC_DECIDE,1,NULL,&A);CHKERRQ(ierr);
-    }
-    ierr = VecDuplicate(ts->vec_dir,&sp);CHKERRQ(ierr);
-    ierr = MatDenseGetColumn(A,0,&xarr);CHKERRQ(ierr);
-    ierr = VecPlaceArray(sp,xarr);CHKERRQ(ierr);
-    if (didp) {
-      ierr = MatMult(didp,ts->vec_dir,sp);CHKERRQ(ierr);
-    } else { /* identity matrix assumed */
-      ierr = VecCopy(ts->vec_dir,sp);CHKERRQ(ierr);
-    }
-    ierr = VecResetArray(sp);CHKERRQ(ierr);
-    ierr = MatDenseRestoreColumn(A,&xarr);CHKERRQ(ierr);
-    ierr = VecDestroy(&sp);CHKERRQ(ierr);
-    ierr = TSForwardSetSensitivities(ts,1,A);CHKERRQ(ierr);
-  } else {
-    PetscValidHeaderSpecific(didp,MAT_CLASSID,2);
-    if (!ts->mat_sensip) {
-      ierr = TSForwardSetSensitivities(ts,PETSC_DEFAULT,didp);CHKERRQ(ierr);
-    }
+  PetscValidHeaderSpecific(didp,MAT_CLASSID,2);
+  if (!ts->mat_sensip) {
+    ierr = TSForwardSetSensitivities(ts,PETSC_DEFAULT,didp);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
