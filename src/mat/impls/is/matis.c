@@ -519,6 +519,7 @@ PETSC_INTERN PetscErrorCode MatConvert_XAIJ_IS(Mat A,MatType type,MatReuse reuse
     }
     ierr = MatISGetLocalMat(B,&lA);CHKERRQ(ierr);
     ierr = MatCreateSubMatrices(A,1,&rows,&cols,MAT_INITIAL_MATRIX,&newlA);CHKERRQ(ierr);
+    ierr = MatConvert(newlA[0],MATSEQAIJ,MAT_INPLACE_MATRIX,&newlA[0]);CHKERRQ(ierr);
     ierr = ISLocalToGlobalMappingRestoreBlockIndices(rl2g,&ridx);CHKERRQ(ierr);
     ierr = ISLocalToGlobalMappingRestoreBlockIndices(cl2g,&cidx);CHKERRQ(ierr);
     ierr = ISDestroy(&rows);CHKERRQ(ierr);
