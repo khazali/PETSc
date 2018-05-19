@@ -126,7 +126,6 @@ typedef struct {
   IS          is_diff; /* indices for differential equations */
   IS          is_alg; /* indices for algebraic equations */
   PetscBool   setisdiff; /* TS computes truncation error based only on the differential variables */
-  PetscBool   semiexplicit; /* If the flag is set then a semi-explicit method is used using TSRK */
 } Userctx;
 
 /*
@@ -550,43 +549,58 @@ PetscErrorCode ResidualFunction(Vec X, Vec F, Userctx *user)
   PetscFunctionReturn(0);
 }
 
-/*   f(x,y)
-     g(x,y)
- */
+/*
+    f(x,y)
+    0
+*/
 PetscErrorCode RHSFunction(TS ts,PetscReal t, Vec X, Vec F, void *ctx)
 {
   PetscErrorCode ierr;
+  PetscScalar    *f;
+  PetscInt       i;
   Userctx        *user=(Userctx*)ctx;
 
   PetscFunctionBegin;
   user->t = t;
   ierr = ResidualFunction(X,F,user);CHKERRQ(ierr);
+  ierr = VecGetArray(F,&f);CHKERRQ(ierr);
+  for (i=0;i < ngen;i++) {
+    f[9*i+4] = 0;
+    f[9*i+5] = 0;
+  }
+  for (i=0;i < nbus;i++) {
+    f[9*ngen+2*i]   = 0;
+    f[9*ngen+2*i+1] = 0;
+  }
+  ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-/*   \dot{x} - f(x,y)
-     -g(x,y)
- */
+/*
+    \dot{x}
+    -g(x,y)
+*/
 PetscErrorCode IFunction(TS ts,PetscReal t, Vec X, Vec Xdot, Vec F, void *ctx)
 {
   PetscErrorCode ierr;
   PetscScalar    *f,*xdot;
   PetscInt       i;
+  Userctx        *user=(Userctx*)ctx;
 
   PetscFunctionBegin;
-
-  ierr = RHSFunction(ts,t,X,F,ctx);CHKERRQ(ierr);
+  user->t = t;
+  ierr = ResidualFunction(X,F,user);CHKERRQ(ierr);
   ierr = VecScale(F,-1.);CHKERRQ(ierr);
   ierr = VecGetArray(F,&f);CHKERRQ(ierr);
   ierr = VecGetArray(Xdot,&xdot);CHKERRQ(ierr);
   for (i=0;i < ngen;i++) {
-    f[9*i]   += xdot[9*i];
-    f[9*i+1] += xdot[9*i+1];
-    f[9*i+2] += xdot[9*i+2];
-    f[9*i+3] += xdot[9*i+3];
-    f[9*i+6] += xdot[9*i+6];
-    f[9*i+7] += xdot[9*i+7];
-    f[9*i+8] += xdot[9*i+8];
+    f[9*i]   = xdot[9*i];
+    f[9*i+1] = xdot[9*i+1];
+    f[9*i+2] = xdot[9*i+2];
+    f[9*i+3] = xdot[9*i+3];
+    f[9*i+6] = xdot[9*i+6];
+    f[9*i+7] = xdot[9*i+7];
+    f[9*i+8] = xdot[9*i+8];
   }
   ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
   ierr = VecRestoreArray(Xdot,&xdot);CHKERRQ(ierr);
@@ -691,18 +705,14 @@ PetscErrorCode PreallocateJacobian(Mat J, Userctx *user)
   PetscFunctionReturn(0);
 }
 
-/*
-   J = [df_dx, df_dy
-        dg_dx, dg_dy]
-*/
-PetscErrorCode ResidualJacobian(Vec X,Mat J,Mat B,void *ctx)
+PetscErrorCode ResidualRHSJacobian(Vec X,Mat J,Mat B,void *ctx)
 {
   PetscErrorCode ierr;
   Userctx        *user=(Userctx*)ctx;
   Vec            Xgen,Xnet;
   PetscScalar    *xgen,*xnet;
   PetscInt       i,idx=0;
-  PetscScalar    Vr,Vi,Vm,Vm2;
+  PetscScalar    Vr,Vi,Vm;
   PetscScalar    Eqp,Edp,delta; /* Generator variables */
   PetscScalar    Efd;
   PetscScalar    Id,Iq;  /* Generator dq axis currents */
@@ -712,23 +722,13 @@ PetscErrorCode ResidualJacobian(Vec X,Mat J,Mat B,void *ctx)
   PetscInt       net_start=user->neqs_gen;
   PetscScalar    Zdq_inv[4],det;
   PetscScalar    dVd_dVr,dVd_dVi,dVq_dVr,dVq_dVi,dVd_ddelta,dVq_ddelta;
-  PetscScalar    dIGr_ddelta,dIGi_ddelta,dIGr_dId,dIGr_dIq,dIGi_dId,dIGi_dIq;
   PetscScalar    dSE_dEfd;
   PetscScalar    dVm_dVd,dVm_dVq,dVm_dVr,dVm_dVi;
-  PetscInt          ncols;
-  const PetscInt    *cols;
-  const PetscScalar *yvals;
-  PetscInt          k;
-  PetscScalar PD,QD,Vm0,*v0,Vm4;
-  PetscScalar dPD_dVr,dPD_dVi,dQD_dVr,dQD_dVi;
-  PetscScalar dIDr_dVr,dIDr_dVi,dIDi_dVr,dIDi_dVi;
-
 
   PetscFunctionBegin;
-  ierr  = MatZeroEntries(B);CHKERRQ(ierr);
-  ierr  = DMCompositeGetLocalVectors(user->dmpgrid,&Xgen,&Xnet);CHKERRQ(ierr);
-  ierr  = DMCompositeScatter(user->dmpgrid,X,Xgen,Xnet);CHKERRQ(ierr);
-
+  ierr = MatZeroEntries(B);CHKERRQ(ierr);
+  ierr = DMCompositeGetLocalVectors(user->dmpgrid,&Xgen,&Xnet);CHKERRQ(ierr);
+  ierr = DMCompositeScatter(user->dmpgrid,X,Xgen,Xnet);CHKERRQ(ierr);
   ierr = VecGetArray(Xgen,&xgen);CHKERRQ(ierr);
   ierr = VecGetArray(Xnet,&xnet);CHKERRQ(ierr);
 
@@ -782,39 +782,6 @@ PetscErrorCode ResidualJacobian(Vec X,Mat J,Mat B,void *ctx)
     dVd_ddelta = Vr*PetscCosScalar(delta) + Vi*PetscSinScalar(delta);
     dVq_ddelta = -Vr*PetscSinScalar(delta) + Vi*PetscCosScalar(delta);
 
-    /*    fgen[idx+4] = Zdq_inv[0]*(-Edp + Vd) + Zdq_inv[1]*(-Eqp + Vq) + Id; */
-    row[0] = idx+4;
-    col[0] = idx;         col[1] = idx+1;        col[2] = idx + 2;
-    val[0] = -Zdq_inv[1]; val[1] = -Zdq_inv[0];  val[2] = Zdq_inv[0]*dVd_ddelta + Zdq_inv[1]*dVq_ddelta;
-    col[3] = idx + 4; col[4] = net_start+2*gbus[i];                     col[5] = net_start + 2*gbus[i]+1;
-    val[3] = 1;       val[4] = Zdq_inv[0]*dVd_dVr + Zdq_inv[1]*dVq_dVr; val[5] = Zdq_inv[0]*dVd_dVi + Zdq_inv[1]*dVq_dVi;
-    ierr   = MatSetValues(J,1,row,6,col,val,INSERT_VALUES);CHKERRQ(ierr);
-
-    /*  fgen[idx+5] = Zdq_inv[2]*(-Edp + Vd) + Zdq_inv[3]*(-Eqp + Vq) + Iq; */
-    row[0] = idx+5;
-    col[0] = idx;         col[1] = idx+1;        col[2] = idx + 2;
-    val[0] = -Zdq_inv[3]; val[1] = -Zdq_inv[2];  val[2] = Zdq_inv[2]*dVd_ddelta + Zdq_inv[3]*dVq_ddelta;
-    col[3] = idx + 5; col[4] = net_start+2*gbus[i];                     col[5] = net_start + 2*gbus[i]+1;
-    val[3] = 1;       val[4] = Zdq_inv[2]*dVd_dVr + Zdq_inv[3]*dVq_dVr; val[5] = Zdq_inv[2]*dVd_dVi + Zdq_inv[3]*dVq_dVi;
-    ierr   = MatSetValues(J,1,row,6,col,val,INSERT_VALUES);CHKERRQ(ierr);
-
-    dIGr_ddelta = Id*PetscCosScalar(delta) - Iq*PetscSinScalar(delta);
-    dIGi_ddelta = Id*PetscSinScalar(delta) + Iq*PetscCosScalar(delta);
-    dIGr_dId    = PetscSinScalar(delta);  dIGr_dIq = PetscCosScalar(delta);
-    dIGi_dId    = -PetscCosScalar(delta); dIGi_dIq = PetscSinScalar(delta);
-
-    /* fnet[2*gbus[i]]   -= IGi; */
-    row[0] = net_start + 2*gbus[i];
-    col[0] = idx+2;        col[1] = idx + 4;   col[2] = idx + 5;
-    val[0] = -dIGi_ddelta; val[1] = -dIGi_dId; val[2] = -dIGi_dIq;
-    ierr = MatSetValues(J,1,row,3,col,val,INSERT_VALUES);CHKERRQ(ierr);
-
-    /* fnet[2*gbus[i]+1]   -= IGr; */
-    row[0] = net_start + 2*gbus[i]+1;
-    col[0] = idx+2;        col[1] = idx + 4;   col[2] = idx + 5;
-    val[0] = -dIGr_ddelta; val[1] = -dIGr_dId; val[2] = -dIGr_dIq;
-    ierr   = MatSetValues(J,1,row,3,col,val,INSERT_VALUES);CHKERRQ(ierr);
-
     Vm = PetscSqrtScalar(Vd*Vd + Vq*Vq);
 
     /*    fgen[idx+6] = (-KE[i]*Efd - SE + VR)/TE[i]; */
@@ -858,6 +825,112 @@ PetscErrorCode ResidualJacobian(Vec X,Mat J,Mat B,void *ctx)
     }
 
     idx        = idx + 9;
+  }
+  PetscFunctionReturn(0);
+}
+
+/*
+   J = [0, 0
+        dg_dx, dg_dy]
+*/
+PetscErrorCode ResidualIJacobian(Vec X,Mat J,Mat B,void *ctx)
+{
+  PetscErrorCode ierr;
+  Userctx        *user=(Userctx*)ctx;
+  Vec            Xgen,Xnet;
+  PetscScalar    *xnet;
+  PetscInt       i;
+  PetscScalar    Vr,Vi,Vm,Vm2;
+  PetscScalar    val[10];
+  PetscInt       row[2],col[10];
+  PetscInt       net_start=user->neqs_gen;
+  PetscInt          ncols;
+  const PetscInt    *cols;
+  const PetscScalar *yvals;
+  PetscInt          k;
+  PetscScalar PD,QD,Vm0,*v0,Vm4;
+  PetscScalar dPD_dVr,dPD_dVi,dQD_dVr,dQD_dVi;
+  PetscScalar dIDr_dVr,dIDr_dVi,dIDi_dVr,dIDi_dVi;
+
+  PetscScalar    *xgen;
+  PetscInt       idx=0;
+  PetscScalar    Eqp,Edp,delta,w; /* Generator variables */
+  PetscScalar    Efd,RF,VR;
+  PetscScalar    Id,Iq;  /* Generator dq axis currents */
+  PetscScalar    Vd,Vq;
+  PetscScalar    Zdq_inv[4],det;
+  PetscScalar    dVd_dVr,dVd_dVi,dVq_dVr,dVq_dVi,dVd_ddelta,dVq_ddelta;
+  PetscScalar    dIGr_ddelta,dIGi_ddelta,dIGr_dId,dIGr_dIq,dIGi_dId,dIGi_dIq;
+
+  PetscFunctionBegin;
+  ierr = MatZeroEntries(B);CHKERRQ(ierr);
+  ierr = DMCompositeGetLocalVectors(user->dmpgrid,&Xgen,&Xnet);CHKERRQ(ierr);
+  ierr = DMCompositeScatter(user->dmpgrid,X,Xgen,Xnet);CHKERRQ(ierr);
+  ierr = VecGetArray(Xgen,&xgen);CHKERRQ(ierr);
+  ierr = VecGetArray(Xnet,&xnet);CHKERRQ(ierr);
+
+    /* Generator subsystem */
+  for (i=0; i < ngen; i++) {
+    Eqp   = xgen[idx];
+    Edp   = xgen[idx+1];
+    delta = xgen[idx+2];
+    w     = xgen[idx+3];
+    Id    = xgen[idx+4];
+    Iq    = xgen[idx+5];
+    Efd   = xgen[idx+6];
+    RF    = xgen[idx+7];
+    VR    = xgen[idx+8];
+
+    Vr   = xnet[2*gbus[i]]; /* Real part of generator terminal voltage */
+    Vi   = xnet[2*gbus[i]+1]; /* Imaginary part of the generator terminal voltage */
+    ierr = ri2dq(Vr,Vi,delta,&Vd,&Vq);CHKERRQ(ierr);
+
+    det = Rs[i]*Rs[i] + Xdp[i]*Xqp[i];
+
+    Zdq_inv[0] = Rs[i]/det;
+    Zdq_inv[1] = Xqp[i]/det;
+    Zdq_inv[2] = -Xdp[i]/det;
+    Zdq_inv[3] = Rs[i]/det;
+
+    dVd_dVr    = PetscSinScalar(delta); dVd_dVi = -PetscCosScalar(delta);
+    dVq_dVr    = PetscCosScalar(delta); dVq_dVi = PetscSinScalar(delta);
+    dVd_ddelta = Vr*PetscCosScalar(delta) + Vi*PetscSinScalar(delta);
+    dVq_ddelta = -Vr*PetscSinScalar(delta) + Vi*PetscCosScalar(delta);
+
+    /*    fgen[idx+4] = Zdq_inv[0]*(-Edp + Vd) + Zdq_inv[1]*(-Eqp + Vq) + Id; */
+    row[0] = idx+4;
+    col[0] = idx;         col[1] = idx+1;        col[2] = idx + 2;
+    val[0] = -Zdq_inv[1]; val[1] = -Zdq_inv[0];  val[2] = Zdq_inv[0]*dVd_ddelta + Zdq_inv[1]*dVq_ddelta;
+    col[3] = idx + 4; col[4] = net_start+2*gbus[i];                     col[5] = net_start + 2*gbus[i]+1;
+    val[3] = 1;       val[4] = Zdq_inv[0]*dVd_dVr + Zdq_inv[1]*dVq_dVr; val[5] = Zdq_inv[0]*dVd_dVi + Zdq_inv[1]*dVq_dVi;
+    ierr   = MatSetValues(J,1,row,6,col,val,INSERT_VALUES);CHKERRQ(ierr);
+
+    /*  fgen[idx+5] = Zdq_inv[2]*(-Edp + Vd) + Zdq_inv[3]*(-Eqp + Vq) + Iq; */
+    row[0] = idx+5;
+    col[0] = idx;         col[1] = idx+1;        col[2] = idx + 2;
+    val[0] = -Zdq_inv[3]; val[1] = -Zdq_inv[2];  val[2] = Zdq_inv[2]*dVd_ddelta + Zdq_inv[3]*dVq_ddelta;
+    col[3] = idx + 5; col[4] = net_start+2*gbus[i];                     col[5] = net_start + 2*gbus[i]+1;
+    val[3] = 1;       val[4] = Zdq_inv[2]*dVd_dVr + Zdq_inv[3]*dVq_dVr; val[5] = Zdq_inv[2]*dVd_dVi + Zdq_inv[3]*dVq_dVi;
+    ierr   = MatSetValues(J,1,row,6,col,val,INSERT_VALUES);CHKERRQ(ierr);
+
+    dIGr_ddelta = Id*PetscCosScalar(delta) - Iq*PetscSinScalar(delta);
+    dIGi_ddelta = Id*PetscSinScalar(delta) + Iq*PetscCosScalar(delta);
+    dIGr_dId    = PetscSinScalar(delta);  dIGr_dIq = PetscCosScalar(delta);
+    dIGi_dId    = -PetscCosScalar(delta); dIGi_dIq = PetscSinScalar(delta);
+
+    /* fnet[2*gbus[i]]   -= IGi; */
+    row[0] = net_start + 2*gbus[i];
+    col[0] = idx+2;        col[1] = idx + 4;   col[2] = idx + 5;
+    val[0] = -dIGi_ddelta; val[1] = -dIGi_dId; val[2] = -dIGi_dIq;
+    ierr = MatSetValues(J,1,row,3,col,val,INSERT_VALUES);CHKERRQ(ierr);
+
+    /* fnet[2*gbus[i]+1]   -= IGr; */
+    row[0] = net_start + 2*gbus[i]+1;
+    col[0] = idx+2;        col[1] = idx + 4;   col[2] = idx + 5;
+    val[0] = -dIGr_ddelta; val[1] = -dIGr_dId; val[2] = -dIGr_dIq;
+    ierr   = MatSetValues(J,1,row,3,col,val,INSERT_VALUES);CHKERRQ(ierr);
+
+    idx = idx + 9;
   }
 
   for (i=0; i<nbus; i++) {
@@ -925,13 +998,8 @@ PetscErrorCode ResidualJacobian(Vec X,Mat J,Mat B,void *ctx)
   }
   ierr = VecRestoreArray(user->V0,&v0);CHKERRQ(ierr);
 
-  ierr = VecRestoreArray(Xgen,&xgen);CHKERRQ(ierr);
   ierr = VecRestoreArray(Xnet,&xnet);CHKERRQ(ierr);
-
   ierr = DMCompositeRestoreLocalVectors(user->dmpgrid,&Xgen,&Xnet);CHKERRQ(ierr);
-
-  ierr = MatAssemblyBegin(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-  ierr = MatAssemblyEnd(J,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -945,7 +1013,9 @@ PetscErrorCode AlgJacobian(SNES snes,Vec X,Mat A,Mat B,void *ctx)
   Userctx        *user=(Userctx*)ctx;
 
   PetscFunctionBegin;
-  ierr = ResidualJacobian(X,A,B,ctx);CHKERRQ(ierr);
+  ierr = ResidualIJacobian(X,A,B,ctx);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatSetOption(A,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE);CHKERRQ(ierr);
   ierr = MatZeroRowsIS(A,user->is_diff,1.0,NULL,NULL);CHKERRQ(ierr);
   PetscFunctionReturn(0);
@@ -953,7 +1023,7 @@ PetscErrorCode AlgJacobian(SNES snes,Vec X,Mat A,Mat B,void *ctx)
 
 /*
    J = [df_dx, df_dy
-        dg_dx, dg_dy]
+        0, 0]
 */
 
 PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec X,Mat A,Mat B,void *ctx)
@@ -963,17 +1033,16 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec X,Mat A,Mat B,void *ctx)
 
   PetscFunctionBegin;
   user->t = t;
-
-  ierr = ResidualJacobian(X,A,B,user);CHKERRQ(ierr);
-
+  ierr = ResidualRHSJacobian(X,A,B,user);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 /*
-   J = [aI-df_dx, -df_dy
+   J = [aI, 0
         -dg_dx, -dg_dy]
 */
-
 PetscErrorCode IJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat A,Mat B,Userctx *user)
 {
   PetscErrorCode ierr;
@@ -981,10 +1050,10 @@ PetscErrorCode IJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat A,Mat 
   PetscInt       i,row;
 
   PetscFunctionBegin;
+  atmp = -atmp;
   user->t = t;
+  ierr = ResidualIJacobian(X,A,B,user);CHKERRQ(ierr);
 
-  ierr = RHSJacobian(ts,t,X,A,B,user);CHKERRQ(ierr);
-  ierr = MatScale(A,-1.);CHKERRQ(ierr);
   for (i=0;i < ngen;i++) {
     row = 9*i;
     ierr = MatSetValues(A,1,&row,1,&row,&atmp,ADD_VALUES);CHKERRQ(ierr);
@@ -1003,6 +1072,7 @@ PetscErrorCode IJacobian(TS ts,PetscReal t,Vec X,Vec Xdot,PetscReal a,Mat A,Mat 
   }
   ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatScale(A,-1.);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1067,7 +1137,6 @@ int main(int argc,char **argv)
     user.tfaultoff = 1.2;
     user.Rfault    = 0.0001;
     user.setisdiff = PETSC_FALSE;
-    user.semiexplicit = PETSC_FALSE;
     user.faultbus  = 8;
     ierr           = PetscOptionsReal("-tfaulton","","",user.tfaulton,&user.tfaulton,NULL);CHKERRQ(ierr);
     ierr           = PetscOptionsReal("-tfaultoff","","",user.tfaultoff,&user.tfaultoff,NULL);CHKERRQ(ierr);
@@ -1077,7 +1146,6 @@ int main(int argc,char **argv)
     ierr           = PetscOptionsReal("-t0","","",user.t0,&user.t0,NULL);CHKERRQ(ierr);
     ierr           = PetscOptionsReal("-tmax","","",user.tmax,&user.tmax,NULL);CHKERRQ(ierr);
     ierr           = PetscOptionsBool("-setisdiff","","",user.setisdiff,&user.setisdiff,NULL);CHKERRQ(ierr);
-    ierr           = PetscOptionsBool("-dae_semiexplicit","","",user.semiexplicit,&user.semiexplicit,NULL);CHKERRQ(ierr);
   }
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
@@ -1115,17 +1183,13 @@ int main(int argc,char **argv)
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
   ierr = TSCreate(PETSC_COMM_WORLD,&ts);CHKERRQ(ierr);
   ierr = TSSetProblemType(ts,TS_NONLINEAR);CHKERRQ(ierr);
-  if(user.semiexplicit) {
-    ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
-    ierr = TSSetRHSFunction(ts,NULL,RHSFunction,&user);CHKERRQ(ierr);
-    ierr = TSSetRHSJacobian(ts,J,J,RHSJacobian,&user);CHKERRQ(ierr);
-  } else {
-    ierr = TSSetType(ts,TSCN);CHKERRQ(ierr);
-    ierr = TSSetEquationType(ts,TS_EQ_DAE_IMPLICIT_INDEX1);CHKERRQ(ierr);
-    ierr = TSARKIMEXSetFullyImplicit(ts,PETSC_TRUE);CHKERRQ(ierr);
-    ierr = TSSetIFunction(ts,NULL,(TSIFunction) IFunction,&user);CHKERRQ(ierr);
-    ierr = TSSetIJacobian(ts,J,J,(TSIJacobian)IJacobian,&user);CHKERRQ(ierr);
-  }
+  ierr = TSSetType(ts,TSARKIMEX);CHKERRQ(ierr);
+  ierr = TSSetEquationType(ts,TS_EQ_DAE_IMPLICIT_INDEX1);CHKERRQ(ierr);
+  ierr = TSSetRHSFunction(ts,NULL,RHSFunction,&user);CHKERRQ(ierr);
+  ierr = TSSetRHSJacobian(ts,NULL,NULL,RHSJacobian,&user);CHKERRQ(ierr);
+  ierr = TSSetIFunction(ts,NULL,(TSIFunction) IFunction,&user);CHKERRQ(ierr);
+  ierr = TSSetIJacobian(ts,J,J,(TSIJacobian)IJacobian,&user);CHKERRQ(ierr);
+  //ierr = MatSetOption(J, MAT_NEW_NONZERO_ALLOCATION_ERR, PETSC_FALSE);
   ierr = TSSetApplicationContext(ts,&user);CHKERRQ(ierr);
 
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1169,16 +1233,6 @@ int main(int argc,char **argv)
 
   ierr = TSSetEventHandler(ts,2*ngen+2,direction,terminate,EventFunction,PostEventFunction,(void*)&user);CHKERRQ(ierr);
 
-  if(user.semiexplicit) {
-    /* Use a semi-explicit approach with the time-stepping done by an explicit method and the
-       algrebraic part solved via PostStage and PostEvaluate callbacks 
-    */
-    ierr = TSSetType(ts,TSRK);CHKERRQ(ierr);
-    ierr = TSSetPostStage(ts,PostStage);CHKERRQ(ierr);
-    ierr = TSSetPostEvaluate(ts,PostEvaluate);CHKERRQ(ierr);
-  }
-
-
   if(user.setisdiff) {
     /* Create vector of absolute tolerances and set the algebraic part to infinity */
     ierr = VecDuplicate(X,&vatol);CHKERRQ(ierr);
@@ -1199,12 +1253,12 @@ int main(int argc,char **argv)
   ierr = VecDuplicate(X,&F_alg);CHKERRQ(ierr);
   ierr = SNESCreate(PETSC_COMM_WORLD,&snes_alg);CHKERRQ(ierr);
   ierr = SNESSetFunction(snes_alg,F_alg,AlgFunction,&user);CHKERRQ(ierr);
-  ierr = SNESSetJacobian(snes_alg,J,J,AlgJacobian,&user);CHKERRQ(ierr); 
+  ierr = SNESSetJacobian(snes_alg,J,J,AlgJacobian,&user);CHKERRQ(ierr);
 
   ierr = SNESSetFromOptions(snes_alg);CHKERRQ(ierr);
 
   user.snes_alg=snes_alg;
-  
+
   /* Solve */
   ierr = TSSolve(ts,X);CHKERRQ(ierr);
 
