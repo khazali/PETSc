@@ -1261,6 +1261,9 @@ int main(int argc,char **argv)
   /* Solve */
   ierr = TSSolve(ts,X);CHKERRQ(ierr);
 
+  ierr = AlgFunction(snes_alg,X,F_alg,&user);CHKERRQ(ierr);
+  ierr = VecView(F_alg,PETSC_VIEWER_STDOUT_SELF);CHKERRQ(ierr);
+
   ierr = MatAssemblyBegin(user.Sol,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(user.Sol,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
