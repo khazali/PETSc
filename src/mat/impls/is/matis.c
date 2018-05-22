@@ -1322,6 +1322,7 @@ static PetscErrorCode MatCreateSubMatrix_IS(Mat mat,IS irow,IS icol,MatReuse sca
     IS                     is;
     PetscInt               *lidxs,*lgidxs,*newgidxs;
     PetscInt               ll,newloc,irbs,icbs,arbs,acbs,rbs,cbs;
+    PetscBool              cong;
     MPI_Comm               comm;
 
     ierr = PetscObjectGetComm((PetscObject)mat,&comm);CHKERRQ(ierr);
@@ -1362,14 +1363,8 @@ static PetscErrorCode MatCreateSubMatrix_IS(Mat mat,IS irow,IS icol,MatReuse sca
     /* local is to extract local submatrix */
     newmatis = (Mat_IS*)(*newmat)->data;
     ierr = ISCreateGeneral(comm,newloc,lidxs,PETSC_OWN_POINTER,&newmatis->getsub_ris);CHKERRQ(ierr);
-    if (mat->congruentlayouts == -1) { /* first time we compare rows and cols layouts */
-      PetscBool cong;
-
-      ierr = PetscLayoutCompare(mat->rmap,mat->cmap,&cong);CHKERRQ(ierr);
-      if (cong) mat->congruentlayouts = 1;
-      else      mat->congruentlayouts = 0;
-    }
-    if (mat->congruentlayouts && irow == icol && matis->csf == matis->sf) {
+    ierr = MatHasCongruentLayouts(mat,&cong);CHKERRQ(ierr);
+    if (cong && irow == icol && matis->csf == matis->sf) {
       ierr = MatSetLocalToGlobalMapping(*newmat,rl2g,rl2g);CHKERRQ(ierr);
       ierr = PetscObjectReference((PetscObject)newmatis->getsub_ris);CHKERRQ(ierr);
       newmatis->getsub_cis = newmatis->getsub_ris;
