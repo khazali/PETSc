@@ -434,6 +434,7 @@ PETSC_INTERN PetscErrorCode MatZeroRowsMapLocal_Private(Mat,PetscInt,const Petsc
 typedef struct _MatPartitioningOps *MatPartitioningOps;
 struct _MatPartitioningOps {
   PetscErrorCode (*apply)(MatPartitioning,IS*);
+  PetscErrorCode (*applynd)(MatPartitioning,IS*);
   PetscErrorCode (*setfromoptions)(PetscOptionItems*,MatPartitioning);
   PetscErrorCode (*destroy)(MatPartitioning);
   PetscErrorCode (*view)(MatPartitioning,PetscViewer);
@@ -1626,6 +1627,7 @@ PETSC_EXTERN PetscLogEvent MAT_GetOrdering;
 PETSC_EXTERN PetscLogEvent MAT_RedundantMat;
 PETSC_EXTERN PetscLogEvent MAT_IncreaseOverlap;
 PETSC_EXTERN PetscLogEvent MAT_Partitioning;
+PETSC_EXTERN PetscLogEvent MAT_PartitioningND;
 PETSC_EXTERN PetscLogEvent MAT_Coarsen;
 PETSC_EXTERN PetscLogEvent MAT_ZeroEntries;
 PETSC_EXTERN PetscLogEvent MAT_Load;
