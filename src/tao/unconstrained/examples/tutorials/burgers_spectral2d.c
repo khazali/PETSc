@@ -134,9 +134,9 @@ int main(int argc,char **argv)
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
 
   /*initialize parameters */
-  appctx.param.N    = 8;  /* order of the spectral element */
-  appctx.param.Ex    = 6;  /* number of elements */
-  appctx.param.Ey    = 6;  /* number of elements */
+  appctx.param.N    = 4;  /* order of the spectral element */
+  appctx.param.Ex    = 2;  /* number of elements */
+  appctx.param.Ey    = 2;  /* number of elements */
   appctx.param.Lx    = 4.0;  /* length of the domain */
   appctx.param.Ly    = 4.0;  /* length of the domain */
   appctx.param.mu   = 0.005; /* diffusion coefficient */
@@ -320,7 +320,7 @@ int main(int argc,char **argv)
   ierr = ComputeObjective(2.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
   ierr = TSSolve(appctx.ts,appctx.dat.obj);CHKERRQ(ierr);
   
-/*
+
 
   Vec   ref, wrk_vec, jac, vec_jac, vec_rhs, temp, vec_trans;
   Field **s;
@@ -374,10 +374,10 @@ int main(int argc,char **argv)
     //ierr = PetscObjectSetName((PetscObject)ref,"ref");
     //ierr = VecView(ref,viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewfile);
-    printf("test i %d length %d\n",its, appctx.param.lenx*appctx.param.leny);
+    //printf("test i %d length %d\n",its, appctx.param.lenx*appctx.param.leny);
     } 
 exit(1);
-*/
+
   //ierr = VecDuplicate(appctx.dat.ic,&uu);CHKERRQ(ierr);
   //ierr = VecCopy(appctx.dat.ic,uu);CHKERRQ(ierr);
   //MatView(H_shell,0);
@@ -1316,6 +1316,10 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   ierr = PetscMalloc1(appctx->param.N,&wrk6);CHKERRQ(ierr);
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk6[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk7);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
 
 
   alpha = 1.0;
