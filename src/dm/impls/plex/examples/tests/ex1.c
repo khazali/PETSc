@@ -311,7 +311,7 @@ static void ex1_stats_reduce(void *a, void *b, int * len, MPI_Datatype *datatype
 static PetscErrorCode TestCellShape(DM dm)
 {
   PetscMPIInt    rank,size;
-  PetscInt       dim, c, cStart, cEnd, count = 0;
+  PetscInt       dim, c, cStart, cEnd, cMax, count = 0;
   ex1_stats_t    stats, globalStats;
   PetscReal      *J, *invJ, min = 0, max = 0, mean = 0, stdev = 0;
   MPI_Comm       comm = PetscObjectComm((PetscObject)dm);
@@ -329,7 +329,9 @@ static PetscErrorCode TestCellShape(DM dm)
   ierr = PetscMalloc2(dim * dim, &J, dim * dim, &invJ);CHKERRQ(ierr);
 
   ierr = DMPlexGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
-  for (c = cStart; c < cEnd; c++) {
+  ierr = DMPlexGetHybridBounds(dm,&cMax,NULL,NULL,NULL);CHKERRQ(ierr);
+  cMax = cMax < 0 ? cEnd : cMax;
+  for (c = cStart; c < cMax; c++) {
     PetscInt  i;
     PetscReal frobJ = 0., frobInvJ = 0., cond2, cond, detJ;
 
@@ -373,7 +375,7 @@ static PetscErrorCode TestCellShape(DM dm)
     min = globalStats.min;
     max = globalStats.max;
     mean = globalStats.sum / globalStats.count;
-    stdev = PetscSqrtReal(globalStats.squaresum / globalStats.count - mean * mean);
+    stdev = globalStats.count > 1 ? PetscSqrtReal((globalStats.squaresum - globalStats.count * mean * mean) / (globalStats.count - 1) ) : 0.0;
   }
   ierr = PetscPrintf(comm,"Mesh with %D cells, shape condition numbers: min = %g, max = %g, mean = %g, stddev = %g\n", count, (double) min, (double) max, (double) mean, (double) stdev);CHKERRQ(ierr);
 
