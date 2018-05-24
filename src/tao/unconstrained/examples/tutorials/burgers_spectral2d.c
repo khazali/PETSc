@@ -34,6 +34,19 @@ static char help[] ="Solves a simple data assimilation problem with one dimensio
 #include <petscdmda.h>
 #include <petscblaslapack.h>
 #include <petsc/private/petscimpl.h>
+#include <codi.hpp>
+#include "f2c.h"
+
+typedef codi::RealForwardGen<double> t1s;
+typedef codi::RealForwardGen<t1s> t2s;
+typedef codi::RealReverseGen<double> a1s;
+
+/* Subroutine */ int dgemm(char *transa, char *transb, integer *m, integer *
+          n, integer *k, doublereal *alpha, doublereal *a, integer *lda, 
+          doublereal *b, integer *ldb, doublereal *beta, doublereal *c__, 
+          integer *ldc);
+/* Subroutine */ int daxpy(integer *n, doublereal *da, doublereal *dx,
+          integer *incx, doublereal *dy, integer *incy);
 
 /*
    User-defined application context - contains data needed by the
@@ -57,9 +70,10 @@ typedef struct {
   PetscReal   Tadj;
 } PetscParam;
 
-typedef struct {
-  PetscScalar u,v;   /* wind speed */
-} Field;
+template <class T> class Field {
+  public: 
+    T u,v;   /* wind speed */
+};
 
 
 typedef struct {
@@ -116,7 +130,7 @@ int main(int argc,char **argv)
   PetscInt       xs, xm, ys,ym, ix,iy;
   PetscInt       indx,indy,m, nn;
   PetscReal      x,y;
-  Field          **bmass;
+  Field<double>  **bmass;
   DMDACoor2d     **coors;
   Vec            global,loc;
   DM             cda;
@@ -323,7 +337,7 @@ int main(int argc,char **argv)
 
 
   Vec   ref, wrk_vec, jac, vec_jac, vec_rhs, temp, vec_trans;
-  Field **s;
+  Field<double> **s;
   PetscScalar vareps;
   PetscInt i;   
   PetscInt its=0;
@@ -480,7 +494,7 @@ PetscErrorCode ComputeSolutionCoefficients(AppCtx *appctx)
 PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
 {
   PetscScalar       tt,pp;
-  Field             **s;
+  Field<double>     **s;
   PetscErrorCode    ierr;
   PetscInt          i,j;
   DM                cda;
@@ -536,7 +550,7 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
 PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
 {
   PetscScalar       tt;
-  Field             **s;  
+  Field<double>     **s;  
   PetscErrorCode    ierr;
   PetscInt          i,j;
   DM                cda;
@@ -575,7 +589,7 @@ PetscErrorCode TrueSolution(Vec u,AppCtx *appctx)
 */
 PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
 {
-  Field             **s; 
+  Field<double>     **s; 
   PetscErrorCode    ierr;
   PetscInt          i,j;
   DM                cda;
@@ -614,6 +628,230 @@ PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
   return 0;
 }
 
+template <class T> PetscErrorCode ADRHSFunction (Field<T> **outl, Field<T> **ul, void *ctx) 
+{
+  PetscErrorCode  ierr;
+  AppCtx          *appctx = (AppCtx*)ctx;  
+  T               **wrk3, **wrk1, **wrk2, **wrk4, **wrk5, **wrk6, **wrk7;
+  PetscScalar     **stiff, **mass, **grad;
+  T               **astiff, **amass, **agrad;
+  T               **ulb, **vlb;
+  PetscInt        i,ix,iy,jx,jy, indx, indy;
+  PetscInt        xs,xm,ys,ym, Nl, Nl2; 
+  PetscViewer     viewfile;
+  DM              cda;
+  Vec             uloc, outloc, global, forcing;
+  DMDACoor2d      **coors;
+  PetscScalar     tt, alpha, beta, tempu, tempv,xpy;
+  PetscScalar     aalpha, abeta; 
+  PetscInt        inc;  
+  static int its=0;
+  char var[12] ;
+
+  ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementMassCreate(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionCreate(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+
+  ierr = DMDAGetCorners(appctx->da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
+  Nl    = appctx->param.N; 
+
+  xs=xs/(Nl-1);
+  xm=xm/(Nl-1);
+  ys=ys/(Nl-1);
+  ym=ym/(Nl-1); 
+
+  inc=1;
+  /*
+     Initialize work arrays
+  */ 
+  astiff = new T*[appctx->param.N];
+  astiff[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) {
+    astiff[i] = astiff[i-1]+Nl;
+    for(int j=1; j<Nl; j++) {
+      astiff[i][j] = stiff[i][j];
+    }
+  }
+
+  amass = new T*[appctx->param.N];
+  amass[0] = new T[appctx->param.N * appctx->param.N];
+  for(int j=0; j<Nl; j++) {
+      amass[0][j] = mass[0][j];
+  }
+  for (i=1; i<Nl; i++) {
+    amass[i] = amass[i-1]+Nl;
+    for(int j=0; j<Nl; j++) {
+      amass[i][j] = mass[i][j];
+    }
+  }
+
+  astiff = new T*[appctx->param.N];
+  astiff[0] = new T[appctx->param.N * appctx->param.N];
+  for(int j=0; j<Nl; j++) {
+      astiff[0][j] = stiff[0][j];
+  }
+  for (i=1; i<Nl; i++) {
+    astiff[i] = astiff[i-1]+Nl;
+    for(int j=0; j<Nl; j++) {
+      astiff[i][j] = stiff[i][j];
+    }
+  }
+
+  agrad = new T*[appctx->param.N];
+  agrad[0] = new T[appctx->param.N * appctx->param.N];
+  for(int j=0; j<Nl; j++) {
+      agrad[0][j] = grad[0][j];
+  }
+  for (i=1; i<Nl; i++) {
+    agrad[i] = agrad[i-1]+Nl;
+    for(int j=0; j<Nl; j++) {
+      agrad[i][j] = grad[i][j];
+    }
+  }
+
+
+  ulb = new T*[appctx->param.N];
+  ulb[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) ulb[i] = ulb[i-1]+Nl;
+
+  vlb = new T*[appctx->param.N];
+  vlb[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) vlb[i] = vlb[i-1]+Nl;
+
+  wrk1 = new T*[appctx->param.N];
+  wrk1[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
+
+  wrk2 = new T*[appctx->param.N];
+  wrk2[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
+
+  wrk3 = new T*[appctx->param.N];
+  wrk3[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) wrk3[i] = wrk3[i-1]+Nl;\
+
+  wrk4 = new T*[appctx->param.N];
+  wrk4[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) wrk4[i] = wrk4[i-1]+Nl;
+
+  wrk5 = new T*[appctx->param.N];
+  wrk5[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) wrk5[i] = wrk5[i-1]+Nl;
+
+  wrk6 = new T*[appctx->param.N];
+  wrk6[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
+
+  wrk7 = new T*[appctx->param.N];
+  wrk7[0] = new T[appctx->param.N * appctx->param.N];
+  for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
+
+  alpha = 1.0;
+  aalpha = alpha;
+  beta  = 0.0;
+  abeta = beta;
+  Nl2=Nl*Nl;
+
+   for (ix=xs; ix<xs+xm; ix++) 
+      {for (iy=ys; iy<ys+ym; iy++) 
+         { 
+       for (jx=0; jx<appctx->param.N; jx++) 
+        {for (jy=0; jy<appctx->param.N; jy++) 
+               
+           {ulb[jy][jx]=0.0;
+            vlb[jy][jx]=0.0;
+            indx=ix*(appctx->param.N-1)+jx;
+            indy=iy*(appctx->param.N-1)+jy;
+            ulb[jy][jx]=ul[indy][indx].u; 
+            vlb[jy][jx]=ul[indy][indx].v; 
+          }}
+
+        //here the stifness matrix in 2d
+        //first product (B x K_yy)u=W2 (u_yy)
+        aalpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&amass[0][0],&Nl,&ulb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
+        aalpha=2./appctx->param.Ley;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&astiff[0][0],&Nl,&abeta,&wrk2[0][0],&Nl);
+
+        //second product (K_xx x B) u=W3 (u_xx)
+        aalpha=2.0/appctx->param.Lex;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&astiff[0][0],&Nl,&ulb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
+        aalpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&amass[0][0],&Nl,&abeta,&wrk3[0][0],&Nl);
+
+        aalpha=1.0;
+        BLASaxpy_(&Nl2,&aalpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the laplacian in wrk2
+       
+        // for the v component now 
+        //first product (B x K_yy)v=W3
+        aalpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&amass[0][0],&Nl,&vlb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
+        aalpha=2.0/appctx->param.Ley;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&astiff[0][0],&Nl,&abeta,&wrk3[0][0],&Nl);
+
+        //second product (K_xx x B)v=W4
+        aalpha=2.0/appctx->param.Lex;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&astiff[0][0],&Nl,&vlb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
+        aalpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&amass[0][0],&Nl,&abeta,&wrk4[0][0],&Nl);
+
+        aalpha=1.0;
+        BLASaxpy_(&Nl2,&aalpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the laplacian in wrk3
+
+
+        //now the gradient operator for u
+        // first (D_x x B) u =W4 this multiples u
+        aalpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&amass[0][0],&Nl,&ulb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
+        aalpha=1.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&agrad[0][0],&Nl,&abeta,&wrk4[0][0],&Nl);
+        
+
+        // first (B x D_y) u =W5 this mutiplies v
+        aalpha=1.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&agrad[0][0],&Nl,&ulb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
+        aalpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&amass[0][0],&Nl,&abeta,&wrk5[0][0],&Nl);
+
+
+        //now the agradient operator for v
+        // first (D_x x B) v =W6 this multiples u
+        aalpha=appctx->param.Lex/2.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&amass[0][0],&Nl,&vlb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
+        aalpha=1.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&agrad[0][0],&Nl,&abeta,&wrk6[0][0],&Nl);
+        
+
+        // first (B x D_y) v =W7 this mutiplies v
+        aalpha=1.0;
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&agrad[0][0],&Nl,&vlb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
+        aalpha=appctx->param.Ley/2.0;
+        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&amass[0][0],&Nl,&abeta,&wrk7[0][0],&Nl);
+
+
+        for (jx=0; jx<appctx->param.N; jx++) 
+        {for (jy=0; jy<appctx->param.N; jy++)   
+           {indx=ix*(appctx->param.N-1)+jx;
+            indy=iy*(appctx->param.N-1)+jy;
+            
+            outl[indy][indx].u +=appctx->param.mu*(wrk2[jy][jx])+vlb[jy][jx]*wrk5[jy][jx]+ulb[jy][jx]*wrk4[jy][jx];//+rr.u*mass[jy][jx];  
+            outl[indy][indx].v +=appctx->param.mu*(wrk3[jy][jx])+ulb[jy][jx]*wrk6[jy][jx]+vlb[jy][jx]*wrk7[jy][jx];//+rr.v*mass[jy][jx];    
+           }}
+        }
+     }
+  ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
+  ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
+  ierr = PetscGLLElementMassDestroy(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
+  
+  delete [] wrk1[0]; delete [] wrk1;
+  delete [] wrk2[0]; delete [] wrk2;
+  delete [] wrk3[0]; delete [] wrk3;
+  delete [] wrk4[0]; delete [] wrk4;
+  delete [] wrk5[0]; delete [] wrk5;
+  delete [] wrk6[0]; delete [] wrk6;
+  delete [] wrk7[0]; delete [] wrk7;
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "RHSFunction"
 PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ctx)
@@ -623,9 +861,9 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   PetscScalar     **wrk3, **wrk1, **wrk2, **wrk4, **wrk5, **wrk6, **wrk7;
   PetscScalar     **stiff, **mass, **grad;
   PetscScalar     **ulb, **vlb;
-  const Field     **ul;
-  Field           **ff;
-  Field           **outl; 
+  Field<double>  **ul;
+  Field<double>   **ff;
+  Field<double>   **outl; 
   PetscInt        i,ix,iy,jx,jy, indx, indy;
   PetscInt        xs,xm,ys,ym, Nl, Nl2; 
   PetscViewer     viewfile;
@@ -658,150 +896,8 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
 
   
   //ierr = DMDAVecGetArray(appctx->da,gradloc,&outgrad);CHKERRQ(ierr);
- 
-  ierr = DMDAGetCorners(appctx->da,&xs,&ys,NULL,&xm,&ym,NULL);CHKERRQ(ierr);
-  Nl    = appctx->param.N; 
+  ierr = ADRHSFunction<double> (outl, ul, ctx); 
 
-  //DMCreateGlobalVector(appctx->da,&gradgl);
-    
-  xs=xs/(Nl-1);
-  xm=xm/(Nl-1);
-  ys=ys/(Nl-1);
-  ym=ym/(Nl-1); 
-
-  inc=1;
-  /*
-     Initialize work arrays
-  */ 
-
-  ierr = PetscMalloc1(appctx->param.N,&ulb);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ulb[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) ulb[i] = ulb[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&vlb);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&vlb[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) vlb[i] = vlb[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk1);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk1[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk2);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk2[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk3);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk3[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk3[i] = wrk3[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk4);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk4[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk4[i] = wrk4[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk5);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk5[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk5[i] = wrk5[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk6);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk6[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk7);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
-
-  alpha = 1.0;
-  beta  = 0.0;
-  Nl2=Nl*Nl;
-
-   for (ix=xs; ix<xs+xm; ix++) 
-      {for (iy=ys; iy<ys+ym; iy++) 
-         { 
-       for (jx=0; jx<appctx->param.N; jx++) 
-        {for (jy=0; jy<appctx->param.N; jy++) 
-               
-           {ulb[jy][jx]=0.0;
-            vlb[jy][jx]=0.0;
-            indx=ix*(appctx->param.N-1)+jx;
-            indy=iy*(appctx->param.N-1)+jy;
-            ulb[jy][jx]=ul[indy][indx].u; 
-            vlb[jy][jx]=ul[indy][indx].v; 
-          }}
-
-        //here the stifness matrix in 2d
-        //first product (B x K_yy)u=W2 (u_yy)
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2./appctx->param.Ley;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
-
-        //second product (K_xx x B) u=W3 (u_xx)
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the laplacian in wrk2
-       
-        // for the v component now 
-        //first product (B x K_yy)v=W3
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2.0/appctx->param.Ley;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
-
-        //second product (K_xx x B)v=W4
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the laplacian in wrk3
-
-
-        //now the gradient operator for u
-        // first (D_x x B) u =W4 this multiples u
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
-        
-
-        // first (B x D_y) u =W5 this mutiplies v
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
-
-
-        //now the gradient operator for v
-        // first (D_x x B) v =W6 this multiples u
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
-        
-
-        // first (B x D_y) v =W7 this mutiplies v
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk7[0][0],&Nl);
-
-
-        for (jx=0; jx<appctx->param.N; jx++) 
-        {for (jy=0; jy<appctx->param.N; jy++)   
-           {indx=ix*(appctx->param.N-1)+jx;
-            indy=iy*(appctx->param.N-1)+jy;
-            
-            outl[indy][indx].u +=appctx->param.mu*(wrk2[jy][jx])+vlb[jy][jx]*wrk5[jy][jx]+ulb[jy][jx]*wrk4[jy][jx];//+rr.u*mass[jy][jx];  
-            outl[indy][indx].v +=appctx->param.mu*(wrk3[jy][jx])+ulb[jy][jx]*wrk6[jy][jx]+vlb[jy][jx]*wrk7[jy][jx];//+rr.v*mass[jy][jx];    
-           }}
-        }
-     }
-  
   ierr = DMDAVecRestoreArrayRead(appctx->da,globalin,&uloc);CHKERRQ(ierr);
 
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
@@ -853,21 +949,6 @@ ff[jx][ix].v=PetscExpScalar(-appctx->param.mu*tt)* (((-0.1 + 0.1*xpy)*appctx->pa
   ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
   ierr = PetscGLLElementMassDestroy(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
-  
-  ierr = PetscFree((wrk1)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk1);CHKERRQ(ierr);
-  ierr = PetscFree((wrk2)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk2);CHKERRQ(ierr);
-  ierr = PetscFree((wrk3)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk3);CHKERRQ(ierr);
-  ierr = PetscFree((wrk4)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk4);CHKERRQ(ierr);
-  ierr = PetscFree((wrk5)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk5);CHKERRQ(ierr);
-  ierr = PetscFree((wrk6)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk6);CHKERRQ(ierr);
-  ierr = PetscFree((wrk7)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk7);CHKERRQ(ierr);
 
   //ierr = VecDestroy(&outloc);CHKERRQ(ierr);
   //ierr = VecDestroy(&uloc);CHKERRQ(ierr);
@@ -896,8 +977,8 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
  {
    AppCtx         *appctx;
    
-   const Field     **ul, **uj;
-   Field           **outl;
+   const Field<double> **ul, **uj;
+   Field<double>   **outl;
    PetscScalar     **stiff, **mass, **grad;
    PetscScalar     **wrk1, **wrk2, **wrk3, **wrk4, **wrk5, **wrk6, **wrk7; 
    PetscScalar     **ulb, **vlb, **ujb, **vjb;
@@ -946,7 +1027,35 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   xm=xm/(Nl-1);
   ys=ys/(Nl-1);
   ym=ym/(Nl-1);
-  
+/*
+  Field<t1s> **t1s_ul = new Field<t1s>*[Nl*xm];
+  for(int i = 0; i < Nl*xm; i++) t1s_ul[i] = new Field<t1s>[Nl*ym];
+  Field<t1s> **t1s_outl = new Field<t1s>*[Nl*xm];
+  for(int i = 0; i < Nl*xm; i++) t1s_outl[i] = new Field<t1s>[Nl*ym];
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++) 
+  {
+    for(iy = 0; iy < (Nl-1)*ym + 1; iy++) 
+    {
+    t1s_ul[iy][ix].v = uj[iy][ix].v;
+    t1s_ul[iy][ix].u = uj[iy][ix].u;
+    t1s_ul[iy][ix].v.setGradient(ul[iy][ix].v);
+    t1s_ul[iy][ix].u.setGradient(ul[iy][ix].u);
+    t1s_outl[iy][ix].v = 0.0;
+    t1s_outl[iy][ix].u = 0.0;
+    }
+  }
+  ierr = ADRHSFunction<t1s>(t1s_outl, t1s_ul, (void*) appctx);
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++){ 
+    for(iy = 0; iy < (Nl-1)*ym + 1; iy++)
+    {
+      outl[iy][ix].v = t1s_outl[iy][ix].v.gradient();
+      outl[iy][ix].u = t1s_outl[iy][ix].u.gradient();
+    }
+  }
+  for(int i = 0; i < Nl*xm; i++) delete [] t1s_ul[i];
+  for(int i = 0; i < Nl*xm; i++) delete [] t1s_outl[i];
+  delete [] t1s_ul;
+  delete [] t1s_outl;  
   /*
      Initialize work arrays
   */ 
@@ -1012,9 +1121,8 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
             vjb[jy][jx]=uj[indy][indx].v; 
             ulb[jy][jx]=ul[indy][indx].u; 
             vlb[jy][jx]=ul[indy][indx].v; 
-            wrk4[jy][jx]=0.0; 
+            wrk4[jy][jx]=0.0;
           }}
-
        //here the stifness matrix in 2d
         //first product (B x K_yy) u=W2 (u_yy)
         alpha=appctx->param.Lex/2.0;
@@ -1144,7 +1252,6 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
         BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
 
 
-
         for (jx=0; jx<appctx->param.N; jx++) 
         {for (jy=0; jy<appctx->param.N; jy++)   
            {indx=ix*(appctx->param.N-1)+jx;
@@ -1218,8 +1325,8 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
  {
    AppCtx         *appctx;
    
-   const Field     **ul, **uj;
-   Field           **outl;
+   const Field<double> **ul, **uj;
+   Field<double>   **outl;
    PetscScalar     **stiff, **mass, **grad;
    PetscScalar     **wrk1, **wrk2, **wrk3, **wrk4, **wrk5, **wrk6, **wrk7; 
    PetscScalar     **ulb, **vlb, **ujb, **vjb;
