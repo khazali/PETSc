@@ -1,0 +1,51 @@
+  0 TAO,  Function value: 0.155775,  Residual: 1.23424 
+  0 TAO,  Function value: 0.0322991,  Residual: 0.727642 
+  1 TAO,  Function value: 0.000404595,  Residual: 0.103925 
+  2 TAO,  Function value: 1.09283e-07,  Residual: 0.00175922 
+  3 TAO,  Function value: 8.22693e-15,  Residual: 4.82947e-07 
+  4 TAO,  Function value: 4.93038e-29,  Residual: 3.73858e-14 
+Tao Object: 1 MPI processes
+  type: bntr
+    CG steps: 0
+    Newton steps: 4
+    BFGS steps: 0
+    Scaled gradient steps: 0
+    Gradient steps: 0
+    KSP termination reasons:
+      atol: 0
+      rtol: 2
+      ctol: 0
+      negc: 2
+      dtol: 0
+      iter: 0
+      othr: 0
+  TaoLineSearch Object: 1 MPI processes
+    type: more-thuente
+    maximum function evaluations=30
+    tolerances: ftol=0.0001, rtol=1e-10, gtol=0.9
+    total number of function evaluations=0
+    total number of gradient evaluations=0
+    total number of function/gradient evaluations=0
+    using variable bounds
+    Termination reason: 0
+  KSP Object: 1 MPI processes
+    type: stcg
+    maximum iterations=10000, initial guess is zero
+    tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
+    left preconditioning
+    using UNPRECONDITIONED norm type for convergence test
+  PC Object: 1 MPI processes
+    type: none
+    linear system matrix = precond matrix:
+    Mat Object: 1 MPI processes
+      type: shell
+      rows=2, cols=2
+  total KSP iterations: 6
+  Active Set subset type: subvec
+  convergence tolerances: gatol=1e-08,   steptol=0.,   gttol=0.
+  Residual in Function/Gradient:=3.73858e-14
+  Objective value=4.93038e-29
+  total number of iterations=4,                          (max: 50)
+  total number of function/gradient evaluations=15,      (max: 4000)
+  total number of Hessian evaluations=5
+  Solution converged:    ||g(X)|| <= gatol
