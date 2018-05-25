@@ -3709,7 +3709,7 @@ PetscErrorCode MatResetPreallocation_SeqAIJ(Mat A)
 
 .keywords: matrix, aij, compressed row, sparse, sequential
 
-.seealso: MatCreate(), MatCreateSeqAIJ(), MatSetValues(), MatSeqAIJSetPreallocation(), MatCreateSeqAIJ(), SeqAIJ
+.seealso: MatCreate(), MatCreateSeqAIJ(), MatSetValues(), MatSeqAIJSetPreallocation(), MatCreateSeqAIJ(), MATSEQAIJ
 @*/
 PetscErrorCode MatSeqAIJSetPreallocationCSR(Mat B,const PetscInt i[],const PetscInt j[],const PetscScalar v[])
 {
@@ -4579,7 +4579,7 @@ PetscFunctionList MatSeqAIJList = NULL;
 @*/
 PetscErrorCode  MatSeqAIJSetType(Mat mat, MatType matype)
 {
-  PetscErrorCode ierr,(*r)(Mat,const MatType,MatReuse,Mat*);
+  PetscErrorCode ierr,(*r)(Mat,MatType,MatReuse,Mat*);
   PetscBool      sametype;
 
   PetscFunctionBegin;

@@ -9,7 +9,6 @@ PETSC_EXTERN PetscErrorCode TaoCreate_NTR(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_NTL(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_NM(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_CG(Tao);
-PETSC_EXTERN PetscErrorCode TaoCreate_PGD(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_TRON(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_OWLQN(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_BMRM(Tao);
@@ -21,7 +20,6 @@ PETSC_EXTERN PetscErrorCode TaoCreate_BNTL(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_GPCG(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_BQPIP(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_POUNDERS(Tao);
-PETSC_EXTERN PetscErrorCode TaoCreate_Test(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_LCL(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_SSILS(Tao);
 PETSC_EXTERN PetscErrorCode TaoCreate_SSFLS(Tao);
@@ -67,7 +65,9 @@ extern PetscBool TaoRegisterAllCalled;
 @*/
 PetscErrorCode TaoRegisterAll(void)
 {
+#if !defined(PETSC_USE_COMPLEX)
   PetscErrorCode ierr;
+#endif
 
   PetscFunctionBegin;
   if (TaoRegisterAllCalled) PetscFunctionReturn(0);
@@ -78,7 +78,6 @@ PetscErrorCode TaoRegisterAll(void)
   ierr = TaoRegister(TAONTR,TaoCreate_NTR);CHKERRQ(ierr);
   ierr = TaoRegister(TAONTL,TaoCreate_NTL);CHKERRQ(ierr);
   ierr = TaoRegister(TAOCG,TaoCreate_CG);CHKERRQ(ierr);
-  ierr = TaoRegister(TAOPGD,TaoCreate_PGD);CHKERRQ(ierr);
   ierr = TaoRegister(TAOTRON,TaoCreate_TRON);CHKERRQ(ierr);
   ierr = TaoRegister(TAOOWLQN,TaoCreate_OWLQN);CHKERRQ(ierr);
   ierr = TaoRegister(TAOBMRM,TaoCreate_BMRM);CHKERRQ(ierr);
@@ -98,6 +97,5 @@ PetscErrorCode TaoRegisterAll(void)
   ierr = TaoRegister(TAOASFLS,TaoCreate_ASFLS);CHKERRQ(ierr);
   ierr = TaoRegister(TAOIPM,TaoCreate_IPM);CHKERRQ(ierr);
 #endif
-  ierr = TaoRegister(TAOTEST,TaoCreate_Test);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

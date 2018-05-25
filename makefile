@@ -15,7 +15,7 @@ FPPFLAGS =
 include ././${PETSC_ARCH}/lib/petsc/conf/petscvariables
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
-include ${PETSC_DIR}/lib/petsc/conf/test
+include ${PETSC_DIR}/lib/petsc/conf/test.common
 
 # This makefile contains a lot of PHONY targets with improperly specified prerequisites
 # where correct execution instead depends on the targets being processed in the correct
@@ -119,10 +119,14 @@ info:
          fi
 	-@echo "-----------------------------------------"
 	-@echo "Using system modules: ${LOADEDMODULES}"
-	-@TESTDIR=`mktemp -q -d -t petscmpi-XXXXXXXX` && \
+	-@if [ "${MPI_IS_MPIUNI}" = "1" ]; then \
+           echo Using mpi.h: mpiuni; \
+        else \
+           TESTDIR=`mktemp -q -d -t petscmpi-XXXXXXXX` && \
            echo '#include <mpi.h>' > $${TESTDIR}/mpitest.c && \
            BUF=`${CPP} ${PETSC_CCPPFLAGS} $${TESTDIR}/mpitest.c |grep 'mpi\.h' | ( head -1 ; cat > /dev/null )` && \
-           echo Using mpi.h: $${BUF}; ${RM} -rf $${TESTDIR}
+           echo Using mpi.h: $${BUF}; ${RM} -rf $${TESTDIR}; \
+        fi
 	-@echo "-----------------------------------------"
 	-@echo "Using libraries: ${PETSC_LIB}"
 	-@echo "------------------------------------------"

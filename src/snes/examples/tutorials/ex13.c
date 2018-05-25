@@ -253,6 +253,7 @@ static PetscErrorCode SetupDiscretization(DM dm, const char name[], PetscErrorCo
     /* TODO: Check whether the boundary of coarse meshes is marked */
     ierr = DMGetCoarseDM(cdm, &cdm);CHKERRQ(ierr);
   }
+  ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
   ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -544,6 +545,7 @@ int main(int argc, char **argv)
   test:
     suffix: 3d_p3_0
     requires: ctetgen
+    timeoutfactor: 2
     args: -dim 3 -potential_petscspace_order 3 -dm_refine 1 -num_refine 3 -snes_convergence_estimate
   test:
     suffix: 3d_q1_0
@@ -556,11 +558,11 @@ int main(int argc, char **argv)
     args: -dim 3 -simplex 0 -potential_petscspace_order 3 -num_refine 2 -snes_convergence_estimate
   test:
     suffix: 2d_p1_spectral_0
-    requires: fftw !complex
+    requires: triangle fftw !complex
     args: -potential_petscspace_order 1 -dm_refine 6 -spectral -fft_view
   test:
     suffix: 2d_p1_spectral_1
-    requires: fftw !complex
+    requires: triangle fftw !complex
     nsize: 2
     args: -potential_petscspace_order 1 -dm_refine 2 -spectral -fft_view
   test:

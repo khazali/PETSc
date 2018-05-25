@@ -47,7 +47,6 @@ J*/
 #define TAONTR      "ntr"
 #define TAONTL      "ntl"
 #define TAOCG       "cg"
-#define TAOPGD      "pgd"
 #define TAOTRON     "tron"
 #define TAOOWLQN    "owlqn"
 #define TAOBMRM     "bmrm"
@@ -66,7 +65,6 @@ J*/
 #define TAOASILS    "asils"
 #define TAOASFLS    "asfls"
 #define TAOIPM      "ipm"
-#define TAOTEST     "test"
 
 PETSC_EXTERN PetscClassId TAO_CLASSID;
 PETSC_EXTERN PetscFunctionList TaoList;
@@ -158,6 +156,7 @@ PETSC_EXTERN PetscErrorCode TaoSetStateDesignIS(Tao, IS, IS);
 
 PETSC_EXTERN PetscErrorCode TaoComputeObjective(Tao, Vec, PetscReal*);
 PETSC_EXTERN PetscErrorCode TaoComputeSeparableObjective(Tao, Vec, Vec);
+PETSC_EXTERN PetscErrorCode TaoTestGradient(Tao,Vec,Vec);
 PETSC_EXTERN PetscErrorCode TaoComputeGradient(Tao, Vec, Vec);
 PETSC_EXTERN PetscErrorCode TaoComputeObjectiveAndGradient(Tao, Vec, PetscReal*, Vec);
 PETSC_EXTERN PetscErrorCode TaoComputeConstraints(Tao, Vec, Vec);
@@ -168,6 +167,7 @@ PETSC_EXTERN PetscErrorCode TaoIsObjectiveDefined(Tao,PetscBool*);
 PETSC_EXTERN PetscErrorCode TaoIsGradientDefined(Tao,PetscBool*);
 PETSC_EXTERN PetscErrorCode TaoIsObjectiveAndGradientDefined(Tao,PetscBool*);
 
+PETSC_EXTERN PetscErrorCode TaoTestHessian(Tao);
 PETSC_EXTERN PetscErrorCode TaoComputeHessian(Tao, Vec, Mat, Mat);
 PETSC_EXTERN PetscErrorCode TaoComputeJacobian(Tao, Vec, Mat, Mat);
 PETSC_EXTERN PetscErrorCode TaoComputeJacobianState(Tao, Vec, Mat, Mat, Mat);
@@ -224,6 +224,7 @@ PETSC_EXTERN PetscErrorCode TaoGetConvergenceHistory(Tao,PetscReal**,PetscReal**
 PETSC_EXTERN PetscErrorCode TaoSetMonitor(Tao, PetscErrorCode (*)(Tao,void*),void *,PetscErrorCode (*)(void**));
 PETSC_EXTERN PetscErrorCode TaoCancelMonitors(Tao);
 PETSC_EXTERN PetscErrorCode TaoMonitorDefault(Tao, void*);
+PETSC_DEPRECATED ("Use TaoMonitorDefault()") PETSC_STATIC_INLINE PetscErrorCode TaoDefaultMonitor(Tao tao, void*ctx) {return TaoMonitorDefault(tao,ctx);}
 PETSC_EXTERN PetscErrorCode TaoDefaultGMonitor(Tao, void*);
 PETSC_EXTERN PetscErrorCode TaoDefaultSMonitor(Tao, void*);
 PETSC_EXTERN PetscErrorCode TaoDefaultCMonitor(Tao, void*);

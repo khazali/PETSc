@@ -124,7 +124,11 @@ void assert_never_put_petsc_headers_inside_an_extern_c(int); void assert_never_p
 #if !defined(OMPI_SKIP_MPICXX)
 #  define OMPI_SKIP_MPICXX 1
 #endif
-#include <mpi.h>
+#if defined(PETSC_HAVE_MPIUNI)
+#  include <petsc/mpiuni/mpi.h>
+#else
+#  include <mpi.h>
+#endif
 
 /*
    Perform various sanity checks that the correct mpi.h is being included at compile time.
@@ -3043,6 +3047,7 @@ PETSC_EXTERN PetscErrorCode MPIU_Win_shared_query(MPI_Win,PetscMPIInt,MPI_Aint*,
 /*
     Returned from PETSc functions that are called from MPI, such as related to attributes
 */
-PETSC_EXTERN PetscMPIInt PETSC_MPI_ERROR_CLASS,PETSC_MPI_ERROR_CODE;
+PETSC_EXTERN PetscMPIInt PETSC_MPI_ERROR_CLASS;
+PETSC_EXTERN PetscMPIInt PETSC_MPI_ERROR_CODE;
 
 #endif
