@@ -25,6 +25,10 @@ burgers_spectral: burgers_spectral.o chkopts
 	-${CLINKER} -o burgers_spectral burgers_spectral.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
 	${RM} burgers_spectral.o
 
+poisson2d: poisson2d.o chkopts
+	-${CLINKER} -o poisson2d poisson2d.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
+	${RM} poisson2d.o
+
 heat-data-assimulation: heat-data-assimulation.o chkopts
 	-${CLINKER} -o heat-data-assimulation heat-data-assimulation.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
 	${RM} heat-data-assimulation.o
