@@ -39,6 +39,10 @@ List of cases and their names in the code:-
 
     Kulikov2013I -> "kulik2013i"
 
+ From the power grid suite: /power-grid/ex3.c
+
+    Swing -> "swing-eqns"
+
 */
 
 #include <petscts.h>
@@ -61,7 +65,8 @@ PetscInt GetSize(const char *p)
          ||(!strcmp(p,"hull1972a3"))
          ||(!strcmp(p,"hull1972a4"))
          ||(!strcmp(p,"hull1972a5")) )  PetscFunctionReturn(1);
-  else if  (!strcmp(p,"hull1972b1")  )  PetscFunctionReturn(2);
+  else if  (!strcmp(p,"hull1972b1")
+         ||(!strcmp(p,"swing-eqns"))  )  PetscFunctionReturn(2);
   else if ((!strcmp(p,"hull1972b2"))
          ||(!strcmp(p,"hull1972b3"))
          ||(!strcmp(p,"hull1972b4"))
@@ -1023,6 +1028,86 @@ PetscErrorCode IJacobian_Hull1972C34(TS ts, PetscReal t, Vec Y, Vec Ydot, PetscR
   PetscFunctionReturn(0);
 }
 
+/* Swing equations */
+
+PetscErrorCode RHSFunction_Swing(TS ts, PetscReal t, Vec Y, Vec F, void *s)
+{
+  PetscErrorCode    ierr;
+  PetscScalar       *f;
+  const PetscScalar *y;
+  PetscScalar       omega_b=1.0,omega_s=2.0*PETSC_PI*60.0,Pmax=1.1378*1.0/0.545,D=5.0,Pm=0.9,H=5.0;
+
+  PetscFunctionBegin;
+  ierr = VecGetArrayRead(Y,&y);CHKERRQ(ierr);
+  ierr = VecGetArray(F,&f);CHKERRQ(ierr);
+  f[0] = omega_b*(y[1] - omega_s);
+  f[1] = omega_s*(-Pmax*PetscSinScalar(y[0])-D*(y[1]-omega_s)+Pm)/(2.0*H);
+  ierr = VecRestoreArrayRead(Y,&y);CHKERRQ(ierr);
+  ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode RHSJacobian_Swing(TS ts, PetscReal t, Vec Y, Mat A, Mat B, void *s)
+{
+  PetscErrorCode    ierr;
+  const PetscScalar *y;
+  PetscInt          row[2] = {0,1};
+  PetscScalar       value[2][2];
+  PetscScalar       omega_b=1.0,omega_s=2.0*PETSC_PI*60.0,Pmax=1.1378*1.0/0.545,D=5.0,Pm=0.9,H=5.0;
+
+  PetscFunctionBegin;
+  ierr = VecGetArrayRead(Y,&y);CHKERRQ(ierr);
+  value[0][0] = 0. ;       value[0][1] = omega_b;
+  value[1][0] = (-0.5*omega_s*Pmax*PetscCosScalar(y[0]))/H;        value[1][1] = (-0.5*D*omega_s)/H ;
+  ierr = MatSetValues(A,2,&row[0],2,&row[0],&value[0][0],INSERT_VALUES);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd  (A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(Y,&y);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode IFunction_Swing(TS ts, PetscReal t, Vec Y, Vec Ydot, Vec F, void *s)
+{
+  PetscErrorCode    ierr;
+  PetscScalar       *f;
+  const PetscScalar *y,*ydot;
+  PetscScalar       omega_b=1.0,omega_s=2.0*PETSC_PI*60.0,Pmax=1.1378*1.0/0.545,D=5.0,Pm=0.9,H=5.0;
+
+  PetscFunctionBegin;
+  ierr = VecGetArrayRead(Y,&y);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(Ydot,&ydot);CHKERRQ(ierr);
+  ierr = VecGetArray(F,&f);CHKERRQ(ierr);
+  f[0] = ydot[0] - omega_b*(y[1] - omega_s);
+  f[1] = 2.0*H/omega_s*ydot[1] +  Pmax*PetscSinScalar(y[0]) + D*(y[1] - omega_s)- Pm;
+  ierr = VecRestoreArrayRead(Y,&y);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(Ydot,&ydot);CHKERRQ(ierr);
+  ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode IJacobian_Swing(TS ts, PetscReal t, Vec Y, Vec Ydot, PetscReal a, Mat A, Mat B, void *s)
+{
+  PetscErrorCode    ierr;
+  const PetscScalar *y;
+  PetscInt          row[2] = {0,1};
+  PetscScalar       value[2][2];
+  PetscScalar       omega_b=1.0,omega_s=2.0*PETSC_PI*60.0,Pmax=1.1378*1.0/0.545,D=5.0,Pm=0.9,H=5.0;
+
+
+  PetscFunctionBegin;
+  ierr = VecGetArrayRead(Y,&y);CHKERRQ(ierr);
+  
+  value[0][0] = a ;        value[0][1] = -omega_b;  
+
+  value[1][0] = Pmax*PetscCosScalar(y[0]);        value[1][1] = 2.0*H/omega_s*a + D ;
+  
+  ierr = MatSetValues(A,2,&row[0],2,&row[0],&value[0][0],INSERT_VALUES);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd  (A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(Y,&y);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /***************************************************************************/
 
 /* Sets the initial solution for the IVP and sets up the function pointers*/
@@ -1033,6 +1118,7 @@ PetscErrorCode Initialize(Vec Y, void* s)
   PetscScalar   *y;
   PetscReal     t0;
   PetscInt      N = GetSize((const char *)s);
+  PetscScalar   omega_b=1.0,omega_s=2.0*PETSC_PI*60.0,Pmax=1.1378*1.0/0.545,D=5.0,Pm=0.9,H=5.0;
   PetscBool     flg;
 
   PetscFunctionBegin;
@@ -1128,6 +1214,14 @@ PetscErrorCode Initialize(Vec Y, void* s)
     RHSFunction = RHSFunction_Hull1972C34;
     IFunction   = IFunction_Hull1972C34;
     IJacobian   = IJacobian_Hull1972C34;
+  } else if (!strcmp(p,"swing-eqns")) {
+    t0=0.;
+    y[0] = PetscAsinScalar(Pm/Pmax);
+    y[1] = 1.0;
+    RHSFunction = RHSFunction_Swing;
+    RHSJacobian = RHSJacobian_Swing;
+    IFunction   = IFunction_Swing;
+    IJacobian   = IJacobian_Swing;
   }
   ierr = PetscOptionsGetScalarArray(NULL,NULL,"-yinit",y,&N,&flg);CHKERRQ(ierr);
   if ((N != GetSize((const char*)s)) && flg) SETERRQ2(PETSC_COMM_WORLD,PETSC_ERR_ARG_SIZ,"Number of initial values %D does not match problem size %D.\n",N,GetSize((const char*)s));
