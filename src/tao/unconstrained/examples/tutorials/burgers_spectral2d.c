@@ -35,11 +35,24 @@ static char help[] ="Solves a simple data assimilation problem with one dimensio
 #include <petscblaslapack.h>
 #include <petsc/private/petscimpl.h>
 #include <codi.hpp>
-#include "f2c.h"
 
 typedef codi::RealForwardGen<double> t1s;
 typedef codi::RealForwardGen<t1s> t2s;
 typedef codi::RealReverseGen<double> a1s;
+
+typedef int integer;
+typedef unsigned long int uinteger;
+typedef char *address;
+typedef short int shortint;
+typedef float real;
+/*typedef double doublereal;*/
+typedef codi::RealForwardGen<double> doublereal;
+typedef struct { real r, i; } complex;
+typedef struct { doublereal r, i; } doublecomplex;
+typedef long int logical;
+typedef short int shortlogical;
+typedef char logical1;
+typedef char integer1;
 
 /* Subroutine */ void dgemm_(char *transa, char *transb, integer *m, integer *
           n, integer *k, doublereal *alpha, doublereal *a, integer *lda, 
