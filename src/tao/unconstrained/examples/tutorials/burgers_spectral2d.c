@@ -46,21 +46,28 @@ typedef char *address;
 typedef short int shortint;
 typedef float real;
 /*typedef double doublereal;*/
-typedef codi::RealForwardGen<double> doublereal;
 typedef struct { real r, i; } complex;
-typedef struct { doublereal r, i; } doublecomplex;
+typedef struct { t1s r, i; } doublecomplex;
 typedef long int logical;
 typedef short int shortlogical;
 typedef char logical1;
 typedef char integer1;
 
 /* Subroutine */ void dgemm_(char *transa, char *transb, integer *m, integer *
-          n, integer *k, doublereal *alpha, doublereal *a, integer *lda, 
-          doublereal *b, integer *ldb, doublereal *beta, doublereal *c__, 
+          n, integer *k, t1s *alpha, t1s *a, integer *lda, 
+          t1s *b, integer *ldb, t1s *beta, t1s *c__, 
+          integer *ldc);
+          
+/* Subroutine */ void dgemm_(char *transa, char *transb, integer *m, integer *
+          n, integer *k, a1s *alpha, a1s *a, integer *lda, 
+          a1s *b, integer *ldb, a1s *beta, a1s *c__, 
           integer *ldc);
 
-/* Subroutine */ void daxpy_(integer *n, doublereal *da, doublereal *dx,
-          integer *incx, doublereal *dy, integer *incy);
+/* Subroutine */ void daxpy_(integer *n, t1s *da, t1s *dx,
+          integer *incx, t1s *dy, integer *incy);
+
+/* Subroutine */ void daxpy_(integer *n, a1s *da, a1s *dx,
+          integer *incx, a1s *dy, integer *incy);
 
 /*
    User-defined application context - contains data needed by the
@@ -1174,223 +1181,51 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   ys=ys/(Nl-1);
   ym=ym/(Nl-1);
   
-  /*
-     Initialize work arrays
-  */ 
-
-  ierr = PetscMalloc1(appctx->param.N,&ulb);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ulb[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) ulb[i] = ulb[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&vlb);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&vlb[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) vlb[i] = vlb[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&ujb);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&ujb[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) ujb[i] = ujb[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&vjb);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&vjb[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) vjb[i] = vjb[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk1);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk1[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk1[i] = wrk1[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk2);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk2[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk2[i] = wrk2[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk3);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk3[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk3[i] = wrk3[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk4);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk4[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk4[i] = wrk4[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk5);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk5[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk5[i] = wrk5[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk6);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk6[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
-
-  ierr = PetscMalloc1(appctx->param.N,&wrk7);CHKERRQ(ierr);
-  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
-  for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
+  codi::RealReverse::TapeType& tape = codi::RealReverse::getGlobalTape();  
+  Field<a1s> **a1s_ul = new Field<a1s>*[Nl*xm];
+  for(int i = 0; i < Nl*xm; i++) a1s_ul[i] = new Field<a1s>[Nl*ym];
+  Field<a1s> **a1s_outl = new Field<a1s>*[Nl*xm];
+  for(int i = 0; i < Nl*xm; i++) a1s_outl[i] = new Field<a1s>[Nl*ym];
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++) 
+  {
+    for(iy = 0; iy < (Nl-1)*ym + 1; iy++) 
+    {
+    a1s_ul[iy][ix].v = uj[iy][ix].v;
+    a1s_ul[iy][ix].u = uj[iy][ix].u;
+    a1s_outl[iy][ix].v = 0.0;
+    a1s_outl[iy][ix].u = 0.0;
+    tape.registerInput(a1s_ul[iy][ix].v);
+    tape.registerInput(a1s_ul[iy][ix].u);
+    }
+  }
+  tape.setActive();
+  ierr = ADRHSFunction<a1s>(a1s_outl, a1s_ul, appctx);
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++)
+  {
+    for(iy = 0; iy < (Nl-1)*ym + 1; iy++)
+    {
+    tape.registerOutput(a1s_outl[iy][ix].v);
+    tape.registerOutput(a1s_outl[iy][ix].u);
+    a1s_outl[iy][ix].v.setGradient(ul[iy][ix].v);
+    a1s_outl[iy][ix].u.setGradient(ul[iy][ix].u);
+    }
+  } 
+  tape.setPassive();
+  tape.evaluate();
+  for(ix = 0; ix < (Nl-1)*xm + 1; ix++) 
+  {
+    for(iy = 0; iy < (Nl-1)*ym + 1; iy++)
+    {
+    outl[iy][ix].v = a1s_ul[iy][ix].v.gradient();
+    outl[iy][ix].u = a1s_ul[iy][ix].u.gradient();
+    }
+  }
+  for(int i = 0; i < Nl*xm; i++) delete [] a1s_ul[i];
+  for(int i = 0; i < Nl*xm; i++) delete [] a1s_outl[i];
+  delete [] a1s_ul;
+  delete [] a1s_outl;  
 
 
-  alpha = 1.0;
-  beta  = 0.0;
-  Nl2= Nl*Nl;
-  inc=1;
-  for (ix=xs; ix<xs+xm; ix++) 
-      {for (iy=ys; iy<ys+ym; iy++) 
-         { 
-       for (jx=0; jx<appctx->param.N; jx++) 
-        {for (jy=0; jy<appctx->param.N; jy++) 
-               
-           {ulb[jy][jx]=0.0;
-            ujb[jy][jx]=0.0;
-            vlb[jy][jx]=0.0;
-            vjb[jy][jx]=0.0;
-            indx=ix*(appctx->param.N-1)+jx;
-            indy=iy*(appctx->param.N-1)+jy;
-            ujb[jy][jx]=uj[indy][indx].u; 
-            vjb[jy][jx]=uj[indy][indx].v; 
-            ulb[jy][jx]=ul[indy][indx].u; 
-            vlb[jy][jx]=ul[indy][indx].v; 
-            
-          }}
-
-       //here the stifness matrix in 2d
-        //first product (B x K_yy)u=W2 (u_yy)
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2./appctx->param.Ley;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
-
-        //second product (K_xx x B) u=W3 (u_xx)
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
-       
-        // for the v component now 
-        //first product (B x K_yy)v=W3
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2.0/appctx->param.Ley;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
-
-        //second product (K_xx x B)v=W4
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    
-
-       //now the gradient operator for u
-        // first (D_x x B) wu the term (D_x x B) wu.ujb
-
-        PetscPointWiseMult(Nl2, &ulb[0][0], &ujb[0][0], &wrk6[0][0]); 
-
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&wrk6[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
-
-        
-        // (D_x x B) u the term ulb.(D_x x B) u
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
-
-        PetscPointWiseMult(Nl2, &wrk5[0][0], &ulb[0][0], &wrk5[0][0]); //same term
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
-
-
-        // first (B x D_y) wu the term vjb.(B x D_x) wu 
-
-        PetscPointWiseMult(Nl2, &ulb[0][0], &vjb[0][0], &wrk6[0][0]); 
-
-        alpha=1.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&wrk6[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
-
-         // (D_x x B) v the term vlb.(D_x x B) v
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
-
-        PetscPointWiseMult(Nl2, &wrk5[0][0], &vlb[0][0], &wrk5[0][0]); 
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk5
-
-
-//////////////////////////////////// the second equation
-        
-
-       // (D_x x B) wv the term ujb.(D_x x B) wv
-
-        PetscPointWiseMult(Nl2, &vlb[0][0], &ujb[0][0], &wrk7[0][0]); 
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&wrk7[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
-
-     
-
-        // first (B x D_y) u the term ulb.(B x D_x) u       /////////same term B
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
-
-        PetscPointWiseMult(Nl2, &wrk6[0][0], &ulb[0][0], &wrk6[0][0]); 
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
-
-
-        
-        // first (B x D_y) v the term vjb.(B x D_x) wv
-        PetscPointWiseMult(Nl2, &vlb[0][0], &vjb[0][0], &wrk7[0][0]); 
-        alpha=1.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&wrk7[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);         
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
-        
-        // first (B x D_y) wv the term vlb.(B x D_x) v
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
-
-      
-        PetscPointWiseMult(Nl2, &wrk6[0][0], &vlb[0][0], &wrk6[0][0]); 
-
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
-
-
-        for (jx=0; jx<appctx->param.N; jx++) 
-        {for (jy=0; jy<appctx->param.N; jy++)   
-           {indx=ix*(appctx->param.N-1)+jx;
-            indy=iy*(appctx->param.N-1)+jy;
-            
-           outl[indy][indx].u += appctx->param.mu*(wrk2[jy][jx])+wrk4[jy][jx];
-           outl[indy][indx].v += appctx->param.mu*(wrk3[jy][jx])+wrk5[jy][jx];
-            //printf("outl[%d][%d]=%0.15f\n", indx,indy, outl[indy][indx]);
-           }}
-       }
-     }
-  
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
   DMDAVecRestoreArrayRead(appctx->da,in,&uloc);CHKERRQ(ierr);
   DMDAVecRestoreArrayRead(appctx->da,appctx->dat.pass_sol,&ujloc);CHKERRQ(ierr);
@@ -1408,20 +1243,6 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
   ierr = PetscGLLElementMassDestroy(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
  
-  ierr = PetscFree((wrk1)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk1);CHKERRQ(ierr);
-  ierr = PetscFree((wrk2)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk2);CHKERRQ(ierr);
-  ierr = PetscFree((wrk3)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk3);CHKERRQ(ierr);
-  ierr = PetscFree((wrk4)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk4);CHKERRQ(ierr);
-  ierr = PetscFree((wrk5)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk5);CHKERRQ(ierr);
-  ierr = PetscFree((wrk6)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk6);CHKERRQ(ierr);
-  ierr = PetscFree((wrk7)[0]);CHKERRQ(ierr);
-  ierr = PetscFree(wrk7);CHKERRQ(ierr);
 /*
   its=its+1;
   //printf("time to write %f ",&t); 
