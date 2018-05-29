@@ -16,6 +16,7 @@
 
 CODI_INCLUDE=/home/michel/git/CoDiPack/include
 AD_BLAS_LIB=/home/michel/git/adblaslapack/src/libadblaslapack.a
+AD_BLAS_ADJ_LIB=/home/michel/git/adblaslapack_adj/src/libadblaslapackadj.a
 
 CPPFLAGS		 += -I$(CODI_INCLUDE) -Wno-unused-variable 
 
@@ -35,7 +36,7 @@ burgers_spectral_mf: burgers_spectral_mf.o chkopts
 	${RM} burgers_spectral_mf.o
 
 burgers_spectral2d: burgers_spectral2d.o chkopts
-	-${CLINKER} -o burgers_spectral2d burgers_spectral2d.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB} ${AD_BLAS_LIB}
+	-${CLINKER} -o burgers_spectral2d burgers_spectral2d.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB} ${AD_BLAS_LIB} ${AD_BLAS_ADJ_LIB}
 	#${RM} burgers_spectral2d.o
 
 heat-data-assimulation: heat-data-assimulation.o chkopts
