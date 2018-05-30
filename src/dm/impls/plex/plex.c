@@ -4070,11 +4070,6 @@ PETSC_STATIC_INLINE PetscErrorCode DMPlexVecGetClosure_Fields_Static(DM dm, Pets
         else      {for (b = 0; b < fdof; b++) {array[clperm[offset +      b ]]  = varr[b];}}
         if (flip) {for (b = 0; b < fdof; b++) {array[clperm[offset +      b ]] *= flip[b];}}
       } else {
-
-PetscMPIInt rank;
-MPI_Comm_rank(PetscObjectComm((PetscObject)dm),&rank);
-PetscPrintf(PETSC_COMM_SELF,"******* [%D]DMPlexVecGetClosure_Fields_Static perm[0]=%D, fdof=%D offset=%D varr=%p\n",rank, perm ? perm[0] : -1, fdof, offset, varr);
-
         if (perm) {for (b = 0; b < fdof; b++) {array[offset + perm[b]]  = varr[b];}}
         else      {for (b = 0; b < fdof; b++) {array[offset +      b ]  = varr[b];}}
         if (flip) {for (b = 0; b < fdof; b++) {array[offset +      b ] *= flip[b];}}

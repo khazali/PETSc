@@ -145,7 +145,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   PetscReal       *v0, *J, *invJ, detJ, *coords, *xi0;
   PetscInt        *cellid;
   const PetscReal *qpoints;
-  PetscInt         Ncell, cell, Nq, Np, q, p, dim, N;
+  PetscInt         Ncell, cell, Nq, Np, q, p, dim, N, c;
   PetscErrorCode   ierr;
   PetscMPIInt rank;
 

@@ -37,7 +37,6 @@ ex5s: chkopts
 	-${FC} -pfa keep -mp -64 ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS} -c ex5fs.F
 	-${CLINKER} -mp -o ex5s ex5s_tmp.o ex5fs.o ${PETSC_SNES_LIB}
 	${RM} ex5s.o
-
 #-------------------------------------------------------------------------
 
 #  these tests are used by the makefile in PETSC_DIR for basic tests of the install and should not be removed
@@ -99,6 +98,7 @@ runex19_superlu_dist:
 	   else  printf "${PWD}\nPossible problem with ex19_superlu_dist, diffs above\n=========================================\n"; fi; \
 	   ${RM} -f ex19.tmp
 
+#-------------------------------------------------------------------------
 
 runex12_p4est_convergence_test:
 	-@echo "=================="

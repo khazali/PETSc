@@ -184,7 +184,6 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   ierr = DMGetCoordinateDim(dmf, &dim);CHKERRQ(ierr);
   ierr = DMGetDS(dmf, &prob);CHKERRQ(ierr);
   ierr = PetscDSGetNumFields(prob, &Nf);CHKERRQ(ierr);
-  if(Nf!=1) SETERRQ1(PetscObjectComm((PetscObject) dmf), PETSC_ERR_SUP, "Nf!=1 ????????", Nf);
   ierr = PetscMalloc3(dim,&v0,dim*dim,&J,dim*dim,&invJ);CHKERRQ(ierr);
   ierr = DMGetDefaultSection(dmf, &fsection);CHKERRQ(ierr);
   ierr = DMGetDefaultGlobalSection(dmf, &globalFSection);CHKERRQ(ierr);
@@ -272,7 +271,7 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
     ierr = DMSwarmGetField(dmc, DMSwarmPICField_coor, NULL, NULL, (void **) &xx);CHKERRQ(ierr);
     /* For each fine grid cell */
     for (cell = cStart, pp = 0; cell < cEnd; ++cell) {
-      PetscInt           Np, p, d, e;
+      PetscInt           Np, p, d, e, c;
       PetscInt          *findices,   *cindices;
       PetscInt           numFIndices, numCIndices;
 
@@ -298,9 +297,10 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
       ierr = PetscFree(xi);CHKERRQ(ierr);
       /* Get elemMat entries by multiplying by weight */
       for (i = 0; i < numFIndices; ++i) {
+        ierr = PetscMemzero(elemMat, numCIndices * sizeof(PetscScalar));CHKERRQ(ierr);
         for (p = 0; p < numCIndices; ++p) {
-          elemMat[p] = Bcoarse[p*numFIndices + i] * detJ;
-          /* for (c = 0; c < Nc; ++c) elemMat[j] += Bfine[(j*numFIndices + i)*Nc + c]*qweights[j*Nc + c]*detJ; */
+          for (c = 0; c < Nc; ++c) elemMat[p] += Bfine[(p*numFIndices + i)*Nc + c]*detJ;
+          /* for (c = 0; c < Nc; ++c) elemMat[p] += Bfine[(p*numFIndices + i)*Nc + c]*qweights[p*Nc + c]*detJ; */
         }
         /* Update interpolator */
         if (0) {ierr = DMPrintCellMatrix(cell, name, 1, numCIndices, elemMat);CHKERRQ(ierr);}
