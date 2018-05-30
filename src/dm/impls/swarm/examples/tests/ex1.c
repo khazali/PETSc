@@ -142,7 +142,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   PetscFE          fe;
   PetscQuadrature  quad;
   PetscScalar     *vals;
-  PetscReal       *v0, *J, *invJ, detJ, *coords;
+  PetscReal       *v0, *J, *invJ, detJ, *coords, *xi0;
   PetscInt        *cellid;
   const PetscReal *qpoints;
   PetscInt         Ncell, cell, Nq, Np, q, p, dim, N;
@@ -152,7 +152,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   PetscFunctionBeginUser;
   MPI_Comm_rank(PetscObjectComm((PetscObject)dm),&rank);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(dm, dim, 1, user->simplex, NULL, -1, &fe);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(PetscObjectComm((PetscObject) dm), dim, 1, user->simplex, NULL, -1, &fe);CHKERRQ(ierr);
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
   ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
@@ -185,7 +185,8 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   }
   ierr = DMSetFromOptions(*sw);CHKERRQ(ierr);
 
-  ierr = PetscMalloc3(dim, &v0, dim*dim, &J, dim*dim, &invJ);CHKERRQ(ierr);
+  ierr = PetscMalloc4(dim, &xi0, dim, &v0, dim*dim, &J, dim*dim, &invJ);CHKERRQ(ierr);
+  for (c = 0; c < dim; c++) xi0[c] = -1.;
   ierr = DMSwarmGetField(*sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
   ierr = DMSwarmGetField(*sw, DMSwarmPICField_cellid, NULL, NULL, (void **) &cellid);CHKERRQ(ierr);
   ierr = DMSwarmGetField(*sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
@@ -194,7 +195,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
     if (user->particles_cell == 0) { /* make particles at quadrature points */
       for (q = 0; q < Nq; ++q) {
         cellid[cell*Nq + q] = cell;
-        CoordinatesRefToReal(dim, dim, v0, J, &qpoints[q*dim], &coords[(cell*Nq + q)*dim]);
+        CoordinatesRefToReal(dim, dim, xi0, v0, J, &qpoints[q*dim], &coords[(cell*Nq + q)*dim]);
         linear(dim, 0.0, &coords[(cell*Nq + q)*dim], 1, &vals[cell*Nq + q], NULL);
       }
     } else { /* make particles in cells with regular grid, assumes tensor elements (-1,1)^D*/
@@ -208,7 +209,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
           for ( jj = 0; jj < N ; jj++, p++) {
             ecoord[1] = jj*dx - 1 + dx_2;
             cellid[cell*Np + p] = cell;
-            CoordinatesRefToReal(dim, dim, v0, J, ecoord, &coords[(cell*Np + p)*dim]);
+            CoordinatesRefToReal(dim, dim, xi0, v0, J, ecoord, &coords[(cell*Np + p)*dim]);
             sinx(dim, 0.0, &coords[(cell*Np + p)*dim], 1, &vals[cell*Np + p], user);
             vals[cell*Np + p] *= user->factor;
 /* PetscPrintf(PETSC_COMM_SELF, "[%D]CreateParticles: %4D) (%D,%D,%D) p=%D v0:%12.5e,%12.5e; element coord:%12.5e,%12.5e, real coord[%4D]:%12.5e,%12.5e, factor=%12.5e, val=%12.5e\n",rank,cell,ii,jj,kk,p,v0[0],v0[1],ecoord[0],ecoord[1],(cell*Np + p)*dim,coords[(cell*Np + p)*dim],coords[(cell*Np + p)*dim+1],user->factor,vals[cell*Np + p]); */
@@ -221,7 +222,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   ierr = DMSwarmRestoreField(*sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
   ierr = DMSwarmRestoreField(*sw, DMSwarmPICField_cellid, NULL, NULL, (void **) &cellid);CHKERRQ(ierr);
   ierr = DMSwarmRestoreField(*sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
-  ierr = PetscFree3(v0, J, invJ);CHKERRQ(ierr);
+  ierr = PetscFree4(xi0, v0, J, invJ);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

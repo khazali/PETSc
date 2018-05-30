@@ -327,7 +327,7 @@ PetscErrorCode DMAdaptorPreAdapt(DMAdaptor adaptor, Vec locX)
   ierr = DMIsForest(adaptor->idm, &isForest);CHKERRQ(ierr);
   if (adaptor->adaptCriterion == DM_ADAPTATION_NONE) {
     if (isForest) {adaptor->adaptCriterion = DM_ADAPTATION_LABEL;}
-#ifdef PETSC_HAVE_PRAGMATIC
+#if defined(PETSC_HAVE_PRAGMATIC)
     else          {adaptor->adaptCriterion = DM_ADAPTATION_METRIC;}
 #else
     else          {adaptor->adaptCriterion = DM_ADAPTATION_REFINE;}
@@ -775,8 +775,8 @@ static PetscErrorCode DMAdaptorAdapt_Sequence_Private(DMAdaptor adaptor, Vec inx
       PetscDS      probGrad, probHess;
       Vec          xGrad,    xHess,    metric;
       PetscSection sec, msec;
-      PetscScalar *H, *M;
-      PetscReal    N, integral;
+      PetscScalar *H, *M, integral;
+      PetscReal    N;
       DMLabel      bdLabel;
       PetscInt     Nd = coordDim*coordDim, f, vStart, vEnd, v;
 
@@ -801,9 +801,9 @@ static PetscErrorCode DMAdaptorAdapt_Sequence_Private(DMAdaptor adaptor, Vec inx
         ierr = PetscFEGetQuadrature(fe, &q);CHKERRQ(ierr);
         ierr = PetscQuadratureGetOrder(q, &qorder);CHKERRQ(ierr);
         ierr = PetscObjectGetOptionsPrefix((PetscObject) fe, &prefix);CHKERRQ(ierr);
-        ierr = PetscFECreateDefault(dmGrad, dim, Nc*coordDim, (vEnd-vStart) == dim+1 ? PETSC_TRUE : PETSC_FALSE, prefix, qorder, &feGrad);CHKERRQ(ierr);
+        ierr = PetscFECreateDefault(PetscObjectComm((PetscObject) dmGrad), dim, Nc*coordDim, (vEnd-vStart) == dim+1 ? PETSC_TRUE : PETSC_FALSE, prefix, qorder, &feGrad);CHKERRQ(ierr);
         ierr = PetscDSSetDiscretization(probGrad, f, (PetscObject) feGrad);CHKERRQ(ierr);
-        ierr = PetscFECreateDefault(dmHess, dim, Nc*Nd, (vEnd-vStart) == dim+1 ? PETSC_TRUE : PETSC_FALSE, prefix, qorder, &feHess);CHKERRQ(ierr);
+        ierr = PetscFECreateDefault(PetscObjectComm((PetscObject) dmHess), dim, Nc*Nd, (vEnd-vStart) == dim+1 ? PETSC_TRUE : PETSC_FALSE, prefix, qorder, &feHess);CHKERRQ(ierr);
         ierr = PetscDSSetDiscretization(probHess, f, (PetscObject) feHess);CHKERRQ(ierr);
         ierr = PetscFEDestroy(&feGrad);CHKERRQ(ierr);
         ierr = PetscFEDestroy(&feHess);CHKERRQ(ierr);
@@ -859,7 +859,7 @@ static PetscErrorCode DMAdaptorAdapt_Sequence_Private(DMAdaptor adaptor, Vec inx
         if      (dim == 2) DMPlex_Det2D_Scalar_Internal(&detH, Hp);
         else if (dim == 3) DMPlex_Det3D_Scalar_Internal(&detH, Hp);
         else SETERRQ1(PetscObjectComm((PetscObject) adaptor), PETSC_ERR_SUP, "Dimension %d not supported", dim);
-        fact = PetscPowReal(N, 2.0/dim) * PetscPowReal(integral, -2.0/dim) * PetscPowReal(PetscAbsReal(detH), -1.0/(2*p+dim));
+        fact = PetscPowReal(N, 2.0/dim) * PetscPowReal(PetscRealPart(integral), -2.0/dim) * PetscPowReal(PetscAbsReal(detH), -1.0/(2*p+dim));
 #if 0
         ierr = PetscPrintf(PETSC_COMM_SELF, "fact: %g integral: %g |detH|: %g termA: %g termB: %g\n", fact, integral, PetscAbsReal(detH), PetscPowReal(integral, -2.0/dim), PetscPowReal(PetscAbsReal(detH), -1.0/(2*p+dim)));CHKERRQ(ierr);
         ierr = DMPrintCellMatrix(v, "H", coordDim, coordDim, Hp);CHKERRQ(ierr);

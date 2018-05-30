@@ -31,7 +31,8 @@ PetscErrorCode PetscLogObjectParent(PetscObject p,PetscObject c)
 
    Level: developer
 
-   Developer Notes: Currently we do not always do a good job of associating all memory allocations with an object. 
+   Developer Notes:
+    Currently we do not always do a good job of associating all memory allocations with an object. 
 
 .seealso: PetscFinalize(), PetscInitializeFortran(), PetscGetArgs(), PetscInitializeNoArguments()
 
@@ -117,6 +118,7 @@ PetscErrorCode  PetscLogDestroy(void)
   PetscFunctionBegin;
   ierr = PetscFree(petsc_actions);CHKERRQ(ierr);
   ierr = PetscFree(petsc_objects);CHKERRQ(ierr);
+  ierr = PetscLogNestedEnd();CHKERRQ(ierr);
   ierr = PetscLogSet(NULL, NULL);CHKERRQ(ierr);
 
   /* Resetting phase */
@@ -1429,7 +1431,7 @@ PetscErrorCode  PetscLogView_Default(PetscViewer viewer)
       if (TotalFlops    != 0.0) fracFlops      = flops/TotalFlops;       else fracFlops      = 0.0;
       /* Talk to Barry if (stageTime     != 0.0) flops          = (size*flops)/stageTime; else flops          = 0.0; */
       if (numMessages   != 0.0) fracMessages   = mess/numMessages;       else fracMessages   = 0.0;
-      if (numMessages   != 0.0) avgMessLen     = messLen/numMessages;    else avgMessLen     = 0.0;
+      if (mess          != 0.0) avgMessLen     = messLen/mess;           else avgMessLen     = 0.0;
       if (messageLength != 0.0) fracLength     = messLen/messageLength;  else fracLength     = 0.0;
       if (numReductions != 0.0) fracReductions = red/numReductions;      else fracReductions = 0.0;
       ierr = PetscFPrintf(comm, fd, "%2d: %15s: %6.4e %5.1f%%  %6.4e %5.1f%%  %5.3e %5.1f%%  %5.3e      %5.1f%%  %5.3e %5.1f%% \n",
@@ -1558,7 +1560,7 @@ PetscErrorCode  PetscLogView_Default(PetscViewer viewer)
                             name, maxCt, ratCt, maxt, ratt, maxf, ratf, totm, totml, totr,
                             100.0*fracTime, 100.0*fracFlops, 100.0*fracMess, 100.0*fracMessLen, 100.0*fracRed,
                             100.0*fracStageTime, 100.0*fracStageFlops, 100.0*fracStageMess, 100.0*fracStageMessLen, 100.0*fracStageRed,
-                            PetscAbsReal(flopr/1.0e6));CHKERRQ(ierr);
+                            PetscAbs(flopr)/1.0e6);CHKERRQ(ierr);
       }
     }
   }
@@ -1642,8 +1644,8 @@ PetscErrorCode  PetscLogView_Default(PetscViewer viewer)
 #endif
 #if defined(PETSC_USE_REAL_SINGLE)
   ierr = PetscFPrintf(comm, fd, "Compiled with single precision PetscScalar and PetscReal\n");CHKERRQ(ierr);
-#elif defined(PETSC_USE_LONGDOUBLE)
-  ierr = PetscFPrintf(comm, fd, "Compiled with long double precision PetscScalar and PetscReal\n");CHKERRQ(ierr);
+#elif defined(PETSC_USE___FLOAT128)
+  ierr = PetscFPrintf(comm, fd, "Compiled with 128 bit precision PetscScalar and PetscReal\n");CHKERRQ(ierr);
 #endif
 
 #if defined(PETSC_USE_REAL_MAT_SINGLE)
@@ -1666,8 +1668,6 @@ PetscErrorCode  PetscLogView_Default(PetscViewer viewer)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode  PetscLogView_Nested(PetscViewer);
-
 /*@C
   PetscLogView - Prints a summary of the logging.
 
@@ -1679,8 +1679,7 @@ PetscErrorCode  PetscLogView_Nested(PetscViewer);
   Options Database Keys:
 +  -log_view [:filename] - Prints summary of log information
 .  -log_view :filename.py:ascii_info_detail - Saves logging information from each process as a Python file
-.  -log_view :filename.xml:ascii_xml - Saves a summary of the logging information in a nested format, use a browser to open this file, for example on
-             Apple MacOS systems use open -a Safari filename.xml
+.  -log_view :filename.xml:ascii_xml - Saves a summary of the logging information in a nested format (see below for how to view it)
 .  -log_all - Saves a file Log.rank for each MPI process with details of each step of the computation
 -  -log_trace [filename] - Displays a trace of what each process is doing
 
@@ -1691,6 +1690,14 @@ PetscErrorCode  PetscLogView_Nested(PetscViewer);
   Before calling this routine you must have called either PetscLogDefaultBegin() or PetscLogNestedBegin()
 
   If PETSc is configured with --with-logging=0 then this functionality is not available
+
+  To view the nested XML format filename.xml first copy  ${PETSC_DIR}/share/petsc/xml/performance_xml2html.xsl to the current 
+  directory then open filename.xml with your browser. Specific notes for certain browsers
+$    Firefox and Internet explorer - simply open the file
+$    Google Chrome - you must start up Chrome with the option --allow-file-access-from-files
+$    Safari - see http://ccm.net/faq/36342-safari-how-to-enable-local-file-access
+  or one can use the package http://xmlsoft.org/XSLT/xsltproc2.html to translate the xml file to html and then open it with 
+  your browser.
 
   The nested XML format was kindly donated by Koos Huijssen and Christiaan M. Klaij  MARITIME  RESEARCH  INSTITUTE  NETHERLANDS
 
@@ -1865,7 +1872,8 @@ M*/
      PetscPreLoadEnd();
 .ve
 
-   Notes: Only works in C/C++, not Fortran
+   Notes:
+    Only works in C/C++, not Fortran
 
      Flags available within the macro.
 +    PetscPreLoadingUsed - true if we are or have done preloading
@@ -1905,7 +1913,8 @@ M*/
      PetscPreLoadEnd();
 .ve
 
-   Notes: only works in C/C++ not fortran
+   Notes:
+    only works in C/C++ not fortran
 
    Level: intermediate
 
@@ -1932,7 +1941,8 @@ M*/
      PetscPreLoadEnd();
 .ve
 
-   Notes: only works in C/C++ not fortran
+   Notes:
+    only works in C/C++ not fortran
 
    Level: intermediate
 

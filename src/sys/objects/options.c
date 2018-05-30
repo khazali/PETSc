@@ -1,6 +1,6 @@
 
 /* Define Feature test macros to make sure atoll is available (SVr4, POSIX.1-2001, 4.3BSD, C99), not in (C89 and POSIX.1-1996) */
-#define PETSC_DESIRE_FEATURE_TEST_MACROS
+#define PETSC_DESIRE_FEATURE_TEST_MACROS /* for atoll() */
 
 /*
    These routines simplify the use of command line, file options, etc., and are used to manipulate the options database.
@@ -420,7 +420,8 @@ static char *Petscgetline(FILE * f)
 -   require - if PETSC_TRUE will generate an error if the file does not exist
 
 
-  Notes: Use  # for lines that are comments and which should be ignored.
+  Notes:
+    Use  # for lines that are comments and which should be ignored.
 
    Usually, instead of using this command, one should list the file name in the call to PetscInitialize(), this insures that certain options
    such as -log_view or -malloc_debug are processed properly. This routine only sets options into the options database that will be processed by later
@@ -830,7 +831,8 @@ PetscErrorCode  PetscOptionsViewError(void)
    Output Parameter:
 .  copts - pointer where string pointer is stored
 
-   Notes: the array and each entry in the array should be freed with PetscFree()
+   Notes:
+    the array and each entry in the array should be freed with PetscFree()
 
    Level: advanced
 
@@ -991,7 +993,8 @@ PetscErrorCode  PetscOptionsClear(PetscOptions options)
 
    Level: developer
 
-   Developer Notes: This is used, for example to prevent sequential objects that are created from a parallel object; such as the KSP created by 
+   Developer Notes:
+    This is used, for example to prevent sequential objects that are created from a parallel object; such as the KSP created by 
     PCBJACOBI from all printing the same help messages to the screen
 
 .seealso: PetscOptionsInsert()
@@ -1012,7 +1015,8 @@ PetscErrorCode  PetscObjectSetPrintedOptions(PetscObject obj)
 
    Level: developer
 
-   Developer Notes: This is used, for example to prevent sequential objects that are created from a parallel object; such as the KSP created by 
+   Developer Notes:
+    This is used, for example to prevent sequential objects that are created from a parallel object; such as the KSP created by 
     PCBJACOBI from all printing the same help messages to the screen
 
     This will not handle more complicated situations like with GASM where children may live on any subset of the parent's processes and overlap
@@ -1308,7 +1312,7 @@ PetscErrorCode PetscOptionsFindPair_Private(PetscOptions options,const char pre[
     ierr = PetscStrncpy(ptr,pre,tmp+sizeof(tmp)-ptr);CHKERRQ(ierr);
     tmp[sizeof(tmp)-1] = 0;
     ierr = PetscStrlen(tmp,&len);CHKERRQ(ierr);
-    ierr = PetscStrncat(tmp,namep+1,sizeof(tmp)-len-1);CHKERRQ(ierr);
+    ierr = PetscStrlcat(tmp,namep+1,sizeof(tmp));CHKERRQ(ierr);
   } else {
     ierr = PetscStrncpy(tmp,name+1,sizeof(tmp));CHKERRQ(ierr);
     tmp[sizeof(tmp)-1] = 0;
@@ -1353,11 +1357,12 @@ PetscErrorCode PetscOptionsFindPair_Private(PetscOptions options,const char pre[
       }
     }
     if (cnt) {
-      char tmp2[256];
+      char tmp2[256],tmp3[256];
       for (i=0; i<cnt; i++) {
         ierr = PetscStrcpy(tmp2,"-");CHKERRQ(ierr);
-        ierr = PetscStrncat(tmp2,tmp,locs[i]);CHKERRQ(ierr);
-        ierr = PetscStrcat(tmp2,tmp+loce[i]);CHKERRQ(ierr);
+        ierr = PetscStrncpy(tmp3,tmp,locs[i]+1);CHKERRQ(ierr);
+        ierr = PetscStrlcat(tmp2,tmp3,sizeof(tmp2));CHKERRQ(ierr);
+        ierr = PetscStrlcat(tmp2,tmp+loce[i],sizeof(tmp2));CHKERRQ(ierr);
         ierr = PetscOptionsFindPair_Private(options,NULL,tmp2,value,flg);CHKERRQ(ierr);
         if (*flg) break;
       }
@@ -1393,7 +1398,7 @@ PETSC_EXTERN PetscErrorCode PetscOptionsFindPairPrefix_Private(PetscOptions opti
     ierr = PetscStrncpy(ptr,pre,tmp+sizeof(tmp)-ptr);CHKERRQ(ierr);
     tmp[sizeof(tmp)-1] = 0;
     ierr = PetscStrlen(tmp,&len);CHKERRQ(ierr);
-    ierr = PetscStrncat(tmp,namep+1,sizeof(tmp)-len-1);CHKERRQ(ierr);
+    ierr = PetscStrlcat(tmp,namep+1,sizeof(tmp));CHKERRQ(ierr);
   } else {
     ierr = PetscStrncpy(tmp,name+1,sizeof(tmp));CHKERRQ(ierr);
     tmp[sizeof(tmp)-1] = 0;
@@ -1479,7 +1484,8 @@ PetscErrorCode  PetscOptionsReject(PetscOptions options,const char name[],const 
 
    Concepts: options database^has option name
 
-   Notes: Name cannot be simply -h
+   Notes:
+    Name cannot be simply -h
 
           In many cases you probably want to use PetscOptionsGetBool() instead of calling this, to allowing toggling values.
 
@@ -1519,7 +1525,8 @@ PetscErrorCode  PetscOptionsHasName(PetscOptions options,const char pre[],const 
 
    Level: beginner
 
-   Notes:  If the user does not supply the option ivalue is NOT changed. Thus
+   Notes:
+    If the user does not supply the option ivalue is NOT changed. Thus
      you should ALWAYS initialize the ivalue if you access it without first checking if the set flag is true.
 
    Concepts: options database^has int
@@ -1574,7 +1581,8 @@ PetscErrorCode  PetscOptionsGetInt(PetscOptions options,const char pre[],const c
 
    Level: intermediate
 
-   Notes:  If the user does not supply the option value is NOT changed. Thus
+   Notes:
+    If the user does not supply the option value is NOT changed. Thus
      you should ALWAYS initialize the ivalue if you access it without first checking if the set flag is true.
 
    See PetscOptionsFList() for when the choices are given in a PetscFunctionList()
@@ -1634,7 +1642,8 @@ PetscErrorCode  PetscOptionsGetEList(PetscOptions options,const char pre[],const
 
    Concepts: options database
 
-   Notes:  If the user does not supply the option value is NOT changed. Thus
+   Notes:
+    If the user does not supply the option value is NOT changed. Thus
      you should ALWAYS initialize the ivalue if you access it without first checking if the set flag is true.
 
           List is usually something like PCASMTypes or some other predefined list of enum names
@@ -1806,7 +1815,8 @@ PetscErrorCode  PetscOptionsGetBoolArray(PetscOptions options,const char pre[],c
 +  dvalue - the double value to return
 -  set - PETSC_TRUE if found, PETSC_FALSE if not found
 
-   Notes:  If the user does not supply the option dvalue is NOT changed. Thus
+   Notes:
+    If the user does not supply the option dvalue is NOT changed. Thus
      you should ALWAYS initialize the ivalue if you access it without first checking if the set flag is true.
 
    Level: beginner
@@ -1863,7 +1873,8 @@ PetscErrorCode  PetscOptionsGetReal(PetscOptions options,const char pre[],const 
    Usage:
    A complex number 2+3i must be specified with NO spaces
 
-   Notes:  If the user does not supply the option dvalue is NOT changed. Thus
+   Notes:
+    If the user does not supply the option dvalue is NOT changed. Thus
      you should ALWAYS initialize the ivalue if you access it without first checking if the set flag is true.
 
    Concepts: options database^has scalar
@@ -2253,7 +2264,8 @@ PetscErrorCode PetscOptionsGetEnumArray(PetscOptions options,const char pre[],co
       call PetscOptionsGetString(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,'-s',string,set,ierr)
 .ve
 
-   Notes: if the option is given but no string is provided then an empty string is returned and set is given the value of PETSC_TRUE
+   Notes:
+    if the option is given but no string is provided then an empty string is returned and set is given the value of PETSC_TRUE
 
            If the user does not use the option then the string is not changed. Thus
            you should ALWAYS initialize the string if you access it without first checking if the set flag is true.

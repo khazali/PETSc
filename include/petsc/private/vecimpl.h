@@ -15,6 +15,9 @@
 PETSC_EXTERN PetscBool VecRegisterAllCalled;
 PETSC_EXTERN PetscErrorCode VecRegisterAll(void);
 
+PETSC_EXTERN PetscBool VecScatterRegisterAllCalled;
+PETSC_EXTERN PetscErrorCode VecScatterRegisterAll(void);
+
 /* ----------------------------------------------------------------------------*/
 
 typedef struct _VecOps *VecOps;
@@ -137,39 +140,63 @@ struct _p_Vec {
   VecStash               stash,bstash; /* used for storing off-proc values during assembly */
   PetscBool              petscnative;  /* means the ->data starts with VECHEADER and can use VecGetArrayFast()*/
   PetscInt               lock;   /* vector is locked to read only */
-#if defined(PETSC_HAVE_CUSP)
-  PetscCUSPFlag          valid_GPU_array;    /* indicates where the most recently modified vector data is (GPU or CPU) */
-  void                   *spptr; /* if we're using CUSP, then this is the special pointer to the array on the GPU */
-#elif defined(PETSC_HAVE_VIENNACL)
-  PetscViennaCLFlag      valid_GPU_array;    /* indicates where the most recently modified vector data is (GPU or CPU) */
-  void                   *spptr; /* if we're using ViennaCL, then this is the special pointer to the array on the GPU */
-#elif defined(PETSC_HAVE_VECCUDA)
-  PetscCUDAFlag          valid_GPU_array;    /* indicates where the most recently modified vector data is (GPU or CPU) */
-  void                   *spptr; /* if we're using CUDA, then this is the special pointer to the array on the GPU */
+#if defined(PETSC_HAVE_VIENNACL) || defined(PETSC_HAVE_VECCUDA)
+  PetscOffloadFlag       valid_GPU_array;    /* indicates where the most recently modified vector data is (GPU or CPU) */
+  void                   *spptr; /* this is the special pointer to the array on the GPU */
 #endif
 };
 
 PETSC_EXTERN PetscLogEvent VEC_SetRandom;
-PETSC_EXTERN PetscLogEvent VEC_View, VEC_Max, VEC_Min, VEC_DotBarrier, VEC_Dot, VEC_MDotBarrier, VEC_MDot, VEC_TDot, VEC_MTDot;
-PETSC_EXTERN PetscLogEvent VEC_Norm, VEC_Normalize, VEC_Scale, VEC_Copy, VEC_Set, VEC_AXPY, VEC_AYPX, VEC_WAXPY, VEC_MAXPY;
-PETSC_EXTERN PetscLogEvent VEC_AssemblyEnd, VEC_PointwiseMult, VEC_SetValues, VEC_Load, VEC_ScatterBarrier, VEC_ScatterBegin, VEC_ScatterEnd;
-PETSC_EXTERN PetscLogEvent VEC_ReduceArithmetic, VEC_ReduceBarrier, VEC_ReduceCommunication;
-PETSC_EXTERN PetscLogEvent VEC_ReduceBegin,VEC_ReduceEnd;
-PETSC_EXTERN PetscLogEvent VEC_Swap, VEC_AssemblyBegin, VEC_NormBarrier, VEC_DotNormBarrier, VEC_DotNorm, VEC_AXPBYPCZ, VEC_Ops;
-PETSC_EXTERN PetscLogEvent VEC_CUSPCopyToGPU, VEC_CUSPCopyFromGPU;
-PETSC_EXTERN PetscLogEvent VEC_CUSPCopyToGPUSome, VEC_CUSPCopyFromGPUSome;
-PETSC_EXTERN PetscLogEvent VEC_ViennaCLCopyToGPU,     VEC_ViennaCLCopyFromGPU;
-PETSC_EXTERN PetscLogEvent VEC_CUDACopyToGPU, VEC_CUDACopyFromGPU;
-PETSC_EXTERN PetscLogEvent VEC_CUDACopyToGPUSome, VEC_CUDACopyFromGPUSome;
+PETSC_EXTERN PetscLogEvent VEC_View;
+PETSC_EXTERN PetscLogEvent VEC_Max;
+PETSC_EXTERN PetscLogEvent VEC_Min;
+PETSC_EXTERN PetscLogEvent VEC_DotBarrier;
+PETSC_EXTERN PetscLogEvent VEC_Dot;
+PETSC_EXTERN PetscLogEvent VEC_MDotBarrier;
+PETSC_EXTERN PetscLogEvent VEC_MDot;
+PETSC_EXTERN PetscLogEvent VEC_TDot;
+PETSC_EXTERN PetscLogEvent VEC_MTDot;
+PETSC_EXTERN PetscLogEvent VEC_Norm;
+PETSC_EXTERN PetscLogEvent VEC_Normalize;
+PETSC_EXTERN PetscLogEvent VEC_Scale;
+PETSC_EXTERN PetscLogEvent VEC_Copy;
+PETSC_EXTERN PetscLogEvent VEC_Set;
+PETSC_EXTERN PetscLogEvent VEC_AXPY;
+PETSC_EXTERN PetscLogEvent VEC_AYPX;
+PETSC_EXTERN PetscLogEvent VEC_WAXPY;
+PETSC_EXTERN PetscLogEvent VEC_MAXPY;
+PETSC_EXTERN PetscLogEvent VEC_AssemblyEnd;
+PETSC_EXTERN PetscLogEvent VEC_PointwiseMult;
+PETSC_EXTERN PetscLogEvent VEC_SetValues;
+PETSC_EXTERN PetscLogEvent VEC_Load;
+PETSC_EXTERN PetscLogEvent VEC_ScatterBarrier;
+PETSC_EXTERN PetscLogEvent VEC_ScatterBegin;
+PETSC_EXTERN PetscLogEvent VEC_ScatterEnd;
+PETSC_EXTERN PetscLogEvent VEC_ReduceArithmetic;
+PETSC_EXTERN PetscLogEvent VEC_ReduceBarrier;
+PETSC_EXTERN PetscLogEvent VEC_ReduceCommunication;
+PETSC_EXTERN PetscLogEvent VEC_ReduceBegin;
+PETSC_EXTERN PetscLogEvent VEC_ReduceEnd;
+PETSC_EXTERN PetscLogEvent VEC_Swap;
+PETSC_EXTERN PetscLogEvent VEC_AssemblyBegin;
+PETSC_EXTERN PetscLogEvent VEC_NormBarrier;
+PETSC_EXTERN PetscLogEvent VEC_DotNormBarrier;
+PETSC_EXTERN PetscLogEvent VEC_DotNorm;
+PETSC_EXTERN PetscLogEvent VEC_AXPBYPCZ;
+PETSC_EXTERN PetscLogEvent VEC_Ops;
+PETSC_EXTERN PetscLogEvent VEC_ViennaCLCopyToGPU;
+PETSC_EXTERN PetscLogEvent VEC_ViennaCLCopyFromGPU;
+PETSC_EXTERN PetscLogEvent VEC_CUDACopyToGPU;
+PETSC_EXTERN PetscLogEvent VEC_CUDACopyFromGPU;
+PETSC_EXTERN PetscLogEvent VEC_CUDACopyToGPUSome;
+PETSC_EXTERN PetscLogEvent VEC_CUDACopyFromGPUSome;
 
 PETSC_EXTERN PetscErrorCode VecView_Seq(Vec,PetscViewer);
-#if defined(PETSC_HAVE_CUSP)
-PETSC_EXTERN PetscErrorCode VecCUSPAllocateCheckHost(Vec v);
-PETSC_EXTERN PetscErrorCode VecCUSPCopyFromGPU(Vec v);
-#elif defined(PETSC_HAVE_VIENNACL)
+#if defined(PETSC_HAVE_VIENNACL)
 PETSC_EXTERN PetscErrorCode VecViennaCLAllocateCheckHost(Vec v);
 PETSC_EXTERN PetscErrorCode VecViennaCLCopyFromGPU(Vec v);
-#elif defined(PETSC_HAVE_VECCUDA)
+#endif
+#if defined(PETSC_HAVE_VECCUDA)
 PETSC_EXTERN PetscErrorCode VecCUDAAllocateCheckHost(Vec v);
 PETSC_EXTERN PetscErrorCode VecCUDACopyFromGPU(Vec v);
 #endif
@@ -198,10 +225,10 @@ PETSC_EXTERN PetscInt  NormIds[7];  /* map from NormType to IDs used to cache/re
 
 typedef enum { VEC_SCATTER_SEQ_GENERAL,VEC_SCATTER_SEQ_STRIDE,
                VEC_SCATTER_MPI_GENERAL,VEC_SCATTER_MPI_TOALL,
-               VEC_SCATTER_MPI_TOONE} VecScatterType;
+               VEC_SCATTER_MPI_TOONE} VecScatterFormat;
 
 #define VECSCATTER_IMPL_HEADER \
-      VecScatterType type;
+      VecScatterFormat format;
 
 typedef struct {
   VECSCATTER_IMPL_HEADER
@@ -223,9 +250,11 @@ typedef struct {
   PetscBool      nonmatching_computed;
   PetscInt       n_nonmatching;        /* number of "from"s  != "to"s */
   PetscInt       *slots_nonmatching;   /* locations of "from"s  != "to"s */
-  PetscBool      is_copy;
-  PetscInt       copy_start;   /* local scatter is a copy starting at copy_start */
-  PetscInt       copy_length;
+  PetscBool      made_of_copies;       /* if local scatter is made of copies */
+  PetscInt       n_copies;             /* number of copies */
+  PetscInt       *copy_starts;         /* i-th copy starts at copy_starts[i] */
+  PetscInt       *copy_lengths;        /* with length copy_lengths[i] */
+  PetscBool      same_copy_starts;     /* to's copy_starts[] values are as same as from's. Used to quickly test if we are doing a self-copy */
 } VecScatter_Seq_General;
 
 typedef struct {
@@ -272,15 +301,25 @@ typedef struct {
   PetscMPIInt            *wcounts,*wdispls;
   MPI_Datatype           *types;
 #endif
-  PetscBool              use_window;
-#if defined(PETSC_HAVE_MPI_WIN_CREATE)
+  PetscBool              use_window;    /* these uses windows for communication across all MPI processes */
+#if defined(PETSC_HAVE_MPI_WIN_CREATE_FEATURE)
   MPI_Win                window;
   PetscInt               *winstarts;    /* displacements in the processes I am putting to */
+#endif
+#if defined(PETSC_HAVE_MPI_WIN_CREATE_FEATURE)      /* these uses windows for communication only within each node */
+  PetscMPIInt            msize,sharedcnt;           /* total to entries that are going to processes with the same shared memory space */
+  PetscScalar            *sharedspace;              /* space each process puts data to be read from other processes; allocated by MPI */
+  PetscScalar            **sharedspaces;            /* [msize] space other processes put data to be read from this processes. */
+  PetscInt               *sharedspacesoffset;       /* [msize] offset into sharedspaces, that I will read from */
+  PetscInt               *sharedspacestarts;        /* [msize+1] for each shared memory partner this maps to the part of sharedspaceindices of that partner */
+  PetscInt               *sharedspaceindices;       /* [] for each shared memory partner contains indices where values are to be copied to */
+  MPI_Win                sharedwin;                 /* Window that owns sharedspace */
+  PetscInt               notdone;                   /* used by VecScatterEndMPI3Node() */
 #endif
 } VecScatter_MPI_General;
 
 
-PETSC_INTERN PetscErrorCode VecScatterGetTypes_Private(VecScatter,VecScatterType*,VecScatterType*);
+PETSC_INTERN PetscErrorCode VecScatterGetTypes_Private(VecScatter,VecScatterFormat*,VecScatterFormat*);
 PETSC_INTERN PetscErrorCode VecScatterIsSequential_Private(VecScatter_Common*,PetscBool*);
 
 typedef struct _VecScatterOps *VecScatterOps;
@@ -290,7 +329,7 @@ struct _VecScatterOps {
   PetscErrorCode (*copy)(VecScatter,VecScatter);
   PetscErrorCode (*destroy)(VecScatter);
   PetscErrorCode (*view)(VecScatter,PetscViewer);
-  PetscErrorCode (*viewfromoptions)(VecScatter,const char prefix[],const char name[]); 
+  PetscErrorCode (*viewfromoptions)(VecScatter,const char prefix[],const char name[]);
   PetscErrorCode (*remap)(VecScatter,PetscInt *,PetscInt*);
   PetscErrorCode (*getmerged)(VecScatter,PetscBool *);
 };
@@ -305,11 +344,21 @@ struct _p_VecScatter {
   PetscBool      reproduce;            /* always receive the ghost points in the same order of processes */
   void           *fromdata,*todata;
   void           *spptr;
+  PetscBool      is_duplicate;         /* IS has duplicate indices, would cause writing error in the case StoP of VecScatterEndMPI3Node */
+  Vec            to_v,from_v;          /* used in VecScatterCreate() */
+  IS             to_is,from_is;        /* used in VecScatterCreate() */
 };
+
+PETSC_INTERN PetscErrorCode VecScatterCreate_Seq(VecScatter);
+PETSC_INTERN PetscErrorCode VecScatterCreate_MPI1(VecScatter);
+PETSC_INTERN PetscErrorCode VecScatterCreate_MPI3(VecScatter);
+PETSC_INTERN PetscErrorCode VecScatterCreate_MPI3Node(VecScatter);
+PETSC_INTERN PetscErrorCode VecScatterLocalOptimizeCopy_Private(VecScatter,VecScatter_Seq_General*,VecScatter_Seq_General*,PetscInt);
+
 
 PETSC_INTERN PetscErrorCode VecStashCreate_Private(MPI_Comm,PetscInt,VecStash*);
 PETSC_INTERN PetscErrorCode VecStashDestroy_Private(VecStash*);
-PETSC_INTERN PetscErrorCode VecStashExpand_Private(VecStash*,PetscInt);
+PETSC_EXTERN PetscErrorCode VecStashExpand_Private(VecStash*,PetscInt);
 PETSC_INTERN PetscErrorCode VecStashScatterEnd_Private(VecStash*);
 PETSC_INTERN PetscErrorCode VecStashSetInitialSize_Private(VecStash*,PetscInt);
 PETSC_INTERN PetscErrorCode VecStashGetInfo_Private(VecStash*,PetscInt*,PetscInt*);

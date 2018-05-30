@@ -58,6 +58,9 @@ PETSC_EXTERN PetscErrorCode PetscViewerSocketOpen(MPI_Comm,const char[],int,Pets
 PETSC_EXTERN PetscErrorCode PetscViewerStringOpen(MPI_Comm,char[],size_t,PetscViewer*);
 PETSC_EXTERN PetscErrorCode PetscViewerDrawOpen(MPI_Comm,const char[],const char[],int,int,int,int,PetscViewer*);
 PETSC_EXTERN PetscErrorCode PetscViewerDrawSetDrawType(PetscViewer,PetscDrawType);
+PETSC_EXTERN PetscErrorCode PetscViewerDrawGetDrawType(PetscViewer,PetscDrawType*);
+PETSC_EXTERN PetscErrorCode PetscViewerDrawSetTitle(PetscViewer,const char[]);
+PETSC_EXTERN PetscErrorCode PetscViewerDrawGetTitle(PetscViewer,const char*[]);
 PETSC_EXTERN PetscErrorCode PetscViewerDrawGetDraw(PetscViewer,PetscInt,PetscDraw*);
 PETSC_EXTERN PetscErrorCode PetscViewerDrawBaseAdd(PetscViewer,PetscInt);
 PETSC_EXTERN PetscErrorCode PetscViewerDrawBaseSet(PetscViewer,PetscInt);
@@ -100,9 +103,6 @@ PETSC_EXTERN PetscErrorCode PetscViewerGetOptionsPrefix(PetscViewer,const char*[
 
    Level: beginner
 
-   The values below are also listed in petsc/finclude/petscviewer.h. If another values is added below it
-   must also be added there.
-
 .seealso: PetscViewer, PetscViewerType, PetscViewerPushFormat(), PetscViewerPopFormat()
 E*/
 typedef enum {
@@ -135,8 +135,11 @@ typedef enum {
   PETSC_VIEWER_VTK_VTU,
   PETSC_VIEWER_BINARY_MATLAB,
   PETSC_VIEWER_NATIVE,
+  PETSC_VIEWER_HDF5_PETSC,
   PETSC_VIEWER_HDF5_VIZ,
-  PETSC_VIEWER_NOFORMAT
+  PETSC_VIEWER_HDF5_XDMF,
+  PETSC_VIEWER_NOFORMAT,
+  PETSC_VIEWER_LOAD_BALANCE
   } PetscViewerFormat;
 PETSC_EXTERN const char *const PetscViewerFormats[];
 

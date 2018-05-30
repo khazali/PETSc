@@ -249,7 +249,7 @@ PetscErrorCode  MatPartitioningApply(MatPartitioning matp,IS *partitioning)
   ierr = (*matp->ops->apply)(matp,partitioning);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(MAT_Partitioning,matp,0,0,0);CHKERRQ(ierr);
 
-  ierr = PetscOptionsGetBool(((PetscObject)matp)->options,NULL,"-mat_partitioning_view",&flag,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(((PetscObject)matp)->options,((PetscObject)matp)->prefix,"-mat_partitioning_view",&flag,NULL);CHKERRQ(ierr);
   if (flag) {
     PetscViewer viewer;
     ierr = PetscViewerASCIIGetStdout(PetscObjectComm((PetscObject)matp),&viewer);CHKERRQ(ierr);
@@ -512,7 +512,7 @@ PetscErrorCode  MatPartitioningSetType(MatPartitioning part,MatPartitioningType 
   ierr = PetscObjectTypeCompare((PetscObject)part,type,&match);CHKERRQ(ierr);
   if (match) PetscFunctionReturn(0);
 
-  if (part->setupcalled) {
+  if (part->ops->destroy) {
     ierr =  (*part->ops->destroy)(part);CHKERRQ(ierr);
 
     part->ops->destroy = NULL;
@@ -548,7 +548,8 @@ $      Use -help for a list of available methods
 $      (for instance, parmetis)
 
 
-   Notes: If the partitioner has not been set by the user it uses one of the installed partitioner such as ParMetis. If there are
+   Notes:
+    If the partitioner has not been set by the user it uses one of the installed partitioner such as ParMetis. If there are
    no installed partitioners it uses current which means no repartioning.
 
    Level: beginner

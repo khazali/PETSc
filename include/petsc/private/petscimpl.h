@@ -9,13 +9,7 @@
 
 /* These are used internally by PETSc ASCII IO routines*/
 #include <stdarg.h>
-PETSC_EXTERN PetscErrorCode PetscVSNPrintf(char*,size_t,const char[],size_t*,va_list);
-PETSC_EXTERN PetscErrorCode (*PetscVFPrintf)(FILE*,const char[],va_list);
 PETSC_EXTERN PetscErrorCode PetscVFPrintfDefault(FILE*,const char[],va_list);
-
-#if defined(PETSC_HAVE_MATLAB_ENGINE)
-PETSC_EXTERN PetscErrorCode PetscVFPrintf_Matlab(FILE*,const char[],va_list);
-#endif
 
 #if defined(PETSC_HAVE_CLOSURES)
 PETSC_EXTERN PetscErrorCode PetscVFPrintfSetClosure(int (^)(const char*));
@@ -130,6 +124,7 @@ typedef struct _p_PetscObject {
   PetscBool            amspublishblock; /* if PETSC_TRUE and publishing objects then will block at PetscObjectSAWsBlock() */
 #endif
   PetscOptions         options;         /* options database used, NULL means default */
+  PetscBool            donotPetscObjectPrintClassNamePrefixType;
 } _p_PetscObject;
 
 #define PETSCHEADER(ObjectOps) \
@@ -201,6 +196,7 @@ PETSC_EXTERN PetscBool PetscCheckPointer(const void*,PetscDataType);
 #if !defined(PETSC_USE_DEBUG)
 
 #define PetscValidHeaderSpecific(h,ck,arg) do {} while (0)
+#define PetscValidHeaderSpecificType(h,ck,arg,t) do {} while (0)
 #define PetscValidHeader(h,arg) do {} while (0)
 #define PetscValidPointer(h,arg) do {} while (0)
 #define PetscValidCharPointer(h,arg) do {} while (0)
@@ -210,6 +206,16 @@ PETSC_EXTERN PetscBool PetscCheckPointer(const void*,PetscDataType);
 #define PetscValidFunction(h,arg) do {} while (0)
 
 #else
+
+/*  This check is for subtype methods such as DMDAGetCorners() that do not use the PetscTryMethod() or PetscUseMethod() paradigm */
+#define PetscValidHeaderSpecificType(h,ck,arg,t) \
+  do {   \
+    PetscErrorCode __ierr; \
+    PetscBool      same; \
+    PetscValidHeaderSpecific(h,ck,arg); \
+    __ierr = PetscObjectTypeCompare((PetscObject)h,t,&same);CHKERRQ(__ierr);      \
+    if (!same) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"Wrong subtype object:Parameter # %d must have implementation %s it is %s",arg,t,((PetscObject)h)->type_name); \
+  } while (0)
 
 #define PetscValidHeaderSpecific(h,ck,arg)                              \
   do {                                                                  \
@@ -422,7 +428,8 @@ PETSC_EXTERN PetscBool PetscCheckPointer(const void*,PetscDataType);
          cast with a (PetscObject), for example,
          PetscObjectStateIncrease((PetscObject)mat);
 
-   Notes: object state is an integer which gets increased every time
+   Notes:
+    object state is an integer which gets increased every time
    the object is changed internally. By saving and later querying the object state
    one can determine whether information about the object is still current.
    Currently, state is maintained for Vec and Mat objects.
@@ -775,6 +782,7 @@ PETSC_EXTERN PetscMPIInt Petsc_Counter_keyval;
 PETSC_EXTERN PetscMPIInt Petsc_InnerComm_keyval;
 PETSC_EXTERN PetscMPIInt Petsc_OuterComm_keyval;
 PETSC_EXTERN PetscMPIInt Petsc_Seq_keyval;
+PETSC_EXTERN PetscMPIInt Petsc_Shared_keyval;
 
 /*
   PETSc communicators have this attribute, see
@@ -786,47 +794,17 @@ typedef struct {
   PetscInt    namecount;        /* used to generate the next name, as in Vec_0, Mat_1, ... */
 } PetscCommCounter;
 
-#if defined(PETSC_HAVE_CUSP)
 /*E
-    PetscCUSPFlag - indicates which memory (CPU, GPU, or none contains valid vector
+    PetscOffloadFlag - indicates which memory (CPU, GPU, or none contains valid vector
 
-   PETSC_CUSP_UNALLOCATED  - no memory contains valid matrix entries; NEVER used for vectors
-   PETSC_CUSP_GPU - GPU has valid vector/matrix entries
-   PETSC_CUSP_CPU - CPU has valid vector/matrix entries
-   PETSC_CUSP_BOTH - Both GPU and CPU have valid vector/matrix entries and they match
+   PETSC_OFFLOAD_UNALLOCATED  - no memory contains valid matrix entries; NEVER used for vectors
+   PETSC_OFFLOAD_GPU - GPU has valid vector/matrix entries
+   PETSC_OFFLOAD_CPU - CPU has valid vector/matrix entries
+   PETSC_OFFLOAD_BOTH - Both GPU and CPU have valid vector/matrix entries and they match
 
    Level: developer
 E*/
-typedef enum {PETSC_CUSP_UNALLOCATED,PETSC_CUSP_GPU,PETSC_CUSP_CPU,PETSC_CUSP_BOTH} PetscCUSPFlag;
-#elif defined(PETSC_HAVE_VIENNACL)
-/*E
-    PetscViennaCLFlag - indicates which memory (CPU, GPU, or none contains valid vector
-
-   PETSC_VIENNACL_UNALLOCATED  - no memory contains valid matrix entries; NEVER used for vectors
-   PETSC_VIENNACL_GPU - GPU has valid vector/matrix entries
-   PETSC_VIENNACL_CPU - CPU has valid vector/matrix entries
-   PETSC_VIENNACL_BOTH - Both GPU and CPU have valid vector/matrix entries and they match
-
-   Level: developer
-E*/
-typedef enum {PETSC_VIENNACL_UNALLOCATED,PETSC_VIENNACL_GPU,PETSC_VIENNACL_CPU,PETSC_VIENNACL_BOTH} PetscViennaCLFlag;
-#elif defined(PETSC_HAVE_VECCUDA)
-/*E
-    PetscCUDAFlag - indicates which memory (CPU, GPU, or none contains valid vector
-
-   PETSC_CUDA_UNALLOCATED  - no memory contains valid matrix entries; NEVER used for vectors
-   PETSC_CUDA_GPU - GPU has valid vector/matrix entries
-   PETSC_CUDA_CPU - CPU has valid vector/matrix entries
-   PETSC_CUDA_BOTH - Both GPU and CPU have valid vector/matrix entries and they match
-
-   Level: developer
-E*/
-typedef enum {PETSC_CUDA_UNALLOCATED,PETSC_CUDA_GPU,PETSC_CUDA_CPU,PETSC_CUDA_BOTH} PetscCUDAFlag;
-#endif
-
-#if defined(PETSC_HAVE_CUSP) || defined(PETSC_HAVE_VECCUDA)
-PETSC_EXTERN cublasHandle_t cublasv2handle;
-#endif
+typedef enum {PETSC_OFFLOAD_UNALLOCATED,PETSC_OFFLOAD_GPU,PETSC_OFFLOAD_CPU,PETSC_OFFLOAD_BOTH} PetscOffloadFlag;
 
 typedef enum {STATE_BEGIN, STATE_PENDING, STATE_END} SRState;
 

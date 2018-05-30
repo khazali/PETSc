@@ -17,7 +17,11 @@
 
 
 #if !defined(PETSC_AVOID_MPIF_H)
+#if defined(PETSC_HAVE_MPIUNI)
+#include "petsc/mpiuni/mpif.h"
+#else
 #include "mpif.h"
+#endif
 #endif
 
       type tPetscOptions
@@ -243,8 +247,15 @@
 !    END COMMON-BLOCK VARIABLES
 ! ----------------------------------------------------------------------------
 !
-!
 !     Random numbers
+!
+      type tPetscRandom
+        sequence
+        PetscFortranAddr:: v
+      end type tPetscRandom
+
+      PetscRandom, parameter :: PETSC_NULL_RANDOM                                  &
+     &             = tPetscRandom(-1)
 !
 #define PETSCRAND 'rand'
 #define PETSCRAND48 'rand48'

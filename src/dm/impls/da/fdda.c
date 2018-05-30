@@ -48,6 +48,55 @@ static PetscErrorCode DMDASetBlockFills_Private(const PetscInt *dfill,PetscInt w
   PetscFunctionReturn(0);
 }
 
+
+static PetscErrorCode DMDASetBlockFillsSparse_Private(const PetscInt *dfillsparse,PetscInt w,PetscInt **rfill)
+{
+  PetscErrorCode ierr;
+  PetscInt       i,nz,*fill;
+
+  PetscFunctionBegin;
+  if (!dfillsparse) PetscFunctionReturn(0);
+
+  /* Determine number of non-zeros */
+  nz = (dfillsparse[w] - w - 1);
+
+  /* Allocate space for our copy of the given sparse matrix representation. */
+  ierr = PetscMalloc1(nz + w + 1,&fill);CHKERRQ(ierr);
+
+  /* Copy the given sparse matrix representation. */
+  for(i = 0; i < (nz + w + 1); ++i)
+  {
+    fill[i] = dfillsparse[i];
+  }
+
+  *rfill = fill;
+  PetscFunctionReturn(0);
+}
+
+
+static PetscErrorCode DMDASetBlockFills_Private2(DM_DA *dd)
+{
+  PetscErrorCode ierr;
+  PetscInt       i,k,cnt = 1;
+
+  PetscFunctionBegin;
+
+  /* ofillcount tracks the columns of ofill that have any nonzero in thems; the value in each location is the number of
+   columns to the left with any nonzeros in them plus 1 */
+  ierr = PetscCalloc1(dd->w,&dd->ofillcols);CHKERRQ(ierr);
+  for (i=0; i<dd->w; i++) {
+    for (k=dd->ofill[i]; k<dd->ofill[i+1]; k++) dd->ofillcols[dd->ofill[k]] = 1;
+  }
+  for (i=0; i<dd->w; i++) {
+    if (dd->ofillcols[i]) {
+      dd->ofillcols[i] = cnt++;
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+
+
 /*@
     DMDASetBlockFills - Sets the fill pattern in each block for a multi-component problem
     of the matrix returned by DMCreateMatrix().
@@ -62,7 +111,8 @@ static PetscErrorCode DMDASetBlockFills_Private(const PetscInt *dfill,PetscInt w
 
     Level: developer
 
-    Notes: This only makes sense when you are doing multicomponent problems but using the
+    Notes:
+    This only makes sense when you are doing multicomponent problems but using the
        MPIAIJ matrix format
 
            The format for dfill and ofill is a 2 dimensional dof by dof matrix with 1 entries
@@ -86,23 +136,72 @@ PetscErrorCode  DMDASetBlockFills(DM da,const PetscInt *dfill,const PetscInt *of
 {
   DM_DA          *dd = (DM_DA*)da->data;
   PetscErrorCode ierr;
-  PetscInt       i,k,cnt = 1;
 
   PetscFunctionBegin;
+  /* save the given dfill and ofill information */
   ierr = DMDASetBlockFills_Private(dfill,dd->w,&dd->dfill);CHKERRQ(ierr);
   ierr = DMDASetBlockFills_Private(ofill,dd->w,&dd->ofill);CHKERRQ(ierr);
 
-  /* ofillcount tracks the columns of ofill that have any nonzero in thems; the value in each location is the number of
-   columns to the left with any nonzeros in them plus 1 */
-  ierr = PetscCalloc1(dd->w,&dd->ofillcols);CHKERRQ(ierr);
-  for (i=0; i<dd->w; i++) {
-    for (k=dd->ofill[i]; k<dd->ofill[i+1]; k++) dd->ofillcols[dd->ofill[k]] = 1;
-  }
-  for (i=0; i<dd->w; i++) {
-    if (dd->ofillcols[i]) {
-      dd->ofillcols[i] = cnt++;
-    }
-  }
+  /* count nonzeros in ofill columns */
+  ierr = DMDASetBlockFills_Private2(dd);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+
+
+/*@
+    DMDASetBlockFillsSparse - Sets the fill pattern in each block for a multi-component problem
+    of the matrix returned by DMCreateMatrix(), using sparse representations
+    of fill patterns.
+
+    Logically Collective on DMDA
+
+    Input Parameter:
++   da - the distributed array
+.   dfill - the sparse fill pattern in the diagonal block (may be NULL, means use dense block)
+-   ofill - the sparse fill pattern in the off-diagonal blocks
+
+
+    Level: developer
+
+    Notes: This only makes sense when you are doing multicomponent problems but using the
+       MPIAIJ matrix format
+
+           The format for dfill and ofill is a sparse representation of a
+           dof-by-dof matrix with 1 entries representing coupling and 0 entries
+           for missing coupling.  The sparse representation is a 1 dimensional
+           array of length nz + dof + 1, where nz is the number of non-zeros in
+           the matrix.  The first dof entries in the array give the 
+           starting array indices of each row's items in the rest of the array,
+           the dof+1st item indicates the total number of nonzeros,
+           and the remaining nz items give the column indices of each of
+           the 1s within the logical 2D matrix.  Each row's items within
+           the array are the column indices of the 1s within that row
+           of the 2D matrix.  PETSc developers may recognize that this is the
+           same format as that computed by the DMDASetBlockFills_Private()
+           function from a dense 2D matrix representation.
+
+     DMDASetGetMatrix() allows you to provide general code for those more complicated nonzero patterns then
+     can be represented in the dfill, ofill format
+
+   Contributed by Philip C. Roth
+
+.seealso DMDASetBlockFills(), DMCreateMatrix(), DMDASetGetMatrix(), DMSetMatrixPreallocateOnly()
+
+@*/
+PetscErrorCode  DMDASetBlockFillsSparse(DM da,const PetscInt *dfillsparse,const PetscInt *ofillsparse)
+{
+  DM_DA          *dd = (DM_DA*)da->data;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  /* save the given dfill and ofill information */
+  ierr = DMDASetBlockFillsSparse_Private(dfillsparse,dd->w,&dd->dfill);CHKERRQ(ierr);
+  ierr = DMDASetBlockFillsSparse_Private(ofillsparse,dd->w,&dd->ofill);CHKERRQ(ierr);
+
+  /* count nonzeros in ofill columns */
+  ierr = DMDASetBlockFills_Private2(dd);CHKERRQ(ierr);
+
   PetscFunctionReturn(0);
 }
 
@@ -488,6 +587,7 @@ extern PetscErrorCode DMCreateMatrix_DA_2d_MPISBAIJ(DM,Mat);
 extern PetscErrorCode DMCreateMatrix_DA_3d_MPISBAIJ(DM,Mat);
 extern PetscErrorCode DMCreateMatrix_DA_2d_MPISELL(DM,Mat);
 extern PetscErrorCode DMCreateMatrix_DA_3d_MPISELL(DM,Mat);
+extern PetscErrorCode DMCreateMatrix_DA_IS(DM,Mat);
 
 /*@C
    MatSetupDM - Sets the DMDA that is to be used by the HYPRE_StructMatrix PETSc matrix
@@ -507,7 +607,7 @@ PetscErrorCode MatSetupDM(Mat mat,DM da)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
-  PetscValidHeaderSpecific(da,DM_CLASSID,1);
+  PetscValidHeaderSpecificType(da,DM_CLASSID,1,DMDA);
   ierr = PetscTryMethod(mat,"MatSetupDM_C",(Mat,DM),(mat,da));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -598,7 +698,7 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
   MPI_Comm       comm;
   MatType        Atype;
   PetscSection   section, sectionGlobal;
-  void           (*aij)(void)=NULL,(*baij)(void)=NULL,(*sbaij)(void)=NULL,(*sell)(void)=NULL;
+  void           (*aij)(void)=NULL,(*baij)(void)=NULL,(*sbaij)(void)=NULL,(*sell)(void)=NULL,(*is)(void)=NULL;
   MatType        mtype;
   PetscMPIInt    size;
   DM_DA          *dd = (DM_DA*)da->data;
@@ -725,6 +825,9 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
           ierr = PetscObjectQueryFunction((PetscObject)A,"MatSeqSELLSetPreallocation_C",&sell);CHKERRQ(ierr);
         }
       }
+      if (!sell) {
+        ierr = PetscObjectQueryFunction((PetscObject)A,"MatISSetPreallocation_C",&is);CHKERRQ(ierr);
+      }
     }
   }
   if (aij) {
@@ -765,8 +868,11 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
      } else if (dim == 3) {
        ierr = DMCreateMatrix_DA_3d_MPISELL(da,A);CHKERRQ(ierr);
      } else SETERRQ3(PetscObjectComm((PetscObject)da),PETSC_ERR_SUP,"Not implemented for %D dimension and Matrix Type: %s in %D dimension! Send mail to petsc-maint@mcs.anl.gov for code",dim,Atype,dim);
-  }else {
+  } else if (is) {
+    ierr = DMCreateMatrix_DA_IS(da,A);CHKERRQ(ierr);
+  } else {
     ISLocalToGlobalMapping ltog;
+
     ierr = MatSetBlockSize(A,dof);CHKERRQ(ierr);
     ierr = MatSetUp(A);CHKERRQ(ierr);
     ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
@@ -778,8 +884,8 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
   ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
   if (size > 1) {
     /* change viewer to display matrix in natural ordering */
-    ierr = MatShellSetOperation(A, MATOP_VIEW, (void (*)(void))MatView_MPI_DA);CHKERRQ(ierr);
-    ierr = MatShellSetOperation(A, MATOP_LOAD, (void (*)(void))MatLoad_MPI_DA);CHKERRQ(ierr);
+    ierr = MatSetOperation(A, MATOP_VIEW, (void (*)(void))MatView_MPI_DA);CHKERRQ(ierr);
+    ierr = MatSetOperation(A, MATOP_LOAD, (void (*)(void))MatLoad_MPI_DA);CHKERRQ(ierr);
   }
   ierr = MatSetFromOptions(A);CHKERRQ(ierr);
   *J = A;
@@ -787,6 +893,81 @@ PetscErrorCode DMCreateMatrix_DA(DM da, Mat *J)
 }
 
 /* ---------------------------------------------------------------------------------*/
+PetscErrorCode DMCreateMatrix_DA_IS(DM dm,Mat J)
+{
+  DM_DA                  *da = (DM_DA*)dm->data;
+  Mat                    lJ;
+  ISLocalToGlobalMapping ltog;
+  IS                     is_loc_filt, is_glob;
+  const PetscInt         *e_loc,*idx;
+  PetscInt               i,nel,nen,dnz,nv,dof,dim,*gidx,nb;
+  PetscErrorCode         ierr;
+
+  /* The l2g map of DMDA has all ghosted nodes, and e_loc is a subset of all the local nodes (including the ghosted)
+     We need to filter the local indices that are represented through the DMDAGetElements decomposition
+     This is because the size of the local matrices in MATIS is the local size of the l2g map */
+  PetscFunctionBegin;
+  dof  = da->w;
+  dim  = dm->dim;
+
+  ierr = MatSetBlockSize(J,dof);CHKERRQ(ierr);
+
+  /* get local elements indices in local DMDA numbering */
+  ierr = DMDAGetElements(dm,&nel,&nen,&e_loc);CHKERRQ(ierr); /* this will throw an error if the stencil type is not DMDA_STENCIL_BOX */
+  ierr = ISCreateBlock(PetscObjectComm((PetscObject)dm),dof,nel*nen,e_loc,PETSC_COPY_VALUES,&is_loc_filt);CHKERRQ(ierr);
+  ierr = DMDARestoreElements(dm,&nel,&nen,&e_loc);CHKERRQ(ierr);
+
+  /* obtain a consistent local ordering for MATIS */
+  ierr = ISSortRemoveDups(is_loc_filt);CHKERRQ(ierr);
+  ierr = ISBlockGetLocalSize(is_loc_filt,&nb);CHKERRQ(ierr);
+  ierr = DMGetLocalToGlobalMapping(dm,&ltog);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingGetSize(ltog,&nv);CHKERRQ(ierr);
+  ierr = PetscMalloc1(PetscMax(nb,nv/dof),&gidx);CHKERRQ(ierr);
+  ierr = ISBlockGetIndices(is_loc_filt,&idx);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingApplyBlock(ltog,nb,idx,gidx);CHKERRQ(ierr);
+  ierr = ISBlockRestoreIndices(is_loc_filt,&idx);CHKERRQ(ierr);
+  ierr = ISCreateBlock(PetscObjectComm((PetscObject)dm),dof,nb,gidx,PETSC_USE_POINTER,&is_glob);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingCreateIS(is_glob,&ltog);CHKERRQ(ierr);
+  ierr = ISDestroy(&is_glob);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(J,ltog,ltog);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingDestroy(&ltog);CHKERRQ(ierr);
+
+  /* We also attach a l2g map to the local matrices to have MatSetValueLocal to work */
+  ierr = MatISGetLocalMat(J,&lJ);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingCreateIS(is_loc_filt,&ltog);CHKERRQ(ierr);
+  ierr = ISDestroy(&is_loc_filt);CHKERRQ(ierr);
+  ierr = ISCreateStride(PetscObjectComm((PetscObject)lJ),nv/dof,0,1,&is_glob);CHKERRQ(ierr);
+  ierr = ISGetIndices(is_glob,&idx);CHKERRQ(ierr);
+  ierr = ISGlobalToLocalMappingApplyBlock(ltog,IS_GTOLM_MASK,nv/dof,idx,&nb,gidx);CHKERRQ(ierr);
+  ierr = ISRestoreIndices(is_glob,&idx);CHKERRQ(ierr);
+  ierr = ISDestroy(&is_glob);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingDestroy(&ltog);CHKERRQ(ierr);
+  ierr = ISCreateBlock(PETSC_COMM_SELF,dof,nb,gidx,PETSC_USE_POINTER,&is_loc_filt);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingCreateIS(is_loc_filt,&ltog);CHKERRQ(ierr);
+  ierr = ISDestroy(&is_loc_filt);CHKERRQ(ierr);
+  ierr = MatSetLocalToGlobalMapping(lJ,ltog,ltog);CHKERRQ(ierr);
+  ierr = ISLocalToGlobalMappingDestroy(&ltog);CHKERRQ(ierr);
+  ierr = PetscFree(gidx);CHKERRQ(ierr);
+
+  /* Preallocation (not exact) */
+  switch (da->elementtype) {
+  case DMDA_ELEMENT_P1:
+  case DMDA_ELEMENT_Q1:
+    dnz = 1;
+    for (i=0; i<dim; i++) dnz *= 3;
+    dnz *= dof;
+    break;
+  default:
+    SETERRQ1(PetscObjectComm((PetscObject)dm),PETSC_ERR_SUP,"Unhandled element type %d",da->elementtype);
+    break;
+  }
+  ierr = MatSeqAIJSetPreallocation(lJ,dnz,NULL);CHKERRQ(ierr);
+  ierr = MatSeqBAIJSetPreallocation(lJ,dof,dnz/dof,NULL);CHKERRQ(ierr);
+  ierr = MatSeqSBAIJSetPreallocation(lJ,dof,dnz/dof,NULL);CHKERRQ(ierr);
+  ierr = MatISRestoreLocalMat(J,&lJ);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode DMCreateMatrix_DA_2d_MPISELL(DM da,Mat J)
 {
   PetscErrorCode         ierr;
@@ -1148,7 +1329,7 @@ PetscErrorCode DMCreateMatrix_DA_2d_MPIAIJ_Fill(DM da,Mat J)
   ierr = PetscMalloc1(col*col*nc,&cols);CHKERRQ(ierr);
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
 
-  ierr = MatSetBlockSize(J,nc);CHKERRQ(ierr);  
+  ierr = MatSetBlockSize(J,nc);CHKERRQ(ierr);
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nc*nx*ny,nc*nx*ny,dnz,onz);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {
@@ -1282,7 +1463,7 @@ PetscErrorCode DMCreateMatrix_DA_3d_MPIAIJ(DM da,Mat J)
   ierr = PetscMalloc2(nc,&rows,col*col*col*nc*nc,&cols);CHKERRQ(ierr);
   ierr = DMGetLocalToGlobalMapping(da,&ltog);CHKERRQ(ierr);
 
-  ierr = MatSetBlockSize(J,nc);CHKERRQ(ierr);  
+  ierr = MatSetBlockSize(J,nc);CHKERRQ(ierr);
   /* determine the matrix preallocation information */
   ierr = MatPreallocateInitialize(comm,nc*nx*ny*nz,nc*nx*ny*nz,dnz,onz);CHKERRQ(ierr);
   for (i=xs; i<xs+nx; i++) {

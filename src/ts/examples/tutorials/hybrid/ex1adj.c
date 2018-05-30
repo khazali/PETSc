@@ -307,7 +307,7 @@ int main(int argc,char **argv)
   ierr = TSSetCostGradients(ts,2,lambda,mu);CHKERRQ(ierr);
 
   /*   Set RHS JacobianP */
-  ierr = TSAdjointSetRHSJacobian(ts,Ap,RHSJacobianP,&app);CHKERRQ(ierr);
+  ierr = TSSetRHSJacobianP(ts,Ap,RHSJacobianP,&app);CHKERRQ(ierr);
 
   ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
 
@@ -339,3 +339,14 @@ int main(int argc,char **argv)
   ierr = PetscFinalize();
   return ierr;
 }
+
+
+/*TEST
+
+   build:
+      requires: !complex
+
+   test:
+      args: -ts_monitor -ts_adjoint_monitor
+
+TEST*/

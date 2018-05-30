@@ -7,7 +7,7 @@
 !
 !  The C version of this code is test_chwirut1.c
 !
-!/*T
+!!/*T
 !  Concepts: TAO^Solving an unconstrained minimization problem
 !  Routines: TaoCreate();
 !  Routines: TaoSetType();
@@ -18,6 +18,8 @@
 !  Routines: TaoDestroy();
 !  Processors: 1
 !T*/
+
+
 !
 ! ----------------------------------------------------------------------
 !
@@ -59,7 +61,7 @@
 
       call MPI_Comm_size(PETSC_COMM_WORLD,size,ierr)
       call MPI_Comm_rank(PETSC_COMM_WORLD,rank,ierr)
-      if (size .ne. 1) then SETERRA(PETSC_COMM_SELF,1,'This is a uniprocessor example only ')
+      if (size .ne. 1) then; SETERRA(PETSC_COMM_SELF,1,'This is a uniprocessor example only '); endif
 
 !  Initialize problem parameters
       m = 214
@@ -415,4 +417,14 @@
       return
       end
 
-
+!/*TEST
+!
+!   build:
+!      requires: !complex
+!
+!   test:
+!      args: -tao_smonitor -tao_max_it 100 -tao_type pounders -tao_gatol 1.e-5
+!      requires: !single
+!      TODO: too many inconsistent results across machines
+!
+!TEST*/

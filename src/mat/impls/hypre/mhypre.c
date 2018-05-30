@@ -13,6 +13,8 @@
 #include <_hypre_parcsr_ls.h>
 #include <_hypre_sstruct_ls.h>
 
+PETSC_INTERN PetscErrorCode MatPtAP_IS_XAIJ(Mat,Mat,MatReuse,PetscReal,Mat*);
+
 static PetscErrorCode MatHYPRE_CreateFromMat(Mat,Mat_HYPRE*);
 static PetscErrorCode MatHYPRE_IJMatrixPreallocate(Mat,Mat,HYPRE_IJMatrix);
 static PetscErrorCode MatHYPRE_IJMatrixFastCopy_MPIAIJ(Mat,HYPRE_IJMatrix);
@@ -652,7 +654,8 @@ static PetscErrorCode MatPtAPNumeric_AIJ_AIJ_wHYPRE(Mat A,Mat P,Mat C)
 
 PETSC_INTERN PetscErrorCode MatPtAPSymbolic_AIJ_AIJ_wHYPRE(Mat A,Mat P,PetscReal fill,Mat *C)
 {
-  PetscErrorCode     ierr;
+  PetscErrorCode ierr;
+
   PetscFunctionBegin;
   ierr                   = MatCreate(PetscObjectComm((PetscObject)A),C);CHKERRQ(ierr);
   ierr                   = MatSetType(*C,MATAIJ);CHKERRQ(ierr);
@@ -952,6 +955,7 @@ static PetscErrorCode MatDestroy_HYPRE(Mat A)
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatPtAP_mpiaij_hypre_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatHYPRESetPreallocation_C",NULL);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)A,"MatHYPREGetParCSR_C",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)A,"MatPtAP_is_hypre_C",NULL);CHKERRQ(ierr);
   ierr = PetscFree(A->data);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1124,7 +1128,8 @@ static PetscErrorCode MatHYPRESetPreallocation_HYPRE(Mat A, PetscInt dnz, const 
           structure. The size of this array is equal to the number
           of local rows, i.e 'm'.
 
-   Notes: If the *nnz parameter is given then the *nz parameter is ignored; for sequential matrices, onz and onnz are ignored.
+   Notes:
+    If the *nnz parameter is given then the *nz parameter is ignored; for sequential matrices, onz and onnz are ignored.
 
    Level: intermediate
 
@@ -1422,6 +1427,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_HYPRE(Mat B)
   B->rmap->bs   = 1;
   B->assembled  = PETSC_FALSE;
 
+  ierr = PetscMemzero(B->ops,sizeof(struct _MatOps));CHKERRQ(ierr);
   B->ops->mult            = MatMult_HYPRE;
   B->ops->multtranspose   = MatMultTranspose_HYPRE;
   B->ops->setup           = MatSetUp_HYPRE;
@@ -1442,12 +1448,13 @@ PETSC_EXTERN PetscErrorCode MatCreate_HYPRE(Mat B)
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatPtAP_mpiaij_hypre_C",MatPtAP_AIJ_HYPRE);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatHYPRESetPreallocation_C",MatHYPRESetPreallocation_HYPRE);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)B,"MatHYPREGetParCSR_C",MatHYPREGetParCSR_HYPRE);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)B,"MatPtAP_is_hypre_C",MatPtAP_IS_XAIJ);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
 static PetscErrorCode hypre_array_destroy(void *ptr)
 {
    PetscFunctionBegin;
-   hypre_TFree(ptr);
+   hypre_TFree(ptr,HYPRE_MEMORY_HOST);
    PetscFunctionReturn(0);
 }

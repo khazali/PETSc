@@ -37,7 +37,7 @@ static const char *Limit_Table[64] = {"none","average","relative","absolute"};
   Level: developer
 
 @*/
-extern PetscErrorCode MatCreateLMVM(MPI_Comm comm, PetscInt n, PetscInt N, Mat *A)
+PetscErrorCode MatCreateLMVM(MPI_Comm comm, PetscInt n, PetscInt N, Mat *A)
 {
   MatLMVMCtx     *ctx;
   PetscErrorCode ierr;
@@ -56,14 +56,16 @@ extern PetscErrorCode MatCreateLMVM(MPI_Comm comm, PetscInt n, PetscInt N, Mat *
   ctx->r_beta = 0.5;
   ctx->mu = 1.0;
   ctx->nu = 100.0;
-  
+
   ctx->phi = 0.125;
-  
+
   ctx->scalar_history = 1;
   ctx->rescale_history = 1;
-  
+
   ctx->delta_min = 1e-7;
   ctx->delta_max = 100.0;
+  
+  ctx->recycle = PETSC_FALSE;
 
   /*  Begin configuration */
   ierr = PetscOptionsBegin(comm,NULL,NULL,NULL);CHKERRQ(ierr);
@@ -82,6 +84,7 @@ extern PetscErrorCode MatCreateLMVM(MPI_Comm comm, PetscInt n, PetscInt N, Mat *
   ierr = PetscOptionsEList("-tao_lmm_limit_type", "limit type", "", Limit_Table, MatLMVM_Limit_Types, Limit_Table[ctx->limitType], &ctx->limitType,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-tao_lmm_delta_min", "minimum delta value", "", ctx->delta_min, &ctx->delta_min,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-tao_lmm_delta_max", "maximum delta value", "", ctx->delta_max, &ctx->delta_max,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-tao_lmm_recycle", "enable recycling of accumulated corrections between subsequent TaoSolve() calls", "", ctx->recycle, &ctx->recycle, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   /*  Complete configuration */
@@ -116,6 +119,10 @@ extern PetscErrorCode MatCreateLMVM(MPI_Comm comm, PetscInt n, PetscInt N, Mat *
   ctx->H0_ksp = 0;
   ctx->H0_norm = 0;
   ctx->useDefaultH0 = PETSC_TRUE;
+  
+  ctx->inactive_idx = 0;
+  ctx->nfull = n;
+  ctx->Nfull = N;
 
   ierr = MatCreateShell(comm, n, n, N, N, ctx, A);CHKERRQ(ierr);
   ierr = MatShellSetOperation(*A,MATOP_DESTROY,(void(*)(void))MatDestroy_LMVM);CHKERRQ(ierr);
@@ -123,13 +130,14 @@ extern PetscErrorCode MatCreateLMVM(MPI_Comm comm, PetscInt n, PetscInt N, Mat *
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMSolve(Mat A, Vec b, Vec x)
+PetscErrorCode MatLMVMSolve(Mat A, Vec b, Vec x)
 {
   PetscReal      sq, yq, dd;
   PetscInt       ll;
   PetscBool      scaled;
   MatLMVMCtx     *shell;
   PetscErrorCode ierr;
+  Vec            xred, ured;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(A,MAT_CLASSID,1);
@@ -140,32 +148,60 @@ extern PetscErrorCode MatLMVMSolve(Mat A, Vec b, Vec x)
     shell->rho[0] = 1.0;
     shell->theta = 1.0;
   }
-
+  
+  /* Prep the work vectors that will be used in place of the given RHS and solution vectors */
   ierr = VecCopy(b,x);CHKERRQ(ierr);
+  ierr = VecSet(shell->Xwork, 0.0);CHKERRQ(ierr);
+  if (shell->inactive_idx) {
+    ierr = VecGetSubVector(shell->Xwork, shell->inactive_idx, &xred);CHKERRQ(ierr);
+    ierr = VecCopy(x, xred);CHKERRQ(ierr);
+    ierr = VecRestoreSubVector(shell->Xwork, shell->inactive_idx, &xred);CHKERRQ(ierr);
+  } else {
+    ierr = VecCopy(x, shell->Xwork);CHKERRQ(ierr);
+  }
+  
   for (ll = 0; ll < shell->lmnow; ++ll) {
-    ierr = VecDot(x,shell->S[ll],&sq);CHKERRQ(ierr);
+    ierr = VecDot(shell->Xwork,shell->S[ll],&sq);CHKERRQ(ierr);
     shell->beta[ll] = sq * shell->rho[ll];
-    ierr = VecAXPY(x,-shell->beta[ll],shell->Y[ll]);CHKERRQ(ierr);
+    ierr = VecAXPY(shell->Xwork,-shell->beta[ll],shell->Y[ll]);CHKERRQ(ierr);
   }
 
   scaled = PETSC_FALSE;
   if (!scaled && !shell->useDefaultH0 && shell->H0_mat) {
-    ierr = KSPSolve(shell->H0_ksp,x,shell->U);CHKERRQ(ierr);
+    /* Create the reduced H0 matrix based on the inactive index set */
+    if (shell->inactive_idx) {
+      ierr = MatCreateSubMatrix(shell->H0_mat, shell->inactive_idx, shell->inactive_idx, MAT_INITIAL_MATRIX, &shell->H0_mat_red);CHKERRQ(ierr);
+      ierr = VecGetSubVector(shell->Xwork, shell->inactive_idx, &xred);CHKERRQ(ierr);
+      ierr = VecGetSubVector(shell->U, shell->inactive_idx, &ured);CHKERRQ(ierr);
+    } else {
+      shell->H0_mat_red = shell->H0_mat;
+      xred = shell->Xwork;
+      ured = shell->U;
+    }
+    /* Solve the reduced H0 system */
+    ierr = KSPReset(shell->H0_ksp);CHKERRQ(ierr);
+    ierr = KSPSetOperators(shell->H0_ksp, shell->H0_mat_red, shell->H0_mat_red);CHKERRQ(ierr);
+    ierr = KSPSolve(shell->H0_ksp,xred,ured);CHKERRQ(ierr);
+    /* Restore the inactive vectors back into the work vectors */
+    if (shell->inactive_idx) {
+      ierr = VecRestoreSubVector(shell->Xwork, shell->inactive_idx, &xred);CHKERRQ(ierr);
+      ierr = VecRestoreSubVector(shell->U, shell->inactive_idx, &ured);CHKERRQ(ierr);
+    }
     ierr = VecScale(shell->U, shell->theta);CHKERRQ(ierr);
-    ierr = VecDot(x,shell->U,&dd);CHKERRQ(ierr);
+    ierr = VecDot(shell->Xwork,shell->U,&dd);CHKERRQ(ierr);
     if ((dd > 0.0) && !PetscIsInfOrNanReal(dd)) {
       /*  Accept Hessian solve */
-      ierr = VecCopy(shell->U,x);CHKERRQ(ierr);
+      ierr = VecCopy(shell->U,shell->Xwork);CHKERRQ(ierr);
       scaled = PETSC_TRUE;
     }
   }
 
   if (!scaled && shell->useScale) {
-    ierr = VecPointwiseMult(shell->U,x,shell->scale);CHKERRQ(ierr);
-    ierr = VecDot(x,shell->U,&dd);CHKERRQ(ierr);
+    ierr = VecPointwiseMult(shell->U,shell->Xwork,shell->scale);CHKERRQ(ierr);
+    ierr = VecDot(shell->Xwork,shell->U,&dd);CHKERRQ(ierr);
     if ((dd > 0.0) && !PetscIsInfOrNanReal(dd)) {
       /*  Accept scaling */
-      ierr = VecCopy(shell->U,x);CHKERRQ(ierr);
+      ierr = VecCopy(shell->U,shell->Xwork);CHKERRQ(ierr);
       scaled = PETSC_TRUE;
     }
   }
@@ -176,22 +212,42 @@ extern PetscErrorCode MatLMVMSolve(Mat A, Vec b, Vec x)
       break;
 
     case MatLMVM_Scale_Scalar:
-      ierr = VecScale(x,shell->sigma);CHKERRQ(ierr);
+      ierr = VecScale(shell->Xwork,shell->sigma);CHKERRQ(ierr);
       break;
 
     case MatLMVM_Scale_Broyden:
-      ierr = VecPointwiseMult(x,x,shell->D);CHKERRQ(ierr);
+      ierr = VecPointwiseMult(shell->Xwork,shell->Xwork,shell->D);CHKERRQ(ierr);
       break;
     }
   }
   for (ll = shell->lmnow-1; ll >= 0; --ll) {
-    ierr = VecDot(x,shell->Y[ll],&yq);CHKERRQ(ierr);
-    ierr = VecAXPY(x,shell->beta[ll]-yq*shell->rho[ll],shell->S[ll]);CHKERRQ(ierr);
+    ierr = VecDot(shell->Xwork,shell->Y[ll],&yq);CHKERRQ(ierr);
+    ierr = VecAXPY(shell->Xwork,shell->beta[ll]-yq*shell->rho[ll],shell->S[ll]);CHKERRQ(ierr);
+  }
+  
+  /* Extract just the solution for the inactive variables */
+  if (shell->inactive_idx) {
+    ierr = VecGetSubVector(shell->Xwork, shell->inactive_idx, &xred);CHKERRQ(ierr);
+    ierr = VecCopy(xred, x);CHKERRQ(ierr);
+    ierr = VecRestoreSubVector(shell->Xwork, shell->inactive_idx, &xred);CHKERRQ(ierr);
+  } else {
+    ierr = VecCopy(shell->Xwork, x);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatView_LMVM(Mat A, PetscViewer pv)
+PetscErrorCode MatLMVMSetInactive(Mat A, IS inactive_idx)
+{
+  MatLMVMCtx     *shell;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = MatShellGetContext(A,(void**)&shell);CHKERRQ(ierr);
+  shell->inactive_idx = inactive_idx;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode MatView_LMVM(Mat A, PetscViewer pv)
 {
   PetscBool      isascii;
   PetscErrorCode ierr;
@@ -212,7 +268,7 @@ extern PetscErrorCode MatView_LMVM(Mat A, PetscViewer pv)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatDestroy_LMVM(Mat M)
+PetscErrorCode MatDestroy_LMVM(Mat M)
 {
   MatLMVMCtx     *ctx;
   PetscErrorCode ierr;
@@ -236,6 +292,8 @@ extern PetscErrorCode MatDestroy_LMVM(Mat M)
     ierr = VecDestroy(&ctx->P);CHKERRQ(ierr);
     ierr = VecDestroy(&ctx->Q);CHKERRQ(ierr);
     ierr = VecDestroy(&ctx->H0_norm);CHKERRQ(ierr);
+    ierr = VecDestroy(&ctx->Xwork);CHKERRQ(ierr);
+    ierr = VecDestroy(&ctx->Bwork);CHKERRQ(ierr);
     if (ctx->scale) {
       ierr = VecDestroy(&ctx->scale);CHKERRQ(ierr);
     }
@@ -256,7 +314,40 @@ extern PetscErrorCode MatDestroy_LMVM(Mat M)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMReset(Mat M)
+PetscErrorCode MatLMVMGetUpdates(Mat M, PetscInt *nupdates)
+{
+  PetscErrorCode ierr;
+  MatLMVMCtx     *ctx;
+  
+  PetscFunctionBegin;
+  ierr = MatShellGetContext(M, (void**)&ctx);CHKERRQ(ierr);
+  *nupdates = ctx->nupdates;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode MatLMVMSetRecycleFlag(Mat M, PetscBool flg)
+{
+  PetscErrorCode ierr;
+  MatLMVMCtx     *ctx;
+  
+  PetscFunctionBegin;
+  ierr = MatShellGetContext(M, (void**)&ctx);CHKERRQ(ierr);
+  ctx->recycle = flg;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode MatLMVMGetRecycleFlag(Mat M, PetscBool *flg)
+{
+  PetscErrorCode ierr;
+  MatLMVMCtx     *ctx;
+  
+  PetscFunctionBegin;
+  ierr = MatShellGetContext(M, (void**)&ctx);CHKERRQ(ierr);
+  *flg = ctx->recycle;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode MatLMVMReset(Mat M)
 {
   PetscErrorCode ierr;
   MatLMVMCtx     *ctx;
@@ -264,6 +355,9 @@ extern PetscErrorCode MatLMVMReset(Mat M)
 
   PetscFunctionBegin;
   ierr = MatShellGetContext(M,(void**)&ctx);CHKERRQ(ierr);
+  if (ctx->recycle) {
+    ierr = PetscInfo(M, "WARNING: Correction vectors are being reset while recycling is enabled!\n");CHKERRQ(ierr);
+  }
   if (ctx->Gprev) {
     ierr = PetscObjectDereference((PetscObject)ctx->Gprev);CHKERRQ(ierr);
   }
@@ -298,7 +392,7 @@ extern PetscErrorCode MatLMVMReset(Mat M)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMUpdate(Mat M, Vec x, Vec g)
+PetscErrorCode MatLMVMUpdate(Mat M, Vec x, Vec g)
 {
   MatLMVMCtx     *ctx;
   PetscReal      rhotemp, rhotol;
@@ -700,7 +794,7 @@ extern PetscErrorCode MatLMVMUpdate(Mat M, Vec x, Vec g)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMSetDelta(Mat m, PetscReal d)
+PetscErrorCode MatLMVMSetDelta(Mat m, PetscReal d)
 {
   MatLMVMCtx     *ctx;
   PetscErrorCode ierr;
@@ -717,7 +811,7 @@ extern PetscErrorCode MatLMVMSetDelta(Mat m, PetscReal d)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMSetScale(Mat m, Vec s)
+PetscErrorCode MatLMVMSetScale(Mat m, Vec s)
 {
   MatLMVMCtx     *ctx;
   PetscErrorCode ierr;
@@ -736,7 +830,7 @@ extern PetscErrorCode MatLMVMSetScale(Mat m, Vec s)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMGetRejects(Mat m, PetscInt *nrejects)
+PetscErrorCode MatLMVMGetRejects(Mat m, PetscInt *nrejects)
 {
   MatLMVMCtx     *ctx;
   PetscErrorCode ierr;
@@ -751,7 +845,7 @@ extern PetscErrorCode MatLMVMGetRejects(Mat m, PetscInt *nrejects)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMSetH0(Mat m, Mat H0)
+PetscErrorCode MatLMVMSetH0(Mat m, Mat H0)
 {
   MatLMVMCtx     *ctx;
   PetscErrorCode ierr;
@@ -769,12 +863,13 @@ extern PetscErrorCode MatLMVMSetH0(Mat m, Mat H0)
   ctx->useDefaultH0 = PETSC_FALSE;
 
   ierr = KSPCreate(PetscObjectComm((PetscObject)H0), &ctx->H0_ksp);CHKERRQ(ierr);
+  ierr = PetscObjectIncrementTabLevel((PetscObject)ctx->H0_ksp, (PetscObject)ctx, 1);CHKERRQ(ierr);
   ierr = KSPSetOperators(ctx->H0_ksp, H0, H0);CHKERRQ(ierr);
   /* its options prefix and setup is handled in TaoSolve_LMVM/TaoSolve_BLMVM */
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMGetH0(Mat m, Mat *H0)
+PetscErrorCode MatLMVMGetH0(Mat m, Mat *H0)
 {
   MatLMVMCtx     *ctx;
   PetscErrorCode ierr;
@@ -790,7 +885,7 @@ extern PetscErrorCode MatLMVMGetH0(Mat m, Mat *H0)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMGetH0KSP(Mat m, KSP *H0ksp)
+PetscErrorCode MatLMVMGetH0KSP(Mat m, KSP *H0ksp)
 {
   MatLMVMCtx     *ctx;
   PetscErrorCode ierr;
@@ -806,13 +901,13 @@ extern PetscErrorCode MatLMVMGetH0KSP(Mat m, KSP *H0ksp)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMGetX0(Mat m, Vec x)
+PetscErrorCode MatLMVMGetX0(Mat m, Vec x)
 {
     PetscFunctionBegin;
     PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMSetPrev(Mat M, Vec x, Vec g)
+PetscErrorCode MatLMVMSetPrev(Mat M, Vec x, Vec g)
 {
   MatLMVMCtx     *ctx;
   PetscErrorCode ierr;
@@ -834,7 +929,7 @@ extern PetscErrorCode MatLMVMSetPrev(Mat M, Vec x, Vec g)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMRefine(Mat coarse, Mat op, Vec fineX, Vec fineG)
+PetscErrorCode MatLMVMRefine(Mat coarse, Mat op, Vec fineX, Vec fineG)
 {
   PetscErrorCode ierr;
   PetscBool      same;
@@ -851,7 +946,7 @@ extern PetscErrorCode MatLMVMRefine(Mat coarse, Mat op, Vec fineX, Vec fineG)
   PetscFunctionReturn(0);
 }
 
-extern PetscErrorCode MatLMVMAllocateVectors(Mat m, Vec v)
+PetscErrorCode MatLMVMAllocateVectors(Mat m, Vec v)
 {
   PetscErrorCode ierr;
   MatLMVMCtx     *ctx;
@@ -874,7 +969,8 @@ extern PetscErrorCode MatLMVMAllocateVectors(Mat m, Vec v)
   ierr = VecDuplicate(v,&ctx->P);CHKERRQ(ierr);
   ierr = VecDuplicate(v,&ctx->Q);CHKERRQ(ierr);
   ierr = VecDuplicate(v,&ctx->H0_norm);CHKERRQ(ierr);
+  ierr = VecDuplicate(v,&ctx->Xwork);CHKERRQ(ierr);
+  ierr = VecDuplicate(v,&ctx->Bwork);CHKERRQ(ierr);
   ctx->allocated = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
-

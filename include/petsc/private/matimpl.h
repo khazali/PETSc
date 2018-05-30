@@ -154,7 +154,7 @@ struct _MatOps {
   PetscErrorCode (*placeholder_100)(Mat);
   PetscErrorCode (*placeholder_101)(Mat);
   PetscErrorCode (*conjugate)(Mat);                              /* complex conjugate */
-  PetscErrorCode (*placeholder_103)(void);
+  PetscErrorCode (*viewnative)(Mat,PetscViewer);
   /*104*/
   PetscErrorCode (*setvaluesrow)(Mat,PetscInt,const PetscScalar[]);
   PetscErrorCode (*realpart)(Mat);
@@ -227,7 +227,8 @@ PETSC_EXTERN MatBaseName MatBaseNameList;
 /*
    Utility private matrix routines
 */
-PETSC_INTERN PetscErrorCode MatConvert_Basic(Mat, MatType,MatReuse,Mat*);
+PETSC_INTERN PetscErrorCode MatFindNonzeroRowsOrCols_Basic(Mat,PetscBool,PetscReal,IS*);
+PETSC_INTERN PetscErrorCode MatConvert_Basic(Mat,MatType,MatReuse,Mat*);
 PETSC_INTERN PetscErrorCode MatCopy_Basic(Mat,Mat,MatStructure);
 PETSC_INTERN PetscErrorCode MatDiagonalSet_Default(Mat,Vec,InsertMode);
 
@@ -394,15 +395,11 @@ struct _p_Mat {
   PetscBool              subsetoffprocentries;
   PetscBool              submat_singleis; /* for efficient PCSetUP_ASM() */
   PetscBool              structure_only;
-#if defined(PETSC_HAVE_CUSP)
-  PetscCUSPFlag          valid_GPU_matrix; /* flag pointing to the matrix on the gpu*/
-#elif defined(PETSC_HAVE_VIENNACL)
-  PetscViennaCLFlag      valid_GPU_matrix; /* flag pointing to the matrix on the gpu*/
-#elif defined(PETSC_HAVE_VECCUDA)
-  PetscCUDAFlag          valid_GPU_matrix; /* flag pointing to the matrix on the gpu*/
+#if defined(PETSC_HAVE_VIENNACL) || defined(PETSC_HAVE_VECCUDA)
+  PetscOffloadFlag       valid_GPU_matrix; /* flag pointing to the matrix on the gpu*/
 #endif
   void                   *spptr;          /* pointer for special library like SuperLU */
-  MatSolverPackage       solvertype;
+  char                   *solvertype;
   PetscBool              checksymmetryonassembly,checknullspaceonassembly;
   PetscReal              checksymmetrytol;
   Mat                    schur;             /* Schur complement matrix */
@@ -567,6 +564,7 @@ struct _p_MatColoring {
   MatColoringWeightType weight_type;      /* type of weight computation to be performed */
   PetscReal             *user_weights;    /* custom weights and permutation */
   PetscInt              *user_lperm;
+  PetscBool             valid_iscoloring; /* check to see if matcoloring is produced a valid iscoloring */
 };
 
 struct  _p_MatTransposeColoring{
@@ -706,11 +704,11 @@ PETSC_STATIC_INLINE PetscErrorCode MatPivotCheck_none(Mat fact,Mat mat,const Mat
   sctx->newshift = PETSC_FALSE;
   if (PetscAbsScalar(sctx->pv) <= _zero && !PetscIsNanScalar(sctx->pv)) {
     if (!mat->erroriffailure) {
-      ierr = PetscInfo3(mat,"Detected zero pivot in factorization in row %D value %g tolerance %g",row,(double)PetscAbsScalar(sctx->pv),(double)_zero);CHKERRQ(ierr);
+      ierr = PetscInfo3(mat,"Detected zero pivot in factorization in row %D value %g tolerance %g\n",row,(double)PetscAbsScalar(sctx->pv),(double)_zero);CHKERRQ(ierr);
       fact->factorerrortype             = MAT_FACTOR_NUMERIC_ZEROPIVOT;
       fact->factorerror_zeropivot_value = PetscAbsScalar(sctx->pv);
       fact->factorerror_zeropivot_row   = row;
-    } else SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot row %D value %g tolerance %g",row,(double)PetscAbsScalar(sctx->pv),(double)_zero);
+    } else SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_MAT_LU_ZRPVT,"Zero pivot row %D value %g tolerance %g\n",row,(double)PetscAbsScalar(sctx->pv),(double)_zero);
   }
   PetscFunctionReturn(0);
 }
@@ -1588,28 +1586,108 @@ PETSC_STATIC_INLINE PetscErrorCode PetscLLCondensedDestroy_fast(PetscInt *lnk)
 /* this is extern because it is used in MatFDColoringUseDM() which is in the DM library */
 PETSC_EXTERN PetscErrorCode MatFDColoringApply_AIJ(Mat,MatFDColoring,Vec,void*);
 
-PETSC_EXTERN PetscLogEvent MAT_Mult, MAT_MultMatrixFree, MAT_Mults, MAT_MultConstrained, MAT_MultAdd, MAT_MultTranspose;
-PETSC_EXTERN PetscLogEvent MAT_MultTransposeConstrained, MAT_MultTransposeAdd, MAT_Solve, MAT_Solves, MAT_SolveAdd, MAT_SolveTranspose;
-PETSC_EXTERN PetscLogEvent MAT_SolveTransposeAdd, MAT_SOR, MAT_ForwardSolve, MAT_BackwardSolve, MAT_LUFactor, MAT_LUFactorSymbolic;
-PETSC_EXTERN PetscLogEvent MAT_LUFactorNumeric, MAT_CholeskyFactor, MAT_CholeskyFactorSymbolic, MAT_CholeskyFactorNumeric, MAT_ILUFactor;
-PETSC_EXTERN PetscLogEvent MAT_ILUFactorSymbolic, MAT_ICCFactorSymbolic, MAT_Copy, MAT_Convert, MAT_Scale, MAT_AssemblyBegin;
-PETSC_EXTERN PetscLogEvent MAT_AssemblyEnd, MAT_SetValues, MAT_GetValues, MAT_GetRow, MAT_GetRowIJ, MAT_CreateSubMats, MAT_GetColoring, MAT_GetOrdering, MAT_RedundantMat;
-PETSC_EXTERN PetscLogEvent MAT_IncreaseOverlap, MAT_Partitioning, MAT_Coarsen, MAT_ZeroEntries, MAT_Load, MAT_View, MAT_AXPY, MAT_FDColoringCreate, MAT_TransposeColoringCreate;
-PETSC_EXTERN PetscLogEvent MAT_FDColoringSetUp, MAT_FDColoringApply, MAT_Transpose, MAT_FDColoringFunction,MAT_CreateSubMat;
-PETSC_EXTERN PetscLogEvent MAT_MatMult, MAT_MatSolve,MAT_MatMultSymbolic, MAT_MatMultNumeric,MAT_Getlocalmatcondensed,MAT_GetBrowsOfAcols,MAT_GetBrowsOfAocols;
-PETSC_EXTERN PetscLogEvent MAT_PtAP, MAT_PtAPSymbolic, MAT_PtAPNumeric,MAT_Seqstompinum,MAT_Seqstompisym,MAT_Seqstompi,MAT_Getlocalmat;
-PETSC_EXTERN PetscLogEvent MAT_RARt, MAT_RARtSymbolic, MAT_RARtNumeric;
-PETSC_EXTERN PetscLogEvent MAT_MatTransposeMult, MAT_MatTransposeMultSymbolic, MAT_MatTransposeMultNumeric;
-PETSC_EXTERN PetscLogEvent MAT_TransposeMatMult, MAT_TransposeMatMultSymbolic, MAT_TransposeMatMultNumeric;
-PETSC_EXTERN PetscLogEvent MAT_MatMatMult, MAT_MatMatMultSymbolic, MAT_MatMatMultNumeric;
-PETSC_EXTERN PetscLogEvent MAT_Applypapt, MAT_Applypapt_symbolic, MAT_Applypapt_numeric;
-PETSC_EXTERN PetscLogEvent MAT_Getsymtranspose, MAT_Transpose_SeqAIJ, MAT_Getsymtransreduced,MAT_GetSequentialNonzeroStructure;
-
+PETSC_EXTERN PetscLogEvent MAT_Mult;
+PETSC_EXTERN PetscLogEvent MAT_MultMatrixFree;
+PETSC_EXTERN PetscLogEvent MAT_Mults;
+PETSC_EXTERN PetscLogEvent MAT_MultConstrained;
+PETSC_EXTERN PetscLogEvent MAT_MultAdd;
+PETSC_EXTERN PetscLogEvent MAT_MultTranspose;
+PETSC_EXTERN PetscLogEvent MAT_MultTransposeConstrained;
+PETSC_EXTERN PetscLogEvent MAT_MultTransposeAdd;
+PETSC_EXTERN PetscLogEvent MAT_Solve;
+PETSC_EXTERN PetscLogEvent MAT_Solves;
+PETSC_EXTERN PetscLogEvent MAT_SolveAdd;
+PETSC_EXTERN PetscLogEvent MAT_SolveTranspose;
+PETSC_EXTERN PetscLogEvent MAT_SolveTransposeAdd;
+PETSC_EXTERN PetscLogEvent MAT_SOR;
+PETSC_EXTERN PetscLogEvent MAT_ForwardSolve;
+PETSC_EXTERN PetscLogEvent MAT_BackwardSolve;
+PETSC_EXTERN PetscLogEvent MAT_LUFactor;
+PETSC_EXTERN PetscLogEvent MAT_LUFactorSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_LUFactorNumeric;
+PETSC_EXTERN PetscLogEvent MAT_CholeskyFactor;
+PETSC_EXTERN PetscLogEvent MAT_CholeskyFactorSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_CholeskyFactorNumeric;
+PETSC_EXTERN PetscLogEvent MAT_ILUFactor;
+PETSC_EXTERN PetscLogEvent MAT_ILUFactorSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_ICCFactorSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_Copy;
+PETSC_EXTERN PetscLogEvent MAT_Convert;
+PETSC_EXTERN PetscLogEvent MAT_Scale;
+PETSC_EXTERN PetscLogEvent MAT_AssemblyBegin;
+PETSC_EXTERN PetscLogEvent MAT_AssemblyEnd;
+PETSC_EXTERN PetscLogEvent MAT_SetValues;
+PETSC_EXTERN PetscLogEvent MAT_GetValues;
+PETSC_EXTERN PetscLogEvent MAT_GetRow;
+PETSC_EXTERN PetscLogEvent MAT_GetRowIJ;
+PETSC_EXTERN PetscLogEvent MAT_CreateSubMats;
+PETSC_EXTERN PetscLogEvent MAT_GetColoring;
+PETSC_EXTERN PetscLogEvent MAT_GetOrdering;
+PETSC_EXTERN PetscLogEvent MAT_RedundantMat;
+PETSC_EXTERN PetscLogEvent MAT_IncreaseOverlap;
+PETSC_EXTERN PetscLogEvent MAT_Partitioning;
+PETSC_EXTERN PetscLogEvent MAT_Coarsen;
+PETSC_EXTERN PetscLogEvent MAT_ZeroEntries;
+PETSC_EXTERN PetscLogEvent MAT_Load;
+PETSC_EXTERN PetscLogEvent MAT_View;
+PETSC_EXTERN PetscLogEvent MAT_AXPY;
+PETSC_EXTERN PetscLogEvent MAT_FDColoringCreate;
+PETSC_EXTERN PetscLogEvent MAT_TransposeColoringCreate;
+PETSC_EXTERN PetscLogEvent MAT_FDColoringSetUp;
+PETSC_EXTERN PetscLogEvent MAT_FDColoringApply;
+PETSC_EXTERN PetscLogEvent MAT_Transpose;
+PETSC_EXTERN PetscLogEvent MAT_FDColoringFunction;
+PETSC_EXTERN PetscLogEvent MAT_CreateSubMat;
+PETSC_EXTERN PetscLogEvent MAT_MatMult;
+PETSC_EXTERN PetscLogEvent MAT_MatSolve;
+PETSC_EXTERN PetscLogEvent MAT_MatMultSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_MatMultNumeric;
+PETSC_EXTERN PetscLogEvent MAT_Getlocalmatcondensed;
+PETSC_EXTERN PetscLogEvent MAT_GetBrowsOfAcols;
+PETSC_EXTERN PetscLogEvent MAT_GetBrowsOfAocols;
+PETSC_EXTERN PetscLogEvent MAT_PtAP;
+PETSC_EXTERN PetscLogEvent MAT_PtAPSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_PtAPNumeric;
+PETSC_EXTERN PetscLogEvent MAT_Seqstompinum;
+PETSC_EXTERN PetscLogEvent MAT_Seqstompisym;
+PETSC_EXTERN PetscLogEvent MAT_Seqstompi;
+PETSC_EXTERN PetscLogEvent MAT_Getlocalmat;
+PETSC_EXTERN PetscLogEvent MAT_RARt;
+PETSC_EXTERN PetscLogEvent MAT_RARtSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_RARtNumeric;
+PETSC_EXTERN PetscLogEvent MAT_MatTransposeMult;
+PETSC_EXTERN PetscLogEvent MAT_MatTransposeMultSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_MatTransposeMultNumeric;
+PETSC_EXTERN PetscLogEvent MAT_TransposeMatMult;
+PETSC_EXTERN PetscLogEvent MAT_TransposeMatMultSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_TransposeMatMultNumeric;
+PETSC_EXTERN PetscLogEvent MAT_MatMatMult;
+PETSC_EXTERN PetscLogEvent MAT_MatMatMultSymbolic;
+PETSC_EXTERN PetscLogEvent MAT_MatMatMultNumeric;
+PETSC_EXTERN PetscLogEvent MAT_Applypapt;
+PETSC_EXTERN PetscLogEvent MAT_Applypapt_symbolic;
+PETSC_EXTERN PetscLogEvent MAT_Applypapt_numeric;
+PETSC_EXTERN PetscLogEvent MAT_Getsymtranspose;
+PETSC_EXTERN PetscLogEvent MAT_Transpose_SeqAIJ;
+PETSC_EXTERN PetscLogEvent MAT_Getsymtransreduced;
+PETSC_EXTERN PetscLogEvent MAT_GetSequentialNonzeroStructure;
 PETSC_EXTERN PetscLogEvent MATMFFD_Mult;
 PETSC_EXTERN PetscLogEvent MAT_GetMultiProcBlock;
-PETSC_EXTERN PetscLogEvent MAT_CUSPCopyToGPU, MAT_CUSPARSECopyToGPU, MAT_SetValuesBatch, MAT_SetValuesBatchI, MAT_SetValuesBatchII, MAT_SetValuesBatchIII, MAT_SetValuesBatchIV;
+PETSC_EXTERN PetscLogEvent MAT_CUSPARSECopyToGPU;
+PETSC_EXTERN PetscLogEvent MAT_SetValuesBatch;
+PETSC_EXTERN PetscLogEvent MAT_SetValuesBatchI;
+PETSC_EXTERN PetscLogEvent MAT_SetValuesBatchII;
+PETSC_EXTERN PetscLogEvent MAT_SetValuesBatchIII;
+PETSC_EXTERN PetscLogEvent MAT_SetValuesBatchIV;
 PETSC_EXTERN PetscLogEvent MAT_ViennaCLCopyToGPU;
-PETSC_EXTERN PetscLogEvent MAT_Merge,MAT_Residual,MAT_SetRandom;
-PETSC_EXTERN PetscLogEvent MATCOLORING_Apply,MATCOLORING_Comm,MATCOLORING_Local,MATCOLORING_ISCreate,MATCOLORING_SetUp,MATCOLORING_Weights;
+PETSC_EXTERN PetscLogEvent MAT_Merge;
+PETSC_EXTERN PetscLogEvent MAT_Residual;
+PETSC_EXTERN PetscLogEvent MAT_SetRandom;
+PETSC_EXTERN PetscLogEvent MATCOLORING_Apply;
+PETSC_EXTERN PetscLogEvent MATCOLORING_Comm;
+PETSC_EXTERN PetscLogEvent MATCOLORING_Local;
+PETSC_EXTERN PetscLogEvent MATCOLORING_ISCreate;
+PETSC_EXTERN PetscLogEvent MATCOLORING_SetUp;
+PETSC_EXTERN PetscLogEvent MATCOLORING_Weights;
 
 #endif

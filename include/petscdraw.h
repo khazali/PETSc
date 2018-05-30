@@ -84,7 +84,8 @@ PETSC_STATIC_INLINE PetscErrorCode PetscDrawViewFromOptions(PetscDraw A,PetscObj
 .  min - lower end of interval
 -  max - upper end of interval
 
-   Notes: Values outside the interval [min,max] are clipped.
+   Notes:
+    Values outside the interval [min,max] are clipped.
 
    Level: intermediate
 
@@ -158,7 +159,6 @@ PETSC_EXTERN PetscErrorCode PetscDrawTensorContour(PetscDraw,int,int,const Petsc
 PETSC_EXTERN PetscErrorCode PetscDrawString(PetscDraw,PetscReal,PetscReal,int,const char[]);
 PETSC_EXTERN PetscErrorCode PetscDrawStringCentered(PetscDraw,PetscReal,PetscReal,int,const char[]);
 PETSC_EXTERN PetscErrorCode PetscDrawStringBoxed(PetscDraw,PetscReal,PetscReal,int,int,const char[],PetscReal*,PetscReal*);
-PETSC_EXTERN PetscErrorCode PetscDrawStringBoxedSize(PetscDraw,const char[],PetscReal*,PetscReal*);
 PETSC_EXTERN PetscErrorCode PetscDrawStringVertical(PetscDraw,PetscReal,PetscReal,int,const char[]);
 PETSC_EXTERN PetscErrorCode PetscDrawStringSetSize(PetscDraw,PetscReal,PetscReal);
 PETSC_EXTERN PetscErrorCode PetscDrawStringGetSize(PetscDraw,PetscReal*,PetscReal*);
@@ -172,7 +172,7 @@ PETSC_EXTERN PetscErrorCode PetscDrawGetCoordinates(PetscDraw,PetscReal*,PetscRe
 
 PETSC_EXTERN PetscErrorCode PetscDrawSetTitle(PetscDraw,const char[]);
 PETSC_EXTERN PetscErrorCode PetscDrawAppendTitle(PetscDraw,const char[]);
-PETSC_EXTERN PetscErrorCode PetscDrawGetTitle(PetscDraw,char **);
+PETSC_EXTERN PetscErrorCode PetscDrawGetTitle(PetscDraw,const char *[]);
 
 PETSC_EXTERN PetscErrorCode PetscDrawSetPause(PetscDraw,PetscReal);
 PETSC_EXTERN PetscErrorCode PetscDrawGetPause(PetscDraw,PetscReal*);

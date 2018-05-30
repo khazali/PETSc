@@ -16,7 +16,11 @@ static PetscErrorCode KSPSetUp_TSIRM(KSP ksp)
   
   PetscFunctionBegin;
   /* Initialization */
-  tsirm->tol_ls     = 1e-40;
+#if defined(PETSC_USE_REAL_SINGLE)
+  tsirm->tol_ls     = 1e-25;
+#else
+  tsirm->tol_ls     = 1e-50;
+#endif
   tsirm->size_ls    = 12;
   tsirm->maxiter_ls = 15;
   tsirm->cgls       = 0;
@@ -43,7 +47,7 @@ PetscErrorCode KSPSolve_TSIRM(KSP ksp)
   KSP_TSIRM      *tsirm = (KSP_TSIRM*)ksp->data;
   KSP            sub_ksp;
   PC             pc;
-  Mat            AS;
+  Mat            AS = NULL;
   Vec            x,b;
   PetscScalar    *array;
   PetscReal      norm = 20;
@@ -63,6 +67,7 @@ PetscErrorCode KSPSolve_TSIRM(KSP ksp)
   /* Inner solver */
   ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
   ierr = PCKSPGetKSP(pc,&sub_ksp);CHKERRQ(ierr);
+  if (!sub_ksp) SETERRQ(PetscObjectComm((PetscObject)pc),PETSC_ERR_USER,"PC must be of type PCKSP");
   ierr = KSPSetTolerances(sub_ksp,PETSC_DEFAULT,PETSC_DEFAULT,PETSC_DEFAULT,restart);CHKERRQ(ierr);
   
   /* previously it seemed good but with SNES it seems not good... */
@@ -170,7 +175,8 @@ PetscErrorCode KSPDestroy_TSIRM(KSP ksp)
 
    Level: advanced
 
-   Notes: TSIRM is a new two-stage iteration method for solving large sparse linear systems of the form Ax=b. The main idea behind this new 
+   Notes:
+    TSIRM is a new two-stage iteration method for solving large sparse linear systems of the form Ax=b. The main idea behind this new 
           method is the use a least-squares residual minimization to improve the convergence of Krylov based iterative methods, typically those of GMRES variants.
           The principle of TSIRM algorithm  is to build an outer iteration over a Krylov method, called inner solver, and to frequently store the current residual
           computed by the given Krylov method in a matrix of residuals S. After a few outer iterations, a least-squares minimization step is applied on the matrix 

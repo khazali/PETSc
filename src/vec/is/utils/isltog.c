@@ -259,7 +259,8 @@ PetscErrorCode  ISLocalToGlobalMappingView(ISLocalToGlobalMapping mapping,PetscV
     Output Parameter:
 .   mapping - new mapping data structure
 
-    Notes: the block size of the IS determines the block size of the mapping
+    Notes:
+    the block size of the IS determines the block size of the mapping
     Level: advanced
 
     Concepts: mapping^local to global
@@ -445,7 +446,8 @@ PetscErrorCode  ISLocalToGlobalMappingGetBlockSize(ISLocalToGlobalMapping mappin
     Output Parameter:
 .   mapping - new mapping data structure
 
-    Notes: There is one integer value in indices per block and it represents the actual indices bs*idx + j, where j=0,..,bs-1
+    Notes:
+    There is one integer value in indices per block and it represents the actual indices bs*idx + j, where j=0,..,bs-1
 
     For "small" problems when using ISGlobalToLocalMappingApply() and ISGlobalToLocalMappingApplyBlock(), the ISLocalToGlobalMappingType of ISLOCALTOGLOBALMAPPINGBASIC will be used;
     this uses more memory but is faster; this approach is not scalable for extremely large mappings. For large problems ISLOCALTOGLOBALMAPPINGHASH is used, this is scalable.
@@ -777,6 +779,8 @@ PetscErrorCode  ISGlobalToLocalMappingApply(ISLocalToGlobalMapping mapping,ISGlo
 
     Input Parameters:
 +   mapping - mapping between local and global numbering
+.   type - IS_GTOLM_MASK - replaces global indices with no local value with -1
+           IS_GTOLM_DROP - drops the indices with no local value from the output list
 -   is - index set in global numbering
 
     Output Parameters:
@@ -789,7 +793,7 @@ PetscErrorCode  ISGlobalToLocalMappingApply(ISLocalToGlobalMapping mapping,ISGlo
 .seealso: ISGlobalToLocalMappingApply(), ISLocalToGlobalMappingCreate(),
           ISLocalToGlobalMappingDestroy()
 @*/
-PetscErrorCode  ISGlobalToLocalMappingApplyIS(ISLocalToGlobalMapping mapping,ISGlobalToLocalMappingMode type, IS is,IS *newis)
+PetscErrorCode  ISGlobalToLocalMappingApplyIS(ISLocalToGlobalMapping mapping,ISGlobalToLocalMappingMode type,IS is,IS *newis)
 {
   PetscErrorCode ierr;
   PetscInt       n,nout,*idxout;
@@ -1467,7 +1471,8 @@ PetscErrorCode  ISLocalToGlobalMappingRestoreInfo(ISLocalToGlobalMapping mapping
 
    Level: advanced
 
-   Notes: ISLocalToGlobalMappingGetSize() returns the length the this array
+   Notes:
+    ISLocalToGlobalMappingGetSize() returns the length the this array
 
 .seealso: ISLocalToGlobalMappingCreate(), ISLocalToGlobalMappingApply(), ISLocalToGlobalMappingRestoreIndices(), ISLocalToGlobalMappingGetBlockIndices(), ISLocalToGlobalMappingRestoreBlockIndices()
 @*/
@@ -1645,7 +1650,8 @@ PETSC_EXTERN PetscErrorCode ISLocalToGlobalMappingCreate_Basic(ISLocalToGlobalMa
 +   -islocaltoglobalmapping_type hash - select this method
 
 
-   Notes: This is selected automatically for large problems if the user does not set the type.
+   Notes:
+    This is selected automatically for large problems if the user does not set the type.
 
    Level: beginner
 

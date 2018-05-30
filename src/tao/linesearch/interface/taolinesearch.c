@@ -49,23 +49,16 @@ PetscErrorCode TaoLineSearchView(TaoLineSearch ls, PetscViewer viewer)
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&isascii);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERSTRING,&isstring);CHKERRQ(ierr);
   if (isascii) {
-    if (((PetscObject)ls)->prefix) {
-      ierr = PetscViewerASCIIPrintf(viewer,"TaoLineSearch Object:(%s)\n",((PetscObject)ls)->prefix);CHKERRQ(ierr);
-    } else {
-      ierr = PetscViewerASCIIPrintf(viewer,"TaoLineSearch Object:\n");CHKERRQ(ierr);
-    }
-    ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
-    ierr = TaoLineSearchGetType(ls,&type);CHKERRQ(ierr);
-    if (type) {
-      ierr = PetscViewerASCIIPrintf(viewer,"type: %s\n",type);CHKERRQ(ierr);
-    } else {
-      ierr = PetscViewerASCIIPrintf(viewer,"type: not set yet\n");CHKERRQ(ierr);
-    }
+    PetscInt            tabs;
+    ierr = PetscViewerASCIIGetTab(viewer, &tabs);CHKERRQ(ierr);
+    ierr = PetscViewerASCIISetTab(viewer, ((PetscObject)ls)->tablevel);CHKERRQ(ierr);
+    ierr = PetscObjectPrintClassNamePrefixType((PetscObject)ls, viewer);CHKERRQ(ierr);
     if (ls->ops->view) {
       ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
       ierr = (*ls->ops->view)(ls,viewer);CHKERRQ(ierr);
       ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
     }
+    ierr = PetscViewerASCIIPushTab(viewer);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"maximum function evaluations=%D\n",ls->max_funcs);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"tolerances: ftol=%g, rtol=%g, gtol=%g\n",(double)ls->ftol,(double)ls->rtol,(double)ls->gtol);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"total number of function evaluations=%D\n",ls->nfeval);CHKERRQ(ierr);
@@ -77,7 +70,7 @@ PetscErrorCode TaoLineSearchView(TaoLineSearch ls, PetscViewer viewer)
     }
     ierr = PetscViewerASCIIPrintf(viewer,"Termination reason: %d\n",(int)ls->reason);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPopTab(viewer);CHKERRQ(ierr);
-
+    ierr = PetscViewerASCIISetTab(viewer, tabs);CHKERRQ(ierr);
   } else if (isstring) {
     ierr = TaoLineSearchGetType(ls,&type);CHKERRQ(ierr);
     ierr = PetscViewerStringSPrintf(viewer," %-3.3s",type);CHKERRQ(ierr);
@@ -817,7 +810,8 @@ PetscErrorCode TaoLineSearchUseTaoRoutines(TaoLineSearch ls, Tao ts)
   Output Parameter:
 . f - Objective value at X
 
-  Notes: TaoLineSearchComputeObjective() is typically used within line searches
+  Notes:
+    TaoLineSearchComputeObjective() is typically used within line searches
   so most users would not generally call this routine themselves.
 
   Level: developer
@@ -870,7 +864,8 @@ PetscErrorCode TaoLineSearchComputeObjective(TaoLineSearch ls, Vec x, PetscReal 
 + f - Objective value at X
 - g - Gradient vector at X
 
-  Notes: TaoLineSearchComputeObjectiveAndGradient() is typically used within line searches
+  Notes:
+    TaoLineSearchComputeObjectiveAndGradient() is typically used within line searches
   so most users would not generally call this routine themselves.
 
   Level: developer
@@ -922,7 +917,8 @@ PetscErrorCode TaoLineSearchComputeObjectiveAndGradient(TaoLineSearch ls, Vec x,
   Output Parameter:
 . g - gradient vector
 
-  Notes: TaoComputeGradient() is typically used within line searches
+  Notes:
+    TaoComputeGradient() is typically used within line searches
   so most users would not generally call this routine themselves.
 
   Level: developer
@@ -971,7 +967,8 @@ PetscErrorCode TaoLineSearchComputeGradient(TaoLineSearch ls, Vec x, Vec g)
 + f - Objective value at X
 - gts - inner product of gradient and step direction at X
 
-  Notes: TaoLineSearchComputeObjectiveAndGTS() is typically used within line searches
+  Notes:
+    TaoLineSearchComputeObjectiveAndGTS() is typically used within line searches
   so most users would not generally call this routine themselves.
 
   Level: developer
@@ -1290,7 +1287,8 @@ PetscErrorCode TaoLineSearchAppendOptionsPrefix(TaoLineSearch ls, const char p[]
   Output Parameters:
 . prefix - pointer to the prefix string used is returned
 
-  Notes: On the fortran side, the user should pass in a string 'prefix' of
+  Notes:
+    On the fortran side, the user should pass in a string 'prefix' of
   sufficient length to hold the prefix.
 
   Level: advanced

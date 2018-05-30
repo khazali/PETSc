@@ -30,4 +30,5 @@ val:
 
 lldb:
 	-@lldb ./ex1 -- -dim 2 -nbrVerEdge 4 -simplex 0 -dm_plex_separate_marker 0 -dm_view -sw_view -pc_type lu -petscspace_order 1
+
 include ${PETSC_DIR}/lib/petsc/conf/test

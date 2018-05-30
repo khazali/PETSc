@@ -11,7 +11,7 @@
 #define __PETSCSYSDEF_H
 #include "petscconf.h"
 #if defined (PETSC_HAVE_MPIUNI)
-#include "mpiunifdef.h"
+#include "petsc/mpiuni/mpiunifdef.h"
 #endif
 #include "petscversion.h"
 #include "petsc/finclude/petscviewer.h"
@@ -194,19 +194,11 @@
 !
 !     Macros for error checking
 !
-#if defined(PETSC_USE_ERRORCHECKING)
-#define SETERRQ(c,ierr,s)  ;call PetscError(c,ierr,0,s);return;endif
-#define SETERRA(c,ierr,s)  ;call PetscError(c,ierr,0,s);call MPIU_Abort(c,ierr);endif
+#define SETERRQ(c,ierr,s)  call PetscError(c,ierr,0,s); return
+#define SETERRA(c,ierr,s)  call PetscError(c,ierr,0,s); call MPIU_Abort(c,ierr)
 #define CHKERRQ(ierr) if (ierr .ne. 0) then;call PetscErrorF(ierr);return;endif
 #define CHKERRA(ierr) if (ierr .ne. 0) then;call PetscErrorF(ierr);call MPIU_Abort(MPI_COMM_SELF,ierr);endif
 #define CHKMEMQ call chkmemfortran(__LINE__,__FILE__,ierr)
-#else
-#define SETERRQ(c,ierr,s)
-#define SETERRA(c,ierr,s)
-#define CHKERRQ(ierr)
-#define CHKERRA(c,ierr)
-#define CHKMEMQ
-#endif
 
 #define PetscMatlabEngine PetscFortranAddr
 
@@ -220,7 +212,7 @@
 #endif
 #endif
 
-#define PetscRandom PetscFortranAddr
+#define PetscRandom type(tPetscRandom)
 #define PetscRandomType character*(80)
 #define PetscBinarySeekType PetscEnum
 
