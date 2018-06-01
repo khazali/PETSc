@@ -227,30 +227,64 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   PetscReal        error,normerr,norm;
   PetscErrorCode   ierr;
   PetscScalar      none = -1.0;
-  PetscScalar     *vals;
-  PetscInt         p, dim, Np;
-  PetscReal       *coords;
+  PetscInt         p, dim, Np, cStart, rStart, cEnd, cell, idxbuf[1000];
+  const PetscReal *coords, *c2;
   PetscMPIInt      rank;
+  PetscLayout      rLayout;
+  PetscScalar      buf[1000];
   PetscFunctionBeginUser;
   funcs[0] = (user->particles_cell == 0) ? linear : sinx;
   ctxs[0] = user;
   MPI_Comm_rank(PetscObjectComm((PetscObject)dm),&rank);
-  /* create particle mass matrix */
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMSwarmGetLocalSize(sw,&Np);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  /* create particle mass matrix */
   ierr = DMCreateMassMatrix(sw, dm, &mass);CHKERRQ(ierr);
   /* create RHS vector data */
-  ierr = DMSwarmGetField(sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
+  ierr = PetscLayoutCreate(PetscObjectComm((PetscObject) dm), &rLayout);CHKERRQ(ierr);
+  ierr = PetscLayoutSetLocalSize(rLayout, Np);CHKERRQ(ierr);
+  ierr = PetscLayoutSetBlockSize(rLayout, 1);CHKERRQ(ierr);
+  ierr = PetscLayoutSetUp(rLayout);CHKERRQ(ierr);
+  ierr = PetscLayoutGetRange(rLayout, &rStart, NULL);CHKERRQ(ierr);
+  ierr = PetscLayoutDestroy(&rLayout);CHKERRQ(ierr);
   ierr = DMSwarmGetField(sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
-  ierr = DMSwarmGetLocalSize(sw,&Np);CHKERRQ(ierr);
-  for (p = 0; p < Np; ++p) {
-    funcs[0](dim, 0.0, &coords[p*dim], 1, &vals[p], user);
-PetscPrintf(PETSC_COMM_SELF, "[%D]TestL2Projection: %D/%D) real coord[%4D]:%12.5e,%12.5e, val[%D]=%12.5e\n",rank,p+1,Np,p*dim,coords[p*dim],coords[p*dim + 1],p,vals[p]);
+  if (0) { /* non-permuted data */
+    PetscScalar     *vals;
+    ierr = DMSwarmGetField(sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
+    for (p = 0; p < Np; ++p) {
+      funcs[0](dim, 0.0, &coords[p*dim], 1, &vals[p], user);
+      PetscPrintf(PETSC_COMM_SELF, "[%D]TestL2Projection: %D/%D) real coord[%4D]:%12.5e,%12.5e, val[%D]=%12.5e\n",rank,p+1,Np,p*dim,coords[p*dim],coords[p*dim + 1],p,vals[p]);
+    }
+    ierr = DMSwarmRestoreField(sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
+    ierr = DMSwarmCreateGlobalVectorFromField(sw, "f_q", &f_q);CHKERRQ(ierr);
+  } else {
+    ierr = VecCreate(PetscObjectComm((PetscObject) dm),&f_q);CHKERRQ(ierr);
+    ierr = VecSetSizes(f_q,Np,PETSC_DECIDE);CHKERRQ(ierr);
+    ierr = VecSetFromOptions(f_q);CHKERRQ(ierr);
+    ierr = DMSwarmSortGetAccess(sw);CHKERRQ(ierr);
+    for (cell = cStart, c2 = coords; cell < cEnd; ++cell) {
+      PetscInt *cindices;
+      PetscInt  numCIndices;
+      ierr = DMSwarmSortGetPointsPerCell(sw, cell, &numCIndices, &cindices);CHKERRQ(ierr);
+      if (numCIndices>1000) SETERRQ2(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Buffer to small %D < %D",1000,numCIndices);
+      for (p = 0; p < numCIndices; ++p) {
+        funcs[0](dim, 0.0, &c2[p*dim], 1, &buf[p], user);
+        idxbuf[p] = cindices[p] + rStart;
+        PetscPrintf(PETSC_COMM_SELF, "[%D]TestL2Projection: %D/%D) real coord[%4D]:%12.5e,%12.5e, val[%D]=%12.5e\n",rank,c2-coords+1,Np,p*dim,c2[p*dim],c2[p*dim + 1],p,buf[p]);
+      }
+      ierr = VecSetValues(f_q,numCIndices,idxbuf,buf,INSERT_VALUES);CHKERRQ(ierr);
+      c2 += numCIndices;
+      ierr = PetscFree(cindices);CHKERRQ(ierr);
+    }
+    if ((c2-coords)!=Np) SETERRQ2(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Indexing error iteration: count %D, %D local particles",c2-coords,Np);
+    ierr = DMSwarmSortRestoreAccess(sw);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(f_q);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(f_q);CHKERRQ(ierr);
   }
   ierr = DMSwarmRestoreField(sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
-  ierr = DMSwarmRestoreField(sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
-  /* make RHS */
-  ierr = DMSwarmCreateGlobalVectorFromField(sw, "f_q", &f_q);CHKERRQ(ierr);
   ierr = PetscObjectViewFromOptions((PetscObject)f_q, NULL, "-f_view");CHKERRQ(ierr);
+  /* make RHS */
   ierr = DMGetGlobalVector(dm, &rhs);CHKERRQ(ierr);
   ierr = MatMultTranspose(mass, f_q, rhs);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) rhs,"rhs");CHKERRQ(ierr);
