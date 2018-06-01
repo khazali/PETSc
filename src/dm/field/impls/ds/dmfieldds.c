@@ -699,7 +699,7 @@ static PetscErrorCode DMFieldGetFEInvariance_DS(DMField field, IS pointIS, Petsc
 
 static PetscErrorCode DMFieldCreateDefaultQuadrature_DS(DMField field, IS pointIS, PetscQuadrature *quad)
 {
-  PetscInt       h, dim, imax, imin;
+  PetscInt       h, dim, imax, imin, cellHeight;
   DM             dm;
   DMField_DS     *dsfield;
   PetscObject    disc;
@@ -711,7 +711,7 @@ static PetscErrorCode DMFieldCreateDefaultQuadrature_DS(DMField field, IS pointI
   PetscFunctionBegin;
   dm = field->dm;
   dsfield = (DMField_DS *) field->data;
-  ierr = ISGetMinMax(pointIS,&imax,&imin);CHKERRQ(ierr);
+  ierr = ISGetMinMax(pointIS,&imin,&imax);CHKERRQ(ierr);
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
   for (h = 0; h <= dim; h++) {
     PetscInt hStart, hEnd;
@@ -719,6 +719,8 @@ static PetscErrorCode DMFieldCreateDefaultQuadrature_DS(DMField field, IS pointI
     ierr = DMPlexGetHeightStratum(dm,h,&hStart,&hEnd);CHKERRQ(ierr);
     if (imin >= hStart && imax < hEnd) break;
   }
+  ierr = DMPlexGetVTKCellHeight(dm, &cellHeight);CHKERRQ(ierr);
+  h -= cellHeight;
   *quad = NULL;
   if (h < dsfield->height) {
     ierr = DMFieldDSGetHeightDisc(field,h,&disc);CHKERRQ(ierr);
@@ -855,7 +857,7 @@ static PetscErrorCode DMFieldComputeFaceData_DS(DMField field, IS pointIS, Petsc
         co[p][s][1] = orient[f];
         co[p][s][2] = cell;
         minOrient = PetscMin(minOrient, orient[f]);
-        maxOrient = PetscMin(maxOrient, orient[f]);
+        maxOrient = PetscMax(maxOrient, orient[f]);
       }
       for (; s < 2; s++) {
         co[p][s][0] = -1;
@@ -964,12 +966,12 @@ static PetscErrorCode DMFieldComputeFaceData_DS(DMField field, IS pointIS, Petsc
     for (f = 0; f < coneSize; f++) {
       PetscInt face = coneK[f];
       PetscReal v0[3];
-      PetscReal J[9];
+      PetscReal J[9], detJ;
       PetscInt numCells, offset;
       PetscInt *cells;
       IS suppIS;
 
-      ierr = DMPlexComputeCellGeometryFEM(K, face, NULL, v0, J, NULL, NULL);CHKERRQ(ierr);
+      ierr = DMPlexComputeCellGeometryFEM(K, face, NULL, v0, J, NULL, &detJ);CHKERRQ(ierr);
       for (o = 0; o <= numOrient; o++) {
         PetscFEGeom *cellGeom;
 
@@ -1073,7 +1075,7 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
   }
   if (!disc || isContainer) {
     MPI_Comm        comm = PetscObjectComm((PetscObject) dm);
-    PetscInt        cStart, cEnd, dim;
+    PetscInt        cStart, cEnd, dim, cellHeight;
     PetscInt        localConeSize = 0, coneSize;
     PetscFE         fe;
     PetscDualSpace  Q;
@@ -1082,7 +1084,8 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
     PetscQuadrature quad, fquad;
     PetscBool       isSimplex;
 
-    ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetVTKCellHeight(dm, &cellHeight);CHKERRQ(ierr);
+    ierr = DMPlexGetHeightStratum(dm, cellHeight, &cStart, &cEnd);CHKERRQ(ierr);
     ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
     if (cEnd > cStart) {
       ierr = DMPlexGetConeSize(dm, cStart, &localConeSize);CHKERRQ(ierr);
