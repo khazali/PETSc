@@ -205,7 +205,7 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
   ierr = PetscCalloc2(locRows,&dnz,locRows,&onz);CHKERRQ(ierr);
   ierr = PetscHashJKCreate(&ht);CHKERRQ(ierr);
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)mass),&rank);CHKERRQ(ierr);
-  PetscPrintf(PETSC_COMM_SELF, "[%D]DMSwarmComputeMassMatrix_Private: rStart = %D colStart = %D colEnd = %D\n",rank,rStart,colStart,colEnd);
+/* PetscPrintf(PETSC_COMM_SELF, "[%D]DMSwarmComputeMassMatrix_Private: rStart = %D colStart = %D colEnd = %D\n",rank,rStart,colStart,colEnd); */
   /* count non-zeros */
   ierr = DMSwarmSortGetAccess(dmc);CHKERRQ(ierr);
   for (field = 0; field < Nf; ++field) {
@@ -223,10 +223,10 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
       {
         PetscHashJKKey  key;
         PetscHashJKIter missing, iter;
-PetscPrintf(PETSC_COMM_SELF, "\t[%D]DMSwarmComputeMassMatrix_Private: cell %D\n",rank,cell);
+/* PetscPrintf(PETSC_COMM_SELF, "\t[%D]DMSwarmComputeMassMatrix_Private: cell %D\n",rank,cell); */
         for (i = 0; i < numFIndices; ++i) {
           key.j = findices[i]; /* global column (from Plex) */
-PetscPrintf(PETSC_COMM_SELF, "\t\t[%D]DMSwarmComputeMassMatrix_Private: j ('fine',vertices) = %D, num rows ('coarse',particles) = %D\n",rank,key.j,numCIndices);
+/* PetscPrintf(PETSC_COMM_SELF, "\t\t[%D]DMSwarmComputeMassMatrix_Private: j ('fine',vertices) = %D, num rows ('coarse',particles) = %D\n",rank,key.j,numCIndices); */
           if (key.j >= 0) {
             /* Get indices for coarse elements */
             for (c = 0; c < numCIndices; ++c) {
@@ -234,7 +234,7 @@ PetscPrintf(PETSC_COMM_SELF, "\t\t[%D]DMSwarmComputeMassMatrix_Private: j ('fine
               if (key.k < 0) continue;
               ierr = PetscHashJKPut(ht, key, &missing, &iter);CHKERRQ(ierr);
               if (missing) {
-PetscPrintf(PETSC_COMM_SELF, "\t\t\t[%D]DMSwarmComputeMassMatrix_Private: new key k (row,particle) = %D, j (col,vertices) = %D\n",rank,key.k,key.j);
+/* PetscPrintf(PETSC_COMM_SELF, "\t\t\t[%D]DMSwarmComputeMassMatrix_Private: new key k (row,particle) = %D, j (col,vertices) = %D\n",rank,key.k,key.j); */
                 ierr = PetscHashJKSet(ht, iter, 1);CHKERRQ(ierr);
                 if ((key.j >= colStart) && (key.j < colEnd)) ++dnz[key.k - rStart];
                 else                                         ++onz[key.k - rStart];
@@ -285,7 +285,7 @@ PetscPrintf(PETSC_COMM_SELF, "\t\t\t[%D]DMSwarmComputeMassMatrix_Private: new ke
             pxi[d] += invJ[d*dim+e]*(pxx[e] - v0[e]); /* map to element space */
           }
         }
-PetscPrintf(PETSC_COMM_SELF,"[%D]DMSwarmComputeMassMatrix_Private: %2D.%D) coord = (%12.5e, %12.5e) element coord = (%12.5e, %12.5e) cindices[%D]=%D detJ=%12.5e\n",rank,cell,p,pxx[0],pxx[1],pxi[0],pxi[1],p,cindices[p],detJ);
+/* PetscPrintf(PETSC_COMM_SELF,"[%D]DMSwarmComputeMassMatrix_Private: %2D.%D) coord = (%12.5e, %12.5e) element coord = (%12.5e, %12.5e) cindices[%D]=%D detJ=%12.5e\n",rank,cell,p,pxx[0],pxx[1],pxi[0],pxi[1],p,cindices[p],detJ); */
       }
       ierr = PetscFEGetTabulation((PetscFE) obj, numCIndices, xi, &Bcoarse, NULL, NULL);CHKERRQ(ierr);
       /* Get elemMat entries by multiplying by weight */
@@ -295,7 +295,7 @@ PetscPrintf(PETSC_COMM_SELF,"[%D]DMSwarmComputeMassMatrix_Private: %2D.%D) coord
           for (c = 0; c < Nc; ++c) {
             /* B[(p*pdim + i)*Nc + c] is the value at point p for basis function i and component c */
             elemMat[p] += Bcoarse[(p*numFIndices + i)*Nc + c]*detJ;
-PetscPrintf(PETSC_COMM_SELF, "\t[%D]DMSwarmComputeMassMatrix_Private: %2D) findices[%D] (col) %D, particle (row) %D (nc=%D) Bcoarse[%2D]=%12.5e\n",rank,cell,i,findices[i],cindices[p],c,(p*numFIndices + i)*Nc + c,Bcoarse[(p*numFIndices + i)*Nc + c]);
+/* PetscPrintf(PETSC_COMM_SELF, "\t[%D]DMSwarmComputeMassMatrix_Private: %2D) findices[%D] (col) %D, particle (row) %D (nc=%D) Bcoarse[%2D]=%12.5e\n",rank,cell,i,findices[i],cindices[p],c,(p*numFIndices + i)*Nc + c,Bcoarse[(p*numFIndices + i)*Nc + c]); */
           }
         }
         for (p = 0; p < numCIndices; ++p) rowIDXs[p] = cindices[p] + rStart; /* globalize */

@@ -35,8 +35,8 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->domain_hi[0]  = 2*PETSC_PI;
   options->domain_hi[1]  = 1.0;
   options->domain_hi[2]  = 1.0;
-  options->boundary[0]= DM_BOUNDARY_NONE;
-  options->boundary[1]= DM_BOUNDARY_PERIODIC; /* could use Neumann */
+  options->boundary[0]= DM_BOUNDARY_NONE; /* PERIODIC (plotting does not work in paralle) */
+  options->boundary[1]= DM_BOUNDARY_NONE; /* Neumann */
   options->boundary[2]= DM_BOUNDARY_NONE;
   options->particles_cell = 0; /* > 0 for grid of particles, 0 for quadrature points */
   options->k = 1;
@@ -169,15 +169,19 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
     ierr = PetscFEGetQuadrature(fe, &quad);CHKERRQ(ierr);
     ierr = PetscQuadratureGetData(quad, NULL, NULL, &Nq, &qpoints, NULL);CHKERRQ(ierr);
     ierr = DMSwarmSetLocalSizes(*sw, (cEnd-cStart) * Nq, 0);CHKERRQ(ierr);
+    Np = Nq;
   } else {
-    N = PetscCeilReal(PetscPowReal((double)user->particles_cell,1./(double)dim));
-    Np = user->particles_cell = PetscPowReal((double)N,(double)dim); /* change p/c to make fit */
+    N = PetscCeilReal(PetscPowReal((PetscReal)user->particles_cell,1./(double)dim));
+    Np = user->particles_cell = PetscPowReal((PetscReal)N,(PetscReal)dim); /* change p/c to make fit */
     if (user->particles_cell<1) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "user->particles_cell<1 ???????");
     q = (cEnd-cStart) * user->particles_cell;
     ierr = DMSwarmSetLocalSizes(*sw, q, 0);CHKERRQ(ierr);
 PetscPrintf(PetscObjectComm((PetscObject) dm),"CreateParticles: particles/cell=%D, N cells_x = %D, number local particels=%D, weight factor %g\n",user->particles_cell,user->nbrVerEdge-1,q,user->factor);
   }
   ierr = DMSetFromOptions(*sw);CHKERRQ(ierr);
+  q = (cEnd-cStart) * Np;
+  ierr = MPI_Allreduce(&q,&c,1,MPI_INT,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+  user->factor = PetscPowReal((PetscReal)2,(PetscReal)dim)/(double)Np;
   /* create each particle: set cellid and coord */
   ierr = PetscMalloc4(dim, &xi0, dim, &v0, dim*dim, &J, dim*dim, &invJ);CHKERRQ(ierr);
   for (c = 0; c < dim; c++) xi0[c] = -1.;
@@ -205,7 +209,7 @@ PetscPrintf(PetscObjectComm((PetscObject) dm),"CreateParticles: particles/cell=%
           }
         }
       }
-      if (p!=Np) SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "p!=Np");
+      if (p!=Np) SETERRQ2(PetscObjectComm((PetscObject) dm), PETSC_ERR_PLIB, "p %D != Np %D",p,Np);
     }
   }
   ierr = DMSwarmRestoreField(*sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
@@ -227,11 +231,11 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   PetscReal        error,normerr,norm;
   PetscErrorCode   ierr;
   PetscScalar      none = -1.0;
-  PetscInt         p, dim, Np, cStart, rStart, cEnd, cell, idxbuf[1000];
+  PetscInt         p, dim, Np, cStart, rStart, cEnd, cell, maxC, *idxbuf;
   const PetscReal *coords, *c2;
   PetscMPIInt      rank;
   PetscLayout      rLayout;
-  PetscScalar      buf[1000];
+  PetscScalar     *vbuf;
   PetscFunctionBeginUser;
   funcs[0] = (user->particles_cell == 0) ? linear : sinx;
   ctxs[0] = user;
@@ -249,39 +253,40 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = PetscLayoutGetRange(rLayout, &rStart, NULL);CHKERRQ(ierr);
   ierr = PetscLayoutDestroy(&rLayout);CHKERRQ(ierr);
   ierr = DMSwarmGetField(sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
-  if (0) { /* non-permuted data */
-    PetscScalar     *vals;
-    ierr = DMSwarmGetField(sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
-    for (p = 0; p < Np; ++p) {
-      funcs[0](dim, 0.0, &coords[p*dim], 1, &vals[p], user);
-      PetscPrintf(PETSC_COMM_SELF, "[%D]TestL2Projection: %D/%D) real coord[%4D]:%12.5e,%12.5e, val[%D]=%12.5e\n",rank,p+1,Np,p*dim,coords[p*dim],coords[p*dim + 1],p,vals[p]);
-    }
-    ierr = DMSwarmRestoreField(sw, "f_q", NULL, NULL, (void **) &vals);CHKERRQ(ierr);
-    ierr = DMSwarmCreateGlobalVectorFromField(sw, "f_q", &f_q);CHKERRQ(ierr);
-  } else {
-    ierr = VecCreate(PetscObjectComm((PetscObject) dm),&f_q);CHKERRQ(ierr);
-    ierr = VecSetSizes(f_q,Np,PETSC_DECIDE);CHKERRQ(ierr);
-    ierr = VecSetFromOptions(f_q);CHKERRQ(ierr);
-    ierr = DMSwarmSortGetAccess(sw);CHKERRQ(ierr);
-    for (cell = cStart, c2 = coords; cell < cEnd; ++cell) {
-      PetscInt *cindices;
-      PetscInt  numCIndices;
-      ierr = DMSwarmSortGetPointsPerCell(sw, cell, &numCIndices, &cindices);CHKERRQ(ierr);
-      if (numCIndices>1000) SETERRQ2(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Buffer to small %D < %D",1000,numCIndices);
-      for (p = 0; p < numCIndices; ++p) {
-        funcs[0](dim, 0.0, &c2[p*dim], 1, &buf[p], user);
-        idxbuf[p] = cindices[p] + rStart;
-        PetscPrintf(PETSC_COMM_SELF, "[%D]TestL2Projection: %D/%D) real coord[%4D]:%12.5e,%12.5e, val[%D]=%12.5e\n",rank,c2-coords+1,Np,p*dim,c2[p*dim],c2[p*dim + 1],p,buf[p]);
-      }
-      ierr = VecSetValues(f_q,numCIndices,idxbuf,buf,INSERT_VALUES);CHKERRQ(ierr);
-      c2 += numCIndices;
-      ierr = PetscFree(cindices);CHKERRQ(ierr);
-    }
-    if ((c2-coords)!=Np) SETERRQ2(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Indexing error iteration: count %D, %D local particles",c2-coords,Np);
-    ierr = DMSwarmSortRestoreAccess(sw);CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(f_q);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(f_q);CHKERRQ(ierr);
+
+  ierr = VecCreate(PetscObjectComm((PetscObject) dm),&f_q);CHKERRQ(ierr);
+  ierr = VecSetSizes(f_q,Np,PETSC_DECIDE);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(f_q);CHKERRQ(ierr);
+  ierr = DMSwarmSortGetAccess(sw);CHKERRQ(ierr);
+  for (cell = cStart, maxC = 0; cell < cEnd; ++cell) {
+    PetscInt *cindices;
+    PetscInt  numCIndices;
+    ierr = DMSwarmSortGetPointsPerCell(sw, cell, &numCIndices, &cindices);CHKERRQ(ierr);
+    ierr = PetscFree(cindices);CHKERRQ(ierr);
+    maxC = PetscMax(maxC, numCIndices);
   }
+  ierr = PetscMalloc1(maxC, &idxbuf);CHKERRQ(ierr);
+  ierr = PetscMalloc1(maxC, &vbuf);CHKERRQ(ierr);
+  for (cell = cStart, c2 = coords; cell < cEnd; ++cell) {
+    PetscInt *cindices;
+    PetscInt  numCIndices;
+    ierr = DMSwarmSortGetPointsPerCell(sw, cell, &numCIndices, &cindices);CHKERRQ(ierr);
+    for (p = 0; p < numCIndices; ++p) {
+      funcs[0](dim, 0.0, &c2[p*dim], 1, &vbuf[p], user);
+      vbuf[p] *= user->factor;
+      idxbuf[p] = cindices[p] + rStart;
+/* PetscPrintf(PETSC_COMM_SELF, "[%D]TestL2Projection: %D/%D) real coord[%4D]:%12.5e,%12.5e, rhs[%D]=%12.5e\n",rank,c2-coords+1,Np,p*dim,c2[p*dim],c2[p*dim + 1],p,buf[p]); */
+    }
+    ierr = VecSetValues(f_q,numCIndices,idxbuf,vbuf,INSERT_VALUES);CHKERRQ(ierr);
+    c2 += numCIndices*dim;
+    ierr = PetscFree(cindices);CHKERRQ(ierr);
+  }
+  if ((c2-coords)!=Np*dim) SETERRQ2(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Indexing error iteration: count %D, %D local particles",c2-coords,Np*dim);
+  ierr = DMSwarmSortRestoreAccess(sw);CHKERRQ(ierr);
+  ierr = VecAssemblyBegin(f_q);CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(f_q);CHKERRQ(ierr);
+  ierr = PetscFree(vbuf);CHKERRQ(ierr);
+  ierr = PetscFree(idxbuf);CHKERRQ(ierr);
   ierr = DMSwarmRestoreField(sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
   ierr = PetscObjectViewFromOptions((PetscObject)f_q, NULL, "-f_view");CHKERRQ(ierr);
   /* make RHS */
@@ -289,6 +294,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = MatMultTranspose(mass, f_q, rhs);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) rhs,"rhs");CHKERRQ(ierr);
   ierr = PetscObjectViewFromOptions((PetscObject)rhs, NULL, "-vec_view");CHKERRQ(ierr);
+  ierr = PetscObjectViewFromOptions((PetscObject)rhs, NULL, "-rhs_view");CHKERRQ(ierr);
   ierr = VecDestroy(&f_q);CHKERRQ(ierr);
   ierr = MatViewFromOptions(mass, NULL, "-particle_mass_mat_view");CHKERRQ(ierr);
   ierr = MatDestroy(&mass);CHKERRQ(ierr);
