@@ -16,12 +16,13 @@ ex1: ex1.o  chkopts
 	${RM} -f ex1.o
 
 NP=1
+N=5
 VALGRIND_PROG=valgrind
 VALGRIND_ARGS=--dsymutil=yes --leak-check=full --gen-suppressions=no --num-callers=20 --error-limit=no
 VAL=$(VALGRIND_PROG) $(VALGRIND_ARGS)
 
 run:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge 5 -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -petscspace_order 1 -particles_cell 9 -particle_mass_mat_view ascii:f.m:ascii_matlab -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -petscspace_order 1 -particles_cell 25 -particle_mass_mat_view ascii:f.m:ascii_matlab -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
 	-@${PETSC_DIR}/lib/petsc/bin/petsc_gen_xdmf.py sol.h5
 
 val:

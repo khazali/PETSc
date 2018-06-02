@@ -181,7 +181,7 @@ PetscPrintf(PetscObjectComm((PetscObject) dm),"CreateParticles: particles/cell=%
   ierr = DMSetFromOptions(*sw);CHKERRQ(ierr);
   q = (cEnd-cStart) * Np;
   ierr = MPI_Allreduce(&q,&c,1,MPI_INT,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
-  user->factor = PetscPowReal((PetscReal)2,(PetscReal)dim)/(double)Np;
+  user->factor = 4/(double)Np; /* Integral of sin(x) 0-2pi (=4) / particles-cell */
   /* create each particle: set cellid and coord */
   ierr = PetscMalloc4(dim, &xi0, dim, &v0, dim*dim, &J, dim*dim, &invJ);CHKERRQ(ierr);
   for (c = 0; c < dim; c++) xi0[c] = -1.;
