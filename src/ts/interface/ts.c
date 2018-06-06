@@ -3725,7 +3725,7 @@ PetscErrorCode TSSolve(TS ts,Vec u)
 
     if (!ts->steps) {
       ierr = TSTrajectorySet(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
-      ierr = TSEventInitialize(ts->event,ts,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
+      ierr = TSInitializeEvent(ts,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
     }
 
     while (!ts->reason) {
@@ -3752,8 +3752,8 @@ PetscErrorCode TSSolve(TS ts,Vec u)
         ierr = TSPostEvaluate(ts);CHKERRQ(ierr);
       }
       if (!ts->steprollback) {
-        ierr = TSTrajectorySet(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
         ierr = TSPostStep(ts);CHKERRQ(ierr);
+        ierr = TSTrajectorySet(ts->trajectory,ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);
       }
     }
     ierr = TSMonitor(ts,ts->steps,ts->ptime,ts->vec_sol);CHKERRQ(ierr);

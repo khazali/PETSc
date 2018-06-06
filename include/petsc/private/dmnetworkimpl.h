@@ -7,7 +7,7 @@
 
 #define MAX_DATA_AT_POINT 36
 
-#define MAX_COMPONENTS 16
+#define MAX_COMPONENTS 36
 
 typedef struct _p_DMNetworkComponentHeader *DMNetworkComponentHeader;
 struct _p_DMNetworkComponentHeader {

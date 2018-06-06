@@ -349,7 +349,6 @@ struct _n_TSEvent {
   PetscInt  refct; /* reference count */
 };
 
-PETSC_EXTERN PetscErrorCode TSEventInitialize(TSEvent,TS,PetscReal,Vec);
 PETSC_EXTERN PetscErrorCode TSEventDestroy(TSEvent*);
 PETSC_EXTERN PetscErrorCode TSEventHandler(TS);
 PETSC_EXTERN PetscErrorCode TSAdjointEventHandler(TS);

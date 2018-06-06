@@ -1,17 +1,18 @@
 #include <petsc/private/tsimpl.h> /*I  "petscts.h" I*/
 
 /*
-  TSEventInitialize - Initializes TSEvent for TSSolve
+  TSEventInitialize - Initializes TSEvent
 */
-PetscErrorCode TSEventInitialize(TSEvent event,TS ts,PetscReal t,Vec U)
+PetscErrorCode TSInitializeEvent(TS ts,PetscReal t,Vec U)
 {
   PetscErrorCode ierr;
+  TSEvent        event=ts->event;
 
   PetscFunctionBegin;
   if (!event) PetscFunctionReturn(0);
   PetscValidPointer(event,1);
-  PetscValidHeaderSpecific(ts,TS_CLASSID,2);
-  PetscValidHeaderSpecific(U,VEC_CLASSID,4);
+  PetscValidHeaderSpecific(ts,TS_CLASSID,1);
+  PetscValidHeaderSpecific(U,VEC_CLASSID,3);
   event->ptime_prev = t;
   event->iterctr = 0;
   ierr = (*event->eventhandler)(ts,t,U,event->fvalue_prev,event->ctx);CHKERRQ(ierr);
@@ -400,7 +401,7 @@ PetscErrorCode TSEventHandler(TS ts)
           dt = TSEventComputeStepSize(event->ptime_prev,t,event->ptime_right,event->fvalue_prev[i],event->fvalue[i],event->fvalue_right[i],event->side[i],dt);
 
           if (event->monitor) {
-            ierr = PetscViewerASCIIPrintf(event->monitor,"TSEvent: iter %D - Event %D interval detected [%g - %g]\n",event->iterctr,i,(double)event->ptime_prev,(double)t);CHKERRQ(ierr);
+            ierr = PetscViewerASCIIPrintf(event->monitor,"TSEvent: iter %D - Event %D interval detected [%g - %g] with fvalue [%g - %g]\n",event->iterctr,i,(double)event->ptime_prev,(double)t,(double)event->fvalue_prev[i],event->fvalue[i]);CHKERRQ(ierr);
           }
           event->fvalue_right[i] = event->fvalue[i];
           event->side[i] = 1;
@@ -417,7 +418,7 @@ PetscErrorCode TSEventHandler(TS ts)
           dt = TSEventComputeStepSize(event->ptime_prev,t,event->ptime_right,event->fvalue_prev[i],event->fvalue[i],event->fvalue_right[i],event->side[i],dt);
 
           if (event->monitor) {
-            ierr = PetscViewerASCIIPrintf(event->monitor,"TSEvent: iter %D - Event %D interval detected [%g - %g]\n",event->iterctr,i,(double)event->ptime_prev,(double)t);CHKERRQ(ierr);
+            ierr = PetscViewerASCIIPrintf(event->monitor,"TSEvent: iter %D - Event %D interval detected [%g - %g] with fvalue [%g - %g]\n",event->iterctr,i,(double)event->ptime_prev,(double)t,(double)event->fvalue_prev[i],event->fvalue[i]);CHKERRQ(ierr);
           }
           event->fvalue_right[i] = event->fvalue[i];
           event->side[i] = 1;
