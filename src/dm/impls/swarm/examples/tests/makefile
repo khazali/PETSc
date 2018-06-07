@@ -27,7 +27,7 @@ run:
 	-@${PETSC_DIR}/lib/petsc/bin/petsc_gen_xdmf.py sol.h5
 
 val:
-	-${MPIEXEC} -n ${NP} $(VAL) ./ex1 -dim 2 -nbrVerEdge 3 -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -petscspace_order 1 -particles_cell 9 -particle_mass_mat_view ascii:f.m:ascii_matlab -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
+	-${MPIEXEC} -n ${NP} $(VAL) ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -petscspace_order 1 -particles_cell ${P} -particle_mass_mat_view ascii:f.m:ascii_matlab -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
 	-@${PETSC_DIR}/lib/petsc/bin/petsc_gen_xdmf.py sol.h5
 
 # -dm_plex_periodic_cut -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
