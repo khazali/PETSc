@@ -353,22 +353,6 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   /* make RHS */
   ierr = DMGetGlobalVector(dm, &rhs);CHKERRQ(ierr);
   ierr = MatMultTranspose(mass, f_q, rhs);CHKERRQ(ierr);
-  /* get FE moments */
-  {
-    PetscScalar momentum, energy, density, tt[0];
-    PetscDS     prob;
-    ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
-    ierr = PetscDSSetObjective(prob, 0, &f0_den);CHKERRQ(ierr);
-    ierr = DMPlexComputeIntegralFEM(dm,rhs,tt,user);CHKERRQ(ierr);
-    density = tt[0];
-    ierr = PetscDSSetObjective(prob, 0, &f0_momx);CHKERRQ(ierr);
-    ierr = DMPlexComputeIntegralFEM(dm,rhs,tt,user);CHKERRQ(ierr);
-    momentum = tt[0];
-    ierr = PetscDSSetObjective(prob, 0, &f0_ex);CHKERRQ(ierr);
-    ierr = DMPlexComputeIntegralFEM(dm,rhs,tt,user);CHKERRQ(ierr);
-    energy = tt[0];
-    PetscPrintf(comm, "\t[%D] L2 projection rho: %12.5e, momentum_x: %12.5e, energy: %12.5e\n",rank,density,momentum,energy);
-  }
   ierr = PetscObjectSetName((PetscObject) rhs,"rhs");CHKERRQ(ierr);
   ierr = PetscObjectViewFromOptions((PetscObject)rhs, NULL, "-vec_view");CHKERRQ(ierr);
   ierr = MatViewFromOptions(mass, NULL, "-particle_mass_mat_view");CHKERRQ(ierr);
@@ -400,7 +384,23 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = PetscPrintf(PETSC_COMM_WORLD, "relative discrete error = %g, |exact| = %g, Projected L2 error = %g\n", normerr/norm, norm, error);CHKERRQ(ierr);
   ierr = DMSwarmSortRestoreAccess(sw);CHKERRQ(ierr);
   ierr = DMSwarmRestoreField(sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
-
+  /* get FE moments */
+  {
+    PetscScalar momentum, energy, density, tt[0];
+    PetscDS     prob;
+    ierr = MatMultTranspose(Qinterp, f_q, uproj);CHKERRQ(ierr);
+    ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
+    ierr = PetscDSSetObjective(prob, 0, &f0_den);CHKERRQ(ierr);
+    ierr = DMPlexComputeIntegralFEM(dm,uproj,tt,user);CHKERRQ(ierr);
+    density = tt[0];
+    ierr = PetscDSSetObjective(prob, 0, &f0_momx);CHKERRQ(ierr);
+    ierr = DMPlexComputeIntegralFEM(dm,uproj,tt,user);CHKERRQ(ierr);
+    momentum = tt[0];
+    ierr = PetscDSSetObjective(prob, 0, &f0_ex);CHKERRQ(ierr);
+    ierr = DMPlexComputeIntegralFEM(dm,uproj,tt,user);CHKERRQ(ierr);
+    energy = tt[0];
+    PetscPrintf(comm, "\t[%D] L2 projection rho: %12.5e, momentum_x: %12.5e, energy: %12.5e\n",rank,density,momentum,energy);
+  }
   /* clean up */
   ierr = VecDestroy(&f_q);CHKERRQ(ierr);
   ierr = MatDestroy(&mass);CHKERRQ(ierr);
