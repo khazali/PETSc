@@ -35,7 +35,7 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->domain_hi[0]  = 2*PETSC_PI;
   options->domain_hi[1]  = 1.0;
   options->domain_hi[2]  = 1.0;
-  options->boundary[0]= DM_BOUNDARY_NONE; /* PERIODIC (plotting does not work in paralle) */
+  options->boundary[0]= DM_BOUNDARY_PERIODIC; /* PERIODIC (plotting does not work in paralle) */
   options->boundary[1]= DM_BOUNDARY_NONE; /* Neumann */
   options->boundary[2]= DM_BOUNDARY_NONE;
   options->particles_cell = 0; /* > 0 for grid of particles, 0 for quadrature points */
@@ -340,6 +340,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
         den0    +=             f0[idx];
         mom0    += c2[0]      *f0[idx];
         energy0 += c2[0]*c2[0]*f0[idx];
+/* PetscPrintf(comm,"\t[%D] momentum_x: %12.5e * %12.5e => %12.5e, sum = %12.5e\n",rank,c2[0],f0[idx],c2[0]*f0[idx],mom0); */
       }
       ierr = PetscFree(cindices);CHKERRQ(ierr);
     }
