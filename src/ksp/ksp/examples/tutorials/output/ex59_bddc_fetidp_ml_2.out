@@ -38,7 +38,7 @@ PC Object: (physical_) 4 MPI processes
     Symmetric computation of primal basis functions: 1
     Num. Procs. to map coarse adjacency list: 0
     Coarse eqs per proc (significant at the coarsest level): 1
-    Detect disconnected: 0
+    Detect disconnected: 0 (filter 0)
     Benign subspace trick: 0 (change explicit 0)
     Benign subspace trick is active: 0
     Algebraic computation of no-net-flux 0
@@ -95,7 +95,7 @@ PC Object: (physical_) 4 MPI processes
       Symmetric computation of primal basis functions: 1
       Num. Procs. to map coarse adjacency list: 0
       Coarse eqs per proc (significant at the coarsest level): 1
-      Detect disconnected: 1
+      Detect disconnected: 1 (filter 0)
       Benign subspace trick: 0 (change explicit 0)
       Benign subspace trick is active: 0
       Algebraic computation of no-net-flux 0
@@ -127,33 +127,33 @@ PC Object: (physical_) 4 MPI processes
           total: nonzeros=4, allocated nonzeros=4
           total number of mallocs used during MatSetValues calls =0
             not using I-node (on process 0) routines
-              KSP Object:       (physical_pc_bddc_coarse_l1_redundant_)       1 MPI processes
-                type: preonly
-                maximum iterations=10000, initial guess is zero
-                tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
-                left preconditioning
-                using NONE norm type for convergence test
-              PC Object:       (physical_pc_bddc_coarse_l1_redundant_)       1 MPI processes
-                type: lu
-                  out-of-place factorization
-                  tolerance for zero pivot 2.22045e-14
-                  matrix ordering: nd
-                  factor fill ratio given 5., needed 1.
-                    Factored matrix follows:
-                      Mat Object:       1 MPI processes
-                        type: seqaij
-                        rows=2, cols=2
-                        package used to perform factorization: petsc
-                        total: nonzeros=4, allocated nonzeros=4
-                        total number of mallocs used during MatSetValues calls =0
-                          using I-node routines: found 1 nodes, limit used is 5
-                linear system matrix = precond matrix:
-                Mat Object:       1 MPI processes
-                  type: seqaij
-                  rows=2, cols=2
-                  total: nonzeros=4, allocated nonzeros=4
-                  total number of mallocs used during MatSetValues calls =0
-                    using I-node routines: found 1 nodes, limit used is 5
+            KSP Object:       (physical_pc_bddc_coarse_l1_redundant_)       1 MPI processes
+              type: preonly
+              maximum iterations=10000, initial guess is zero
+              tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
+              left preconditioning
+              using NONE norm type for convergence test
+            PC Object:       (physical_pc_bddc_coarse_l1_redundant_)       1 MPI processes
+              type: lu
+                out-of-place factorization
+                tolerance for zero pivot 2.22045e-14
+                matrix ordering: nd
+                factor fill ratio given 5., needed 1.
+                  Factored matrix follows:
+                    Mat Object:       1 MPI processes
+                      type: seqaij
+                      rows=2, cols=2
+                      package used to perform factorization: petsc
+                      total: nonzeros=4, allocated nonzeros=4
+                      total number of mallocs used during MatSetValues calls =0
+                        using I-node routines: found 1 nodes, limit used is 5
+              linear system matrix = precond matrix:
+              Mat Object:       1 MPI processes
+                type: seqaij
+                rows=2, cols=2
+                total: nonzeros=4, allocated nonzeros=4
+                total number of mallocs used during MatSetValues calls =0
+                  using I-node routines: found 1 nodes, limit used is 5
     linear system matrix = precond matrix:
     Mat Object: 4 MPI processes
       type: is
