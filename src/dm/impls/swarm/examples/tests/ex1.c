@@ -254,46 +254,18 @@ static void f0_ex(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   *f0 = x[0]*x[0]*u[0];
   /* PetscPrintf(PETSC_COMM_SELF,"f0_ex: %12.5e <= (x=) %12.5e * (rho=) %12.5e\n",*f0,x[0]*x[0],u[0]); */
 }
-
-static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
+static PetscErrorCode getParticleVector(DM dm, DM sw,
+                                        PetscErrorCode (*funcs[])(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *),
+                                        PetscInt rStart, AppCtx *user, double *den0tot, double *mom0tot, double *energy0tot, Vec f_q)
 {
-  PetscErrorCode (*funcs[1])(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *);
-  AppCtx          *ctxs[1];
-  KSP              ksp;
-  Mat              mass, Qinterp;
-  Vec              f_q, rhs, uproj, uexact;
-  PetscReal        error,normerr,norm;
   PetscErrorCode   ierr;
-  const PetscScalar none = -1.0;
-  PetscInt         p, dim, Np, cStart, rStart, cEnd, cell, maxC, *idxbuf;
+  PetscInt         p, dim, cStart, cEnd, cell, maxC, *idxbuf;
   const PetscReal *coords, *c2;
-  PetscMPIInt      rank;
-  PetscLayout      rLayout;
   PetscScalar     *vbuf;
-  MPI_Comm         comm;
-  double           den0tot,mom0tot,energy0tot;
   PetscFunctionBeginUser;
-  funcs[0] = (user->particles_cell == 0) ? linear : sinx;
-  ctxs[0] = user;
-  comm = PetscObjectComm((PetscObject)dm);
-  MPI_Comm_rank(comm,&rank);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
-  ierr = DMSwarmGetLocalSize(sw,&Np);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
-  ierr = KSPCreate(comm, &ksp);CHKERRQ(ierr);
-  ierr = DMGetGlobalVector(dm, &uproj);CHKERRQ(ierr);
-  ierr = DMGetGlobalVector(dm, &rhs);CHKERRQ(ierr);
-  /* create RHS vector data */
-  ierr = PetscLayoutCreate(PetscObjectComm((PetscObject) dm), &rLayout);CHKERRQ(ierr);
-  ierr = PetscLayoutSetLocalSize(rLayout, Np);CHKERRQ(ierr);
-  ierr = PetscLayoutSetBlockSize(rLayout, 1);CHKERRQ(ierr);
-  ierr = PetscLayoutSetUp(rLayout);CHKERRQ(ierr);
-  ierr = PetscLayoutGetRange(rLayout, &rStart, NULL);CHKERRQ(ierr);
-  ierr = PetscLayoutDestroy(&rLayout);CHKERRQ(ierr);
   ierr = DMSwarmGetField(sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
-  ierr = VecCreate(PetscObjectComm((PetscObject) dm),&f_q);CHKERRQ(ierr);
-  ierr = VecSetSizes(f_q,Np,PETSC_DECIDE);CHKERRQ(ierr);
-  ierr = VecSetFromOptions(f_q);CHKERRQ(ierr);
   ierr = DMSwarmSortGetAccess(sw);CHKERRQ(ierr);
   for (cell = cStart, maxC = 0; cell < cEnd; ++cell) {
     PetscInt *cindices;
@@ -318,7 +290,6 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
     ierr = VecSetValues(f_q,numCIndices,idxbuf,vbuf,INSERT_VALUES);CHKERRQ(ierr);
     ierr = PetscFree(cindices);CHKERRQ(ierr);
   }
-  if ((c2-coords)!=Np*dim) SETERRQ2(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Indexing error iteration: count %D, %D local particles",c2-coords,Np*dim);
   ierr = VecAssemblyBegin(f_q);CHKERRQ(ierr);
   ierr = VecAssemblyEnd(f_q);CHKERRQ(ierr);
   ierr = PetscFree(vbuf);CHKERRQ(ierr);
@@ -339,18 +310,60 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
         den0    +=             f0[idx];
         mom0    += c2[0]      *f0[idx];
         energy0 += c2[0]*c2[0]*f0[idx];
-/* PetscPrintf(comm,"\t[%D] momentum_x: %12.5e * %12.5e => %12.5e, sum = %12.5e\n",rank,c2[0],f0[idx],c2[0]*f0[idx],mom0); */
+/* PetscPrintf(PetscObjectComm((PetscObject) sw),"\t[%D] momentum_x: %12.5e * %12.5e => %12.5e, sum = %12.5e\n",rank,c2[0],f0[idx],c2[0]*f0[idx],mom0); */
       }
       ierr = PetscFree(cindices);CHKERRQ(ierr);
     }
     ierr = VecRestoreArray(f_q,&f0);CHKERRQ(ierr);
-    ierr = MPI_Allreduce(&den0,&den0tot,1,MPI_DOUBLE,MPI_SUM,comm);CHKERRQ(ierr);
-    ierr = MPI_Allreduce(&mom0,&mom0tot,1,MPI_DOUBLE,MPI_SUM,comm);CHKERRQ(ierr);
-    ierr = MPI_Allreduce(&energy0,&energy0tot,1,MPI_DOUBLE,MPI_SUM,comm);CHKERRQ(ierr);
+    ierr = MPI_Allreduce(&den0,den0tot,1,MPI_DOUBLE,MPI_SUM,PetscObjectComm((PetscObject) sw));CHKERRQ(ierr);
+    ierr = MPI_Allreduce(&mom0,mom0tot,1,MPI_DOUBLE,MPI_SUM,PetscObjectComm((PetscObject) sw));CHKERRQ(ierr);
+    ierr = MPI_Allreduce(&energy0,energy0tot,1,MPI_DOUBLE,MPI_SUM,PetscObjectComm((PetscObject) sw));CHKERRQ(ierr);
     /* PetscPrintf(comm, "\t[%D] particle      rho: %12.5e, momentum_x: %12.5e, energy: %12.5e\n",rank,den0tot,mom0tot,energy0tot); */
   }
   ierr = DMSwarmRestoreField(sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
   ierr = DMSwarmSortRestoreAccess(sw);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
+{
+  PetscErrorCode (*funcs[1])(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *);
+  AppCtx          *ctxs[1];
+  KSP              ksp;
+  Mat              mass, Qinterp;
+  Vec              f_q, rhs, uproj, uexact;
+  PetscReal        error,normerr,norm;
+  PetscErrorCode   ierr;
+  const PetscScalar none = -1.0;
+  PetscInt         dim, Np, cStart, rStart, cEnd;
+  PetscMPIInt      rank;
+  PetscLayout      rLayout;
+  MPI_Comm         comm;
+  double           den0tot,mom0tot,energy0tot;
+  PetscFunctionBeginUser;
+  funcs[0] = (user->particles_cell == 0) ? linear : sinx;
+  ctxs[0] = user;
+  comm = PetscObjectComm((PetscObject)dm);
+  MPI_Comm_rank(comm,&rank);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = DMSwarmGetLocalSize(sw,&Np);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = KSPCreate(comm, &ksp);CHKERRQ(ierr);
+  ierr = DMGetGlobalVector(dm, &uproj);CHKERRQ(ierr);
+  ierr = DMGetGlobalVector(dm, &rhs);CHKERRQ(ierr);
+  /* create RHS vector data */
+  ierr = PetscLayoutCreate(PetscObjectComm((PetscObject) dm), &rLayout);CHKERRQ(ierr);
+  ierr = PetscLayoutSetLocalSize(rLayout, Np);CHKERRQ(ierr);
+  ierr = PetscLayoutSetBlockSize(rLayout, 1);CHKERRQ(ierr);
+  ierr = PetscLayoutSetUp(rLayout);CHKERRQ(ierr);
+  ierr = PetscLayoutGetRange(rLayout, &rStart, NULL);CHKERRQ(ierr);
+  ierr = PetscLayoutDestroy(&rLayout);CHKERRQ(ierr);
+  ierr = VecCreate(PetscObjectComm((PetscObject) dm),&f_q);CHKERRQ(ierr);
+  ierr = VecSetSizes(f_q,Np,PETSC_DECIDE);CHKERRQ(ierr);
+  ierr = VecSetFromOptions(f_q);CHKERRQ(ierr);
+
+  ierr = getParticleVector(dm,sw,funcs,rStart,user,&den0tot,&mom0tot,&energy0tot,f_q);CHKERRQ(ierr);
+
   /* create particle mass matrix */
   ierr = DMCreateMassMatrix(sw, dm, &mass);CHKERRQ(ierr);
   ierr = DMSwarmCreateInterpolationMatrix(sw, dm, &Qinterp);CHKERRQ(ierr);
@@ -365,10 +378,6 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = DMCreateMatrix(dm, &mass);CHKERRQ(ierr);
   ierr = DMPlexSNESComputeJacobianFEM(dm, uproj, mass, mass, user);CHKERRQ(ierr);
   ierr = MatViewFromOptions(mass, NULL, "-fe_mass_mat_view");CHKERRQ(ierr);
-  /* make rhs with mass */
-  /* ierr = KSPSetOperators(ksp, mass, mass);CHKERRQ(ierr); */
-  /* ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr); */
-  /* ierr = MatMult(mass, uproj, rhs);CHKERRQ(ierr); */
   /* solve for operator */
   ierr = KSPSetOperators(ksp, mass, mass);CHKERRQ(ierr);
   ierr = KSPSetFromOptions(ksp);CHKERRQ(ierr);

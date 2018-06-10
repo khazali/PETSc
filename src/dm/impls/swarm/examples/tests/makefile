@@ -23,11 +23,11 @@ VALGRIND_ARGS=--dsymutil=yes --leak-check=full --gen-suppressions=no --num-calle
 VAL=$(VALGRIND_PROG) $(VALGRIND_ARGS)
 
 run:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -petscspace_order 2 -particles_cell ${P} -dm_plex_periodic_cut -particle_interp_mat_view ascii:f.m:ascii_matlab -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type jacobi -ksp_type cg -petscspace_order 4 -particles_cell ${P} -dm_plex_periodic_cut -particle_interp_mat_view ascii:f.m:ascii_matlab -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
 	-@${PETSC_DIR}/lib/petsc/bin/petsc_gen_xdmf.py sol.h5
 
 val:
-	-${MPIEXEC} -n ${NP} $(VAL) ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -petscspace_order 1 -particles_cell ${P} -dm_plex_periodic_cut -particle_interp_mat_view ascii:f.m:ascii_matlab -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
+	-${MPIEXEC} -n ${NP} $(VAL) ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type gamg -ksp_type cg -petscspace_order 1 -particles_cell ${P} -dm_plex_periodic_cut -particle_interp_mat_view ascii:f.m:ascii_matlab -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
 	-@${PETSC_DIR}/lib/petsc/bin/petsc_gen_xdmf.py sol.h5
 
 # -dm_plex_periodic_cut -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
