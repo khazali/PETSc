@@ -129,12 +129,28 @@ static PetscErrorCode sinx(PetscInt dim, PetscReal time, const PetscReal x[], Pe
 /*   } */
 /* } */
 
-static void identity(PetscInt dim, PetscInt Nf, PetscInt NfAux,
-                     const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
-                     const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-                     PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g0[])
+static void g0_1(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                 const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                 const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                 PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g0[])
 {
   g0[0] = 1.0;
+}
+
+static void g0_x(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                 const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                 const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                 PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g0[])
+{
+  g0[0] = x[0];
+}
+
+static void g0_x2(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                  PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g0[])
+{
+  g0[0] = x[0]*x[0];
 }
 
 static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
@@ -153,7 +169,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   ierr = PetscFECreateDefault(PetscObjectComm((PetscObject) dm), dim, 1, user->simplex, NULL, -1, &fe);CHKERRQ(ierr);
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
-  ierr = PetscDSSetJacobian(prob, 0, 0, identity, NULL, NULL, NULL);CHKERRQ(ierr);
+  ierr = PetscDSSetJacobian(prob, 0, 0, g0_1, NULL, NULL, NULL);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = DMCreate(PetscObjectComm((PetscObject) dm), sw);CHKERRQ(ierr);
   ierr = DMSetType(*sw, DMSWARM);CHKERRQ(ierr);
@@ -222,9 +238,9 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "f0_den"
+#define __FUNCT__ "f0_1"
 /* < v, ru > */
-static void f0_den(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+static void f0_1(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                    const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
                    const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                    PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f0[])
@@ -403,7 +419,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
     ierr = MatMultTranspose(Qinterp, f_q, rhs);CHKERRQ(ierr);
     ierr = KSPSolve(ksp, rhs, uproj);CHKERRQ(ierr);
     ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
-    ierr = PetscDSSetObjective(prob, 0, &f0_den);CHKERRQ(ierr);
+    ierr = PetscDSSetObjective(prob, 0, &f0_1);CHKERRQ(ierr);
     ierr = DMPlexComputeIntegralFEM(dm,uproj,tt,user);CHKERRQ(ierr);
     density = tt[0];
     ierr = PetscDSSetObjective(prob, 0, &f0_momx);CHKERRQ(ierr);
