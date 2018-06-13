@@ -74,17 +74,19 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 static PetscErrorCode CreateMesh(MPI_Comm comm, DM *dm, AppCtx *user)
 {
   PetscBool      flag;
-  PetscErrorCode ierr;
-
+  PetscErrorCode ierr,i;
+  PetscReal      hh[3];
   PetscFunctionBeginUser;
   ierr = PetscStrcmp(user->mshNam, "", &flag);CHKERRQ(ierr);
   if (flag) {
     PetscInt faces[3];
     faces[0] = user->nbrVerEdge-1; faces[1] = user->nbrVerEdge-1; faces[2] = user->nbrVerEdge-1;
     ierr = DMPlexCreateBoxMesh(comm, user->dim, user->simplex, faces, user->domain_lo, user->domain_hi, user->boundary, PETSC_TRUE, dm);CHKERRQ(ierr);
+    for (i=0;i<user->dim;i++) hh[i] = (user->domain_hi[i]-user->domain_lo[i])/faces[i];
   } else {
     ierr = DMPlexCreateFromFile(comm, user->mshNam, PETSC_TRUE, dm);CHKERRQ(ierr);
     ierr = DMGetDimension(*dm, &user->dim);CHKERRQ(ierr);
+    for (i=0;i<user->dim;i++) hh[i] = 1;
   }
   {
     DM distributedMesh = NULL;
@@ -98,7 +100,40 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, DM *dm, AppCtx *user)
   }
   ierr = DMLocalizeCoordinates(*dm);CHKERRQ(ierr); /* needed for periodic */
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
-
+  /* pertub coordinates */
+  {
+    Vec         coordinates;
+    PetscScalar *coords;
+    PetscInt    i, dimEmbed, nCoords;
+    PetscRandom rnd;
+    PetscReal   interval = 1.e-1;
+    ierr = PetscRandomCreate(PetscObjectComm((PetscObject)*dm),&rnd);CHKERRQ(ierr);
+    ierr = PetscRandomSetInterval(rnd,-interval,interval);CHKERRQ(ierr);
+    ierr = PetscRandomSetFromOptions(rnd);CHKERRQ(ierr);
+    ierr = DMGetCoordinatesLocal(*dm,&coordinates);CHKERRQ(ierr);
+    ierr = DMGetCoordinateDim(*dm,&dimEmbed);CHKERRQ(ierr);
+    ierr = VecGetLocalSize(coordinates,&nCoords);CHKERRQ(ierr);
+    if (nCoords % dimEmbed) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Coordinate vector the wrong size");
+    ierr = VecGetArray(coordinates,&coords);CHKERRQ(ierr);
+    for (i = 0; i < nCoords; i += dimEmbed) {
+      PetscInt j, pert = 1;
+      PetscScalar *coord = &coords[i];
+      for (j = 0; j < dimEmbed ; j++) {
+        if (user->domain_hi[j] == coord[j] || coord[j] == user->domain_lo[j]) pert = 0;
+      }
+      if (pert) {
+        PetscScalar value;
+        for (j = 0; j < dimEmbed ; j++) {
+          ierr = PetscRandomGetValue(rnd,&value);CHKERRQ(ierr);
+          coord[j] += value*hh[j];
+        }
+      }
+    }
+    ierr = VecRestoreArray(coordinates,&coords);CHKERRQ(ierr);
+    ierr = DMSetCoordinatesLocal(*dm,coordinates);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) *dm, "half-plane");CHKERRQ(ierr);
+    ierr = PetscRandomDestroy(&rnd);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -107,6 +142,18 @@ static PetscErrorCode linear(PetscInt dim, PetscReal time, const PetscReal x[], 
   AppCtx *ctx = (AppCtx*)a_ctx;
   if (x[0] < ctx->domain_hi[0]/2) u[0] = x[0]*2/ctx->domain_hi[0];
   else                            u[0] = 2 - x[0]*2/ctx->domain_hi[0];
+  return 0;
+}
+
+static PetscErrorCode x4_x2(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *a_ctx)
+{
+  AppCtx *ctx = (AppCtx*)a_ctx;
+  int     i = 0;
+  /* double  L2 = ctx->domain_hi[i]*ctx->domain_hi[i]; */
+  /* u[0] = x[i]*x[i]*x[i]*x[i] - x[i]*x[i]*L2; */
+  double  L2 = ctx->domain_hi[i];
+  u[0] = x[i]*x[i] - x[i]*L2;
+
   return 0;
 }
 
@@ -137,34 +184,22 @@ static void g0_1(PetscInt dim, PetscInt Nf, PetscInt NfAux,
   g0[0] = 1.0;
 }
 
-static void g0_x(PetscInt dim, PetscInt Nf, PetscInt NfAux,
-                 const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
-                 const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-                 PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g0[])
-{
-  g0[0] = x[0];
-}
-
-static void g0_x2(PetscInt dim, PetscInt Nf, PetscInt NfAux,
-                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
-                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-                  PetscReal t, PetscReal u_tShift, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar g0[])
-{
-  g0[0] = x[0]*x[0];
-}
-
 static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
 {
   PetscDS          prob;
   PetscFE          fe;
   PetscInt         Nq=0, Np=0, q, dim, N=0, c, cell, p, cStart, cEnd;
-  PetscReal       *v0, *J, *invJ, detJ, *coords, *xi0;
+  PetscReal       *v0, *J, *invJ, detJ, *coords, *xi0, interval = 1.e-2;
   PetscInt        *cellid;
   PetscErrorCode   ierr;
   PetscMPIInt      rank;
   const PetscReal *qpoints=0;
+  PetscRandom      rnd;
   PetscFunctionBeginUser;
   MPI_Comm_rank(PetscObjectComm((PetscObject)dm),&rank);
+  ierr = PetscRandomCreate(PetscObjectComm((PetscObject)dm),&rnd);CHKERRQ(ierr);
+  ierr = PetscRandomSetInterval(rnd,-interval,interval);CHKERRQ(ierr);
+  ierr = PetscRandomSetFromOptions(rnd);CHKERRQ(ierr);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = PetscFECreateDefault(PetscObjectComm((PetscObject) dm), dim, 1, user->simplex, NULL, -1, &fe);CHKERRQ(ierr);
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
@@ -211,15 +246,19 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
         CoordinatesRefToReal(dim, dim, xi0, v0, J, &qpoints[q*dim], &coords[(c*Nq + q)*dim]);
       }
     } else { /* make particles in cells with regular grid, assumes tensor elements (-1,1)^D*/
-      PetscInt  ii,jj,kk;
-      PetscReal ecoord[3];
-      const PetscReal dx = 2./(PetscReal)N, dx_2 = dx/2;
+      PetscInt    ii,jj,kk;
+      PetscReal   ecoord[3];
+      PetscReal   dx = 2./(PetscReal)N, dx_2 = dx/2;
+      PetscScalar value;
       for ( p = kk = 0; kk < (dim==3 ? N : 1) ; kk++) {
-        ecoord[2] = kk*dx - 1 + dx_2; /* regular grid on [-1,-1] */
+        ierr = PetscRandomGetValue(rnd,&value);CHKERRQ(ierr);
+        ecoord[2] = kk*dx - 1 + dx_2 + value; /* regular grid on [-1,-1] */
         for ( ii = 0; ii < N ; ii++) {
-          ecoord[0] = ii*dx - 1 + dx_2; /* regular grid on [-1,-1] */
+          ierr = PetscRandomGetValue(rnd,&value);CHKERRQ(ierr);
+          ecoord[0] = ii*dx - 1 + dx_2 + value; /* regular grid on [-1,-1] */
           for ( jj = 0; jj < N ; jj++, p++) {
-            ecoord[1] = jj*dx - 1 + dx_2; /* regular grid on [-1,-1] */
+            ierr = PetscRandomGetValue(rnd,&value);CHKERRQ(ierr);
+            ecoord[1] = jj*dx - 1 + dx_2 + value; /* regular grid on [-1,-1] */
             cellid[c*Np + p] = cell;
             CoordinatesRefToReal(dim, dim, xi0, v0, J, ecoord, &coords[(c*Np + p)*dim]);
           }
@@ -233,6 +272,7 @@ static PetscErrorCode CreateParticles(DM dm, DM *sw, AppCtx *user)
   ierr = PetscFree4(xi0, v0, J, invJ);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe,"fe");CHKERRQ(ierr);
   ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
+  ierr = PetscRandomDestroy(&rnd);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
@@ -263,26 +303,27 @@ static void f0_momx(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 #undef __FUNCT__
 #define __FUNCT__ "f0_ex"
 static void f0_ex(PetscInt dim, PetscInt Nf, PetscInt NfAux,
-                 const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
-                 const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-                 PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f0[])
+                  const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                  const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                  PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f0[])
 {
   *f0 = x[0]*x[0]*u[0];
-  /* PetscPrintf(PETSC_COMM_SELF,"f0_ex: %12.5e <= (x=) %12.5e * (rho=) %12.5e\n",*f0,x[0]*x[0],u[0]); */
 }
+
 static PetscErrorCode getParticleVector(DM dm, DM sw,
                                         PetscErrorCode (*funcs[])(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *),
-                                        PetscInt rStart, AppCtx *user, double *den0tot, double *mom0tot, double *energy0tot, Vec f_q)
+                                        AppCtx *user, double *den0tot, double *mom0tot, double *energy0tot, Vec f_q)
 {
   PetscErrorCode   ierr;
-  PetscInt         p, dim, cStart, cEnd, cell, maxC, *idxbuf;
+  PetscInt         p, dim, rStart, cStart, cEnd, cell, maxC, *idxbuf;
   const PetscReal *coords, *c2;
   PetscScalar     *vbuf;
   PetscFunctionBeginUser;
+  ierr = VecGetOwnershipRange(f_q,&rStart,NULL);CHKERRQ(ierr);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
-  ierr = DMSwarmGetField(sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
   ierr = DMSwarmSortGetAccess(sw);CHKERRQ(ierr);
+  ierr = DMSwarmGetField(sw, DMSwarmPICField_coor, NULL, NULL, (void **) &coords);CHKERRQ(ierr);
   for (cell = cStart, maxC = 0; cell < cEnd; ++cell) {
     PetscInt *cindices;
     PetscInt  numCIndices;
@@ -314,19 +355,20 @@ static PetscErrorCode getParticleVector(DM dm, DM sw,
   /* compute particle moments */
   {
     double           den0,mom0,energy0;
-    PetscInt         idx;
     PetscScalar      *f0;
     ierr = VecGetArray(f_q,&f0);CHKERRQ(ierr);
     den0 = 0; mom0 = 0; energy0 = 0;
-    for (cell = cStart, c2 = coords, idx = 0; cell < cEnd; ++cell) {
+    for (cell = cStart, c2 = coords ; cell < cEnd ; ++cell) {
       PetscInt *cindices;
       PetscInt  numCIndices;
       ierr = DMSwarmSortGetPointsPerCell(sw, cell, &numCIndices, &cindices);CHKERRQ(ierr);
-      for (p = 0; p < numCIndices; ++p, idx++, c2 += dim) {
+      for (p = 0; p < numCIndices; ++p, c2 += dim) {
+        const PetscInt idx = cindices[p];
         den0    +=             f0[idx];
         mom0    += c2[0]      *f0[idx];
         energy0 += c2[0]*c2[0]*f0[idx];
-/* PetscPrintf(PetscObjectComm((PetscObject) sw),"\t[%D] momentum_x: %12.5e * %12.5e => %12.5e, sum = %12.5e\n",rank,c2[0],f0[idx],c2[0]*f0[idx],mom0); */
+/* PetscMPIInt      rank;   MPI_Comm_rank(PetscObjectComm((PetscObject) sw),&rank); */
+/* PetscPrintf(PETSC_COMM_SELF,"\t[%D] momentum: x = %12.5e,%12.5e; w = %12.5e, mom0 = %12.5e, index=%D\n",rank,c2[0],c2[1],f0[idx],mom0,cindices[p]); */
       }
       ierr = PetscFree(cindices);CHKERRQ(ierr);
     }
@@ -351,9 +393,8 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   PetscReal        error,normerr,norm;
   PetscErrorCode   ierr;
   const PetscScalar none = -1.0;
-  PetscInt         dim, Np, cStart, rStart, cEnd;
+  PetscInt         dim, Np;
   PetscMPIInt      rank;
-  PetscLayout      rLayout;
   MPI_Comm         comm;
   double           den0tot,mom0tot,energy0tot;
   PetscFunctionBeginUser;
@@ -363,22 +404,16 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   MPI_Comm_rank(comm,&rank);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMSwarmGetLocalSize(sw,&Np);CHKERRQ(ierr);
-  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
   ierr = KSPCreate(comm, &ksp);CHKERRQ(ierr);
   ierr = DMGetGlobalVector(dm, &uproj);CHKERRQ(ierr);
   ierr = DMGetGlobalVector(dm, &rhs);CHKERRQ(ierr);
   /* create RHS vector data */
-  ierr = PetscLayoutCreate(PetscObjectComm((PetscObject) dm), &rLayout);CHKERRQ(ierr);
-  ierr = PetscLayoutSetLocalSize(rLayout, Np);CHKERRQ(ierr);
-  ierr = PetscLayoutSetBlockSize(rLayout, 1);CHKERRQ(ierr);
-  ierr = PetscLayoutSetUp(rLayout);CHKERRQ(ierr);
-  ierr = PetscLayoutGetRange(rLayout, &rStart, NULL);CHKERRQ(ierr);
-  ierr = PetscLayoutDestroy(&rLayout);CHKERRQ(ierr);
   ierr = VecCreate(PetscObjectComm((PetscObject) dm),&f_q);CHKERRQ(ierr);
   ierr = VecSetSizes(f_q,Np,PETSC_DECIDE);CHKERRQ(ierr);
   ierr = VecSetFromOptions(f_q);CHKERRQ(ierr);
 
-  ierr = getParticleVector(dm,sw,funcs,rStart,user,&den0tot,&mom0tot,&energy0tot,f_q);CHKERRQ(ierr);
+  /* create particles and compute moments */
+  ierr = getParticleVector(dm,sw,funcs,user,&den0tot,&mom0tot,&energy0tot,f_q);CHKERRQ(ierr);
 
   /* create particle mass matrix */
   ierr = DMCreateMassMatrix(sw, dm, &mass);CHKERRQ(ierr);
@@ -428,7 +463,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
     ierr = PetscDSSetObjective(prob, 0, &f0_ex);CHKERRQ(ierr);
     ierr = DMPlexComputeIntegralFEM(dm,uproj,tt,user);CHKERRQ(ierr);
     energy = tt[0];
-    PetscPrintf(comm, "\t[%D] L2 projection (relative error) rho: %12.5e (%12.5e), momentum_x: %12.5e (%12.5e), energy: %12.5e (%12.5e)\n",rank,density,(density-den0tot)/density,momentum,(momentum-mom0tot)/momentum,energy,(energy-energy0tot)/energy);
+    PetscPrintf(comm, "\t[%D] L2 projection (relative error) rho: %12.5e (%17.10e), momentum_x: %12.5e (%17.10e), energy: %12.5e (%17.10e).\n",rank,density,(density-den0tot)/density,momentum,(momentum-mom0tot)/momentum,energy,(energy-energy0tot)/energy);
   }
   /* clean up */
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
