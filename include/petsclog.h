@@ -466,6 +466,7 @@ PETSC_STATIC_INLINE int PetscMPIParallelComm(MPI_Comm comm)
 #define PetscLogEventSetCollective(a,b)    0
 #define PetscLogObjects(a)                 0
 #define PetscLogActions(a)                 0
+
 PETSC_EXTERN PetscErrorCode PetscLogObjectState(PetscObject,const char[],...);
 
 /* If PETSC_USE_LOG is NOT defined, these still need to be! */
