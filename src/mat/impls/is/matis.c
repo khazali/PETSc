@@ -41,7 +41,7 @@ static PetscErrorCode MatPtAPNumeric_IS_XAIJ(Mat A, Mat P, Mat C)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  ierr = PetscObjectQuery((PetscObject)(C),"_MatIS_PtAP",(PetscObject*)&c);CHKERRQ(ierr);
+  ierr = PetscObjectQuery((PetscObject)C,"_MatIS_PtAP",(PetscObject*)&c);CHKERRQ(ierr);
   if (!c) SETERRQ(PetscObjectComm((PetscObject)C),PETSC_ERR_PLIB,"Missing PtAP information");
   ierr   = PetscContainerGetPointer(c,(void**)&ptap);CHKERRQ(ierr);
   ris[0] = ptap->ris0;
@@ -2116,14 +2116,39 @@ general_assembly:
     ierr = MatDenseRestoreArray(local_mat,&array);CHKERRQ(ierr);
     ierr = PetscFree(dummy);CHKERRQ(ierr);
   } else if (isseqaij) {
+    IS        is;
     PetscInt  i,nvtxs,*xadj,*adjncy;
     PetscBool done;
 
     ierr = MatGetRowIJ(local_mat,0,PETSC_FALSE,PETSC_FALSE,&nvtxs,(const PetscInt**)&xadj,(const PetscInt**)&adjncy,&done);CHKERRQ(ierr);
     if (!done) SETERRQ(PetscObjectComm((PetscObject)local_mat),PETSC_ERR_PLIB,"Error in MatGetRowIJ");
     ierr = MatSeqAIJGetArray(local_mat,&array);CHKERRQ(ierr);
-    for (i=0;i<nvtxs;i++) {
-      ierr = MatSetValuesLocal(MT,1,&i,xadj[i+1]-xadj[i],adjncy+xadj[i],array+xadj[i],ADD_VALUES);CHKERRQ(ierr);
+    ierr = PetscObjectQuery((PetscObject)local_mat,"_size_blocks",(PetscObject*)&is);CHKERRQ(ierr);
+    if (is) { /* speed up assembly for special blocked matrices (used by BDDC) */
+      const PetscInt *idxs;
+      PetscInt       nb,i,sum;
+
+      ierr = ISGetLocalSize(is,&nb);CHKERRQ(ierr);
+      ierr = ISGetIndices(is,&idxs);CHKERRQ(ierr);
+      for (i=0,sum=0;i<nb;i++) sum += idxs[i];
+      if (sum == nvtxs) {
+        PetscInt r;
+
+        for (i=0,r=0;i<nb;i++) {
+          if (idxs[i] != xadj[r+1] - xadj[r]) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Invalid block sizes prescribed for block %D: expected %D, got %D",i,idxs[i],xadj[r+1] - xadj[r]);
+          ierr = MatSetValuesLocal(MT,idxs[i],adjncy+xadj[r],idxs[i],adjncy+xadj[r],array+xadj[r],ADD_VALUES);CHKERRQ(ierr);
+          r   += idxs[i];
+        }
+      } else {
+        for (i=0;i<nvtxs;i++) {
+          ierr = MatSetValuesLocal(MT,1,&i,xadj[i+1]-xadj[i],adjncy+xadj[i],array+xadj[i],ADD_VALUES);CHKERRQ(ierr);
+        }
+      }
+      ierr = ISRestoreIndices(is,&idxs);CHKERRQ(ierr);
+    } else {
+      for (i=0;i<nvtxs;i++) {
+        ierr = MatSetValuesLocal(MT,1,&i,xadj[i+1]-xadj[i],adjncy+xadj[i],array+xadj[i],ADD_VALUES);CHKERRQ(ierr);
+      }
     }
     ierr = MatRestoreRowIJ(local_mat,0,PETSC_FALSE,PETSC_FALSE,&nvtxs,(const PetscInt**)&xadj,(const PetscInt**)&adjncy,&done);CHKERRQ(ierr);
     if (!done) SETERRQ(PetscObjectComm((PetscObject)local_mat),PETSC_ERR_PLIB,"Error in MatRestoreRowIJ");
