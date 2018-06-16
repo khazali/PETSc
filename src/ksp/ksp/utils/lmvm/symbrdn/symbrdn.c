@@ -227,7 +227,7 @@ static PetscErrorCode MatUpdate_LMVMSymBrdn(Mat B, Vec X, Vec F)
   PetscReal         curvature, ytytmp, ststmp, curvtol;
 
   PetscFunctionBegin;
-  if (lmvm->m == 0) PetscFunctionReturn(0);
+  if (!lmvm->m) PetscFunctionReturn(0);
   if (lmvm->prev_set) {
     /* Compute the new (S = X - Xprev) and (Y = F - Fprev) vectors */
     ierr = VecAYPX(lmvm->Xprev, -1.0, X);CHKERRQ(ierr);
