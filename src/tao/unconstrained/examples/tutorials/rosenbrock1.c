@@ -338,13 +338,9 @@ PetscErrorCode FormHessian(Tao tao,Vec X,Mat H, Mat Hpre, void *ptr)
    test:
      suffix: 18
      args: -tao_smonitor -tao_gatol 1e-4 -tao_type blmvm
-
-   test:
-     suffix: 19
-     args: -tao_smonitor -tao_gatol 1e-4 -tao_type bqnkls
      
    test:
-     suffix: 20
+     suffix: 19
      args: -tao_smonitor -tao_gatol 1e-4 -tao_type bqnktr -tao_bqnk_mat_type lmvmsr1
 
 TEST*/
