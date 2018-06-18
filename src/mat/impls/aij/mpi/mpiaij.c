@@ -605,7 +605,11 @@ PetscErrorCode MatSetValues_MPIAIJ(Mat mat,PetscInt m,const PetscInt im[],PetscI
               high2 = nrow2;
               bm    = aij->B->rmap->n;
               ba    = b->a;
-            } else if (col < 0) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Inserting a new nonzero at global row/column (%D, %D) into matrix", im[i], in[j]);
+            } else if (col < 0) {
+              if (1 == ((Mat_SeqAIJ*)(aij->B->data))->nonew) {
+                ierr = PetscInfo3(mat,"Skipping of insertion of new nonzero location in off-diagonal portion of matrix %g(%D,%D)\n",(double)PetscRealPart(value),im[i],in[j]);CHKERRQ(ierr);
+              } else SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Inserting a new nonzero at global row/column (%D, %D) into matrix", im[i], in[j]);
+            }
           } else col = in[j];
           nonew = b->nonew;
           MatSetValues_SeqAIJ_B_Private(row,col,value,addv,im[i],in[j]);
@@ -1934,8 +1938,6 @@ PetscErrorCode MatTranspose_MPIAIJ(Mat A,MatReuse reuse,Mat *matout)
   MatScalar      *array;
 
   PetscFunctionBegin;
-  if (reuse == MAT_INPLACE_MATRIX && M != N) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_ARG_SIZ,"Square matrix only for in-place");
-
   ma = A->rmap->n; na = A->cmap->n; mb = a->B->rmap->n; nb = a->B->cmap->n;
   ai = Aloc->i; aj = Aloc->j;
   bi = Bloc->i; bj = Bloc->j;
@@ -2448,12 +2450,12 @@ PetscErrorCode MatSetFromOptions_MPIAIJ(PetscOptionItems *PetscOptionsObject,Mat
 
   PetscFunctionBegin;
   ierr = PetscOptionsHead(PetscOptionsObject,"MPIAIJ options");CHKERRQ(ierr);
-  ierr = PetscObjectOptionsBegin((PetscObject)A);
-    if (A->ops->increaseoverlap == MatIncreaseOverlap_MPIAIJ_Scalable) sc = PETSC_TRUE;
-    ierr = PetscOptionsBool("-mat_increase_overlap_scalable","Use a scalable algorithm to compute the overlap","MatIncreaseOverlap",sc,&sc,&flg);CHKERRQ(ierr);
-    if (flg) {
-      ierr = MatMPIAIJSetUseScalableIncreaseOverlap(A,sc);CHKERRQ(ierr);
-    }
+  ierr = PetscObjectOptionsBegin((PetscObject)A);CHKERRQ(ierr);
+  if (A->ops->increaseoverlap == MatIncreaseOverlap_MPIAIJ_Scalable) sc = PETSC_TRUE;
+  ierr = PetscOptionsBool("-mat_increase_overlap_scalable","Use a scalable algorithm to compute the overlap","MatIncreaseOverlap",sc,&sc,&flg);CHKERRQ(ierr);
+  if (flg) {
+    ierr = MatMPIAIJSetUseScalableIncreaseOverlap(A,sc);CHKERRQ(ierr);
+  }
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }

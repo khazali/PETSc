@@ -7,10 +7,9 @@
 #include <petscsf.h>
 #include <petsc/private/dmimpl.h>
 #include <petsc/private/isimpl.h>     /* for inline access to atlasOff */
-#include <petsc/private/hash.h>
 
 PETSC_EXTERN PetscLogEvent DMPLEX_Interpolate;
-PETSC_EXTERN PetscLogEvent PETSCPARTITIONER_Partition;
+PETSC_EXTERN PetscLogEvent DMPLEX_Partition;
 PETSC_EXTERN PetscLogEvent DMPLEX_Distribute;
 PETSC_EXTERN PetscLogEvent DMPLEX_DistributeCones;
 PETSC_EXTERN PetscLogEvent DMPLEX_DistributeLabels;
