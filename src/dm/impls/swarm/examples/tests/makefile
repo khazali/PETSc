@@ -16,18 +16,18 @@ ex1: ex1.o  chkopts
 	${RM} -f ex1.o
 
 NP=1
-N=4
-P=4
+N=3
+P=1
 VALGRIND_PROG=valgrind
 VALGRIND_ARGS=--dsymutil=yes --leak-check=full --gen-suppressions=no --num-callers=20 --error-limit=no
 VAL=$(VALGRIND_PROG) $(VALGRIND_ARGS)
 
 run:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -ksp_type cg -petscspace_order 1 -particles_cell ${P} -dm_plex_periodic_cut -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -particle_interp_mat_view ascii:f.m:ascii_matlab
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -ksp_type cg -petscspace_order 1 -particles_cell ${P} -dm_plex_periodic_cut -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -particle_interp_mat_view ascii:f.m:ascii_matlab -x_boundary none
 	-@${PETSC_DIR}/lib/petsc/bin/petsc_gen_xdmf.py sol.h5
 
 run2:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -ksp_type cg -petscspace_order 1 -particles_cell ${P} -x_boundary periodic -y_boundary periodic -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -ksp_type cg -petscspace_order 1 -particles_cell ${P} -x_boundary none
 
 val:
 	-${MPIEXEC} -n ${NP} $(VAL) ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type sor -ksp_type cg -petscspace_order 1 -particles_cell ${P} -dm_plex_periodic_cut -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
