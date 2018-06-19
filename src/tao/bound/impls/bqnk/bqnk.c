@@ -1,6 +1,8 @@
 #include <../src/tao/bound/impls/bqnk/bqnk.h>
 #include <petscksp.h>
 
+static const char *BQNK_INIT[64] = {"constant", "direction"};
+
 static PetscErrorCode TaoBQNKComputeHessian(Tao tao)
 {
   TAO_BNK        *bnk = (TAO_BNK *)tao->data;

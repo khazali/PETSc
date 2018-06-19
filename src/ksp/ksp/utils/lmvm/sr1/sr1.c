@@ -130,7 +130,6 @@ static PetscErrorCode MatUpdate_LMVMSR1(Mat B, Vec X, Vec F)
   Mat_LMVM          *lmvm = (Mat_LMVM*)B->data;
   Mat_LSR1          *lsr1 = (Mat_LSR1*)lmvm->ctx;
   PetscErrorCode    ierr;
-  PetscInt          old_k;
   PetscReal         sktw, snorm, pnorm;
 
   PetscFunctionBegin;
@@ -149,7 +148,6 @@ static PetscErrorCode MatUpdate_LMVMSR1(Mat B, Vec X, Vec F)
     if (PetscAbsReal(sktw) >= lmvm->eps * snorm * pnorm) {
       /* Update is good, accept it */
       lsr1->needP = lsr1->needQ = PETSC_TRUE;
-      old_k = lmvm->k;
       ierr = MatUpdateKernel_LMVM(B, lmvm->Xprev, lmvm->Fprev);CHKERRQ(ierr);
     } else {
       /* Update is bad, skip it */
