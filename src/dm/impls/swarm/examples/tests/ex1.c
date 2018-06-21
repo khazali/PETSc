@@ -151,14 +151,15 @@ static PetscErrorCode linear(PetscInt dim, PetscReal time, const PetscReal x[], 
   return 0;
 }
 
-static PetscErrorCode x4_x2(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *a_ctx)
+static PetscErrorCode x2_x4(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *a_ctx)
 {
   AppCtx *ctx = (AppCtx*)a_ctx;
   int     i = 0;
-  /* double  L2 = ctx->domain_hi[i]*ctx->domain_hi[i]; */
-  /* u[0] = x[i]*x[i]*x[i]*x[i] - x[i]*x[i]*L2; */
-  double  L2 = ctx->domain_hi[i];
-  u[0] = -(x[i]*x[i] - x[i]*L2);
+  u[0] = 1;
+  for(i=0;i<dim;i++){
+    double L2 = ctx->domain_hi[i]*ctx->domain_hi[i], x2 = x[i]*x[i];
+    u[0] *= x2*L2 - x2*x2;
+  }
 
   return 0;
 }
@@ -549,7 +550,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   MPI_Comm         comm;
   double           den0tot,mom0tot,energy0tot;
   PetscFunctionBeginUser;
-  funcs[0] = (user->particles_cell == 0) ? linear : x4_x2;
+  funcs[0] = (user->particles_cell == 0) ? linear : x2_x4;
   ctxs[0] = user;
   comm = PetscObjectComm((PetscObject)dm);
   MPI_Comm_rank(comm,&rank);
