@@ -759,7 +759,7 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
   Mat_SymBrdn       *lsb = (Mat_SymBrdn*)lmvm->ctx;
   PetscErrorCode    ierr;
   PetscInt          i, start;
-  PetscReal         ytDy, ytDs, stDs;
+  PetscScalar       ytDy, ytDs, stDs;
   PetscReal         yy_sum, ys_sum, ss_sum;
   PetscReal         denom, sigma;
 
@@ -777,7 +777,7 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
   ierr = VecDot(lsb->W, lmvm->S[lmvm->k], &stDs);CHKERRQ(ierr);
 
   /*  Safeguard stDs */
-  if (0.0 == stDs) {
+  if (0.0 == PetscRealPart(stDs)) {
     stDs = 1.e-8;
   }
 
@@ -822,10 +822,12 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
   if (0.5 == lsb->beta) {
     if (1 == PetscMin(lmvm->nupdates, lsb->sigma_hist)) {
       ierr = VecPointwiseMult(lsb->V, lmvm->Y[0], lsb->invDnew);CHKERRQ(ierr);
-      ierr = VecDot(lsb->V, lmvm->Y[0], &yy_sum);CHKERRQ(ierr);
+      ierr = VecDot(lsb->V, lmvm->Y[0], &ytDy);CHKERRQ(ierr);
+      yy_sum = PetscRealPart(ytDy);
 
       ierr = VecPointwiseDivide(lsb->W, lmvm->S[0], lsb->invDnew);CHKERRQ(ierr);
-      ierr = VecDot(lsb->W, lmvm->S[0], &ss_sum);CHKERRQ(ierr);
+      ierr = VecDot(lsb->W, lmvm->S[0], &stDs);CHKERRQ(ierr);
+      ss_sum = PetscRealPart(stDs);
 
       ys_sum = lsb->yts[0];
     } else {
@@ -840,11 +842,11 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
       for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
         ierr = VecPointwiseMult(lsb->V, lmvm->Y[i], lsb->U);CHKERRQ(ierr);
         ierr = VecDot(lsb->V, lmvm->Y[i], &ytDy);CHKERRQ(ierr);
-        yy_sum += ytDy;
+        yy_sum += PetscRealPart(ytDy);
 
         ierr = VecPointwiseMult(lsb->W, lmvm->S[i], lsb->U);CHKERRQ(ierr);
         ierr = VecDot(lsb->W, lmvm->S[i], &stDs);CHKERRQ(ierr);
-        ss_sum += stDs;
+        ss_sum += PetscRealPart(stDs);
         ys_sum += lsb->yts[i];
       }
     }
@@ -853,8 +855,10 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
       /*  Compute summations for scalar scaling */
       ierr = VecPointwiseDivide(lsb->W, lmvm->S[0], lsb->invDnew);CHKERRQ(ierr);
 
-      ierr = VecDot(lsb->W, lmvm->Y[0], &ys_sum);CHKERRQ(ierr);
-      ierr = VecDot(lsb->W, lsb->W, &ss_sum);CHKERRQ(ierr);
+      ierr = VecDot(lsb->W, lmvm->Y[0], &ytDs);CHKERRQ(ierr);
+      yy_sum = PetscRealPart(ytDs);
+      ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
+      ss_sum = PetscRealPart(stDs);
       yy_sum = lsb->yty[0];
     } else {
       ierr = VecCopy(lsb->invDnew, lsb->U);CHKERRQ(ierr);
@@ -868,10 +872,10 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
       for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
         ierr = VecPointwiseMult(lsb->W, lmvm->S[i], lsb->U);CHKERRQ(ierr);
         ierr = VecDot(lsb->W, lmvm->Y[i], &ytDs);CHKERRQ(ierr);
-        ys_sum += ytDs;
+        ys_sum += PetscRealPart(ytDs);
 
         ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
-        ss_sum += stDs;
+        ss_sum += PetscRealPart(stDs);
 
         yy_sum += lsb->yty[i];
       }
@@ -885,10 +889,10 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
     for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
       ierr = VecPointwiseMult(lsb->V, lmvm->Y[i], lsb->invDnew);CHKERRQ(ierr);
       ierr = VecDot(lsb->V, lmvm->S[i], &ytDs);CHKERRQ(ierr);
-      ys_sum += ytDs;
+      ys_sum += PetscRealPart(ytDs);
 
       ierr = VecDot(lsb->V, lsb->V, &ytDy);CHKERRQ(ierr);
-      yy_sum += ytDy;
+      yy_sum += PetscRealPart(ytDy);
 
       ss_sum += lsb->sts[i];
     }
@@ -909,9 +913,9 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
       ierr = VecDot(lsb->V, lsb->W, &ytDs);CHKERRQ(ierr);
       ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
 
-      yy_sum += ytDy;
-      ys_sum += ytDs;
-      ss_sum += stDs;
+      yy_sum += PetscRealPart(ytDy);
+      ys_sum += PetscRealPart(ytDs);
+      ss_sum += PetscRealPart(stDs);
     }
   }
 
