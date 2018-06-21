@@ -726,7 +726,7 @@ PetscErrorCode MonitorError(Tao tao,void *ctx)
       requires: !complex
 
     testset:
-      args: -tao_max_it 5
+      args: -tao_max_it 5 -tao_gatol 1.e-4
       requires: !single
       output_file: output/burgers_spectral.out
       test:
@@ -738,7 +738,7 @@ PetscErrorCode MonitorError(Tao tao,void *ctx)
 
     testset:
       nsize: 2
-      args: -tao_max_it 5
+      args: -tao_max_it 5 -tao_gatol 1.e-4
       requires: !single
       output_file: output/burgers_spectral_2.out
       test:

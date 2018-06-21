@@ -11,7 +11,9 @@ SOURCEH = bagimpl.h characteristicimpl.h dmdaimpl.h dmforestimpl.h      \
  petscdsimpl.h petscfeimpl.h petscfptimpl.h petscfvimpl.h petscimpl.h   \
  sfimpl.h snesimpl.h taoimpl.h taolinesearchimpl.h tsimpl.h vecimpl.h   \
  tsobjimpl.h tssplitjacimpl.h tsadjointtsimpl.h tspdeconstrainedutils.h \
- tstlmtsimpl.h tshistoryimpl.h viewerimpl.h
+ tstlmtsimpl.h tshistoryimpl.h                                          \
+ hashtable.h hashmap.h hashset.h                                        \
+ viewerimpl.h
 LIBBASE  = libpetscvec
 DIRS     =
 LOCDIR   = include/petsc/private/

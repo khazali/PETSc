@@ -49,7 +49,8 @@ PETSC_EXTERN PetscErrorCode VecValidValues(Vec vec,PetscInt argnum,PetscBool beg
 
    Level: advanced
 
-   Notes: x and y may be the same vector
+   Notes:
+    x and y may be the same vector
           if a particular y_i is zero, it is treated as 1 in the above formula
 
 .seealso: VecPointwiseDivide(), VecPointwiseMult(), VecPointwiseMax(), VecPointwiseMin(), VecPointwiseMaxAbs()
@@ -117,9 +118,9 @@ PetscErrorCode  VecDot(Vec x,Vec y,PetscScalar *val)
   PetscCheckSameTypeAndComm(x,1,y,2);
   VecCheckSameSize(x,1,y,2);
 
-  ierr = PetscLogEventBarrierBegin(VEC_DotBarrier,x,y,0,0,PetscObjectComm((PetscObject)x));CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Dot,x,y,0,0);CHKERRQ(ierr);
   ierr = (*x->ops->dot)(x,y,val);CHKERRQ(ierr);
-  ierr = PetscLogEventBarrierEnd(VEC_DotBarrier,x,y,0,0,PetscObjectComm((PetscObject)x));CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Dot,x,y,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -222,9 +223,9 @@ PetscErrorCode  VecNorm(Vec x,NormType type,PetscReal *val)
     ierr = PetscObjectComposedDataGetReal((PetscObject)x,NormIds[type],*val,flg);CHKERRQ(ierr);
     if (flg) PetscFunctionReturn(0);
   }
-  ierr = PetscLogEventBarrierBegin(VEC_NormBarrier,x,0,0,0,PetscObjectComm((PetscObject)x));CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_Norm,x,0,0,0);CHKERRQ(ierr);
   ierr = (*x->ops->norm)(x,type,val);CHKERRQ(ierr);
-  ierr = PetscLogEventBarrierEnd(VEC_NormBarrier,x,0,0,0,PetscObjectComm((PetscObject)x));CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_Norm,x,0,0,0);CHKERRQ(ierr);
 
   if (type!=NORM_1_AND_2) {
     ierr = PetscObjectComposedDataSetReal((PetscObject)x,NormIds[type],*val);CHKERRQ(ierr);
@@ -581,7 +582,8 @@ PetscErrorCode  VecSet(Vec x,PetscScalar alpha)
 
    Level: intermediate
 
-   Notes: x and y MUST be different vectors
+   Notes:
+    x and y MUST be different vectors
 
    Concepts: vector^BLAS
    Concepts: BLAS
@@ -626,7 +628,8 @@ PetscErrorCode  VecAXPY(Vec y,PetscScalar alpha,Vec x)
 
    Level: intermediate
 
-   Notes: x and y MUST be different vectors
+   Notes:
+    x and y MUST be different vectors
 
    Concepts: BLAS
    Concepts: vector^BLAS
@@ -669,7 +672,8 @@ PetscErrorCode  VecAXPBY(Vec y,PetscScalar alpha,PetscScalar beta,Vec x)
 
    Level: intermediate
 
-   Notes: x, y and z must be different vectors
+   Notes:
+    x, y and z must be different vectors
 
    Developer Note:   alpha = 1 or gamma = 1 or gamma = 0.0 are handled as special cases
 
@@ -720,7 +724,8 @@ PetscErrorCode  VecAXPBYPCZ(Vec z,PetscScalar alpha,PetscScalar beta,PetscScalar
 
    Level: intermediate
 
-   Notes: x and y MUST be different vectors
+   Notes:
+    x and y MUST be different vectors
 
    Concepts: vector^BLAS
    Concepts: BLAS
@@ -763,7 +768,8 @@ PetscErrorCode  VecAYPX(Vec y,PetscScalar alpha,Vec x)
 
    Level: intermediate
 
-   Notes: w cannot be either x or y, but x and y can be the same
+   Notes:
+    w cannot be either x or y, but x and y can be the same
 
    Concepts: vector^BLAS
    Concepts: BLAS
@@ -1177,9 +1183,9 @@ PetscErrorCode  VecMDot(Vec x,PetscInt nv,const Vec y[],PetscScalar val[])
   PetscCheckSameTypeAndComm(x,2,*y,3);
   VecCheckSameSize(x,1,*y,3);
 
-  ierr = PetscLogEventBarrierBegin(VEC_MDotBarrier,x,*y,0,0,PetscObjectComm((PetscObject)x));CHKERRQ(ierr);
+  ierr = PetscLogEventBegin(VEC_MDot,x,*y,0,0);CHKERRQ(ierr);
   ierr = (*x->ops->mdot)(x,nv,y,val);CHKERRQ(ierr);
-  ierr = PetscLogEventBarrierEnd(VEC_MDotBarrier,x,*y,0,0,PetscObjectComm((PetscObject)x));CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(VEC_MDot,x,*y,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1196,7 +1202,8 @@ PetscErrorCode  VecMDot(Vec x,PetscInt nv,const Vec y[],PetscScalar val[])
 
    Level: intermediate
 
-   Notes: y cannot be any of the x vectors
+   Notes:
+    y cannot be any of the x vectors
 
    Concepts: BLAS
 
@@ -1930,7 +1937,8 @@ PetscErrorCode  VecReplaceArray(Vec vec,const PetscScalar array[])
 
     Example of Usage:
 .vb
-#include <petsc/finclude/petscvec.h90>
+#include <petsc/finclude/petscvec.h>
+    use petscvec
 
     Vec x
     Vec, pointer :: y(:)
@@ -1971,7 +1979,8 @@ M*/
 
     Example of Usage:
 .vb
-#include <petsc/finclude/petscvec.h90>
+#include <petsc/finclude/petscvec.h>
+    use petscvec
 
     PetscScalar, pointer :: xx_v(:)
     ....
@@ -2030,7 +2039,8 @@ M*/
 
     Example of Usage:
 .vb
-#include <petsc/finclude/petscvec.h90>
+#include <petsc/finclude/petscvec.h>
+    use petscvec
 
     PetscScalar, pointer :: xx_v(:)
     ....
@@ -2067,7 +2077,8 @@ M*/
 
     Example of Usage:
 .vb
-#include <petsc/finclude/petscvec.h90>
+#include <petsc/finclude/petscvec.h>
+    use petscvec
 
     PetscScalar, pointer :: xx_v(:)
     ....
@@ -2102,7 +2113,8 @@ M*/
 
     Example of Usage:
 .vb
-#include <petsc/finclude/petscvec.h90>
+#include <petsc/finclude/petscvec.h>
+    use petscvec
 
     PetscScalar, pointer :: xx_v(:)
     ....
@@ -2942,7 +2954,8 @@ PetscErrorCode VecLockGet(Vec x,PetscInt *state)
    Input Parameter:
 .  x - the vector
 
-   Notes: If this is set then calls to VecGetArray() or VecSetValues() or any other routines that change the vectors values will fail.
+   Notes:
+    If this is set then calls to VecGetArray() or VecSetValues() or any other routines that change the vectors values will fail.
 
     Call VecLockPop() to remove the latest lock
 

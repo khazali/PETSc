@@ -482,6 +482,6 @@ PetscErrorCode FormHessian_AO(Tao tao,Vec IC,Mat H,Mat Hp,void *ctx)
       args: -ts_trajectory_type memory -adjointode -monitor 0 -tao_view -tao_monitor -tao_gttol 1.e-5 -tao_type tron -tao_mf_hessian
     test:
       suffix: 2
-      args: -ts_rhs_jacobian_test_mult_transpose -mat_shell_test_mult_transpose_view -tao_max_it 1 -ts_rhs_jacobian_test_mult -mat_shell_test_mult_view
+      args: -ts_rhs_jacobian_test_mult_transpose -mat_shell_test_mult_transpose_view -tao_max_it 2 -ts_rhs_jacobian_test_mult -mat_shell_test_mult_view
 
 TEST*/

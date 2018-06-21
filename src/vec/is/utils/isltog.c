@@ -1,6 +1,6 @@
 
 #include <petsc/private/isimpl.h>    /*I "petscis.h"  I*/
-#include <petsc/private/hash.h>
+#include <petsc/private/hashmapi.h>
 #include <petscsf.h>
 #include <petscviewer.h>
 
@@ -8,11 +8,11 @@ PetscClassId IS_LTOGM_CLASSID;
 static PetscErrorCode  ISLocalToGlobalMappingGetBlockInfo_Private(ISLocalToGlobalMapping,PetscInt*,PetscInt**,PetscInt**,PetscInt***);
 
 typedef struct {
-  PetscInt    *globals;
+  PetscInt *globals;
 } ISLocalToGlobalMapping_Basic;
 
 typedef struct {
-  PetscHashI globalht;
+  PetscHMapI globalht;
 } ISLocalToGlobalMapping_Hash;
 
 
@@ -82,10 +82,10 @@ static PetscErrorCode ISGlobalToLocalMappingSetUp_Hash(ISLocalToGlobalMapping ma
 
   PetscFunctionBegin;
   ierr = PetscNew(&map);CHKERRQ(ierr);
-  PetscHashICreate(map->globalht);
+  ierr = PetscHMapICreate(&map->globalht);CHKERRQ(ierr);
   for (i=0; i<n; i++ ) {
     if (idx[i] < 0) continue;
-    PetscHashIAdd(map->globalht, idx[i], i);
+    ierr = PetscHMapISet(map->globalht,idx[i],i);CHKERRQ(ierr);
   }
   mapping->data = (void*)map;
   ierr = PetscLogObjectMemory((PetscObject)mapping,2*n*sizeof(PetscInt));CHKERRQ(ierr);
@@ -111,7 +111,7 @@ static PetscErrorCode ISLocalToGlobalMappingDestroy_Hash(ISLocalToGlobalMapping 
 
   PetscFunctionBegin;
   if (!map) PetscFunctionReturn(0);
-  PetscHashIDestroy(map->globalht);
+  ierr = PetscHMapIDestroy(&map->globalht);CHKERRQ(ierr);
   ierr = PetscFree(mapping->data);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -137,17 +137,17 @@ static PetscErrorCode ISLocalToGlobalMappingDestroy_Hash(ISLocalToGlobalMapping 
 #define GTOLTYPE _Hash
 #define GTOLNAME _Hash
 #define GTOLBS mapping->bs
-#define GTOL(g, local) do {                  \
-    PetscHashIMap(map->globalht,g/bs,local); \
-    local = bs*local + (g % bs);             \
+#define GTOL(g, local) do {                         \
+    (void)PetscHMapIGet(map->globalht,g/bs,&local); \
+    local = bs*local + (g % bs);                    \
    } while (0)
 #include <../src/vec/is/utils/isltog.h>
 
 #define GTOLTYPE _Hash
 #define GTOLNAME Block_Hash
 #define GTOLBS 1
-#define GTOL(g, local) do {                  \
-    PetscHashIMap(map->globalht,g,local);    \
+#define GTOL(g, local) do {                         \
+    (void)PetscHMapIGet(map->globalht,g,&local);    \
   } while (0)
 #include <../src/vec/is/utils/isltog.h>
 
@@ -259,7 +259,8 @@ PetscErrorCode  ISLocalToGlobalMappingView(ISLocalToGlobalMapping mapping,PetscV
     Output Parameter:
 .   mapping - new mapping data structure
 
-    Notes: the block size of the IS determines the block size of the mapping
+    Notes:
+    the block size of the IS determines the block size of the mapping
     Level: advanced
 
     Concepts: mapping^local to global
@@ -445,7 +446,8 @@ PetscErrorCode  ISLocalToGlobalMappingGetBlockSize(ISLocalToGlobalMapping mappin
     Output Parameter:
 .   mapping - new mapping data structure
 
-    Notes: There is one integer value in indices per block and it represents the actual indices bs*idx + j, where j=0,..,bs-1
+    Notes:
+    There is one integer value in indices per block and it represents the actual indices bs*idx + j, where j=0,..,bs-1
 
     For "small" problems when using ISGlobalToLocalMappingApply() and ISGlobalToLocalMappingApplyBlock(), the ISLocalToGlobalMappingType of ISLOCALTOGLOBALMAPPINGBASIC will be used;
     this uses more memory but is faster; this approach is not scalable for extremely large mappings. For large problems ISLOCALTOGLOBALMAPPINGHASH is used, this is scalable.
@@ -1469,7 +1471,8 @@ PetscErrorCode  ISLocalToGlobalMappingRestoreInfo(ISLocalToGlobalMapping mapping
 
    Level: advanced
 
-   Notes: ISLocalToGlobalMappingGetSize() returns the length the this array
+   Notes:
+    ISLocalToGlobalMappingGetSize() returns the length the this array
 
 .seealso: ISLocalToGlobalMappingCreate(), ISLocalToGlobalMappingApply(), ISLocalToGlobalMappingRestoreIndices(), ISLocalToGlobalMappingGetBlockIndices(), ISLocalToGlobalMappingRestoreBlockIndices()
 @*/
@@ -1647,7 +1650,8 @@ PETSC_EXTERN PetscErrorCode ISLocalToGlobalMappingCreate_Basic(ISLocalToGlobalMa
 +   -islocaltoglobalmapping_type hash - select this method
 
 
-   Notes: This is selected automatically for large problems if the user does not set the type.
+   Notes:
+    This is selected automatically for large problems if the user does not set the type.
 
    Level: beginner
 
