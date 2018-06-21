@@ -2,6 +2,8 @@
 #include <petscksp.h>
 
 static const char *BQNK_INIT[64] = {"constant", "direction"};
+static const char *BNK_UPDATE[64] = {"step", "reduction", "interpolation"};
+static const char *BNK_AS[64] = {"none", "bertsekas"};
 
 static PetscErrorCode TaoBQNKComputeHessian(Tao tao)
 {
