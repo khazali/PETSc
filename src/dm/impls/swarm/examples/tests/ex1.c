@@ -158,7 +158,7 @@ static PetscErrorCode x4_x2(PetscInt dim, PetscReal time, const PetscReal x[], P
   /* double  L2 = ctx->domain_hi[i]*ctx->domain_hi[i]; */
   /* u[0] = x[i]*x[i]*x[i]*x[i] - x[i]*x[i]*L2; */
   double  L2 = ctx->domain_hi[i];
-  u[0] = x[i]*x[i] - x[i]*L2;
+  u[0] = -(x[i]*x[i] - x[i]*L2);
 
   return 0;
 }
@@ -618,13 +618,13 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
     ierr = PetscDSSetObjective(prob, 0, &f0_ex);CHKERRQ(ierr);
     ierr = DMPlexComputeIntegralFEM(dm,uproj,tt,user);CHKERRQ(ierr);
     energy = tt[0];
-    PetscPrintf(comm, "\t[%D] L2 projection (relative error)  rho: %17.10e (%17.10e), momentum_x: %17.10e (%17.10e), energy: %17.10e (%17.10e).\n",rank,density,(density-den0tot)/density,momentum,(momentum-mom0tot)/momentum,energy,(energy-energy0tot)/energy);
+    PetscPrintf(comm, "\t[%D] L2 projection x_m ([x_m-x_p]/x_m) rho: %20.13e (%11.4e), momentum_x: %20.13e (%11.4e), energy: %20.13e (%11.4e).\n",rank,density,(density-den0tot)/density,momentum,(momentum-mom0tot)/momentum,energy,(energy-energy0tot)/energy);
     /* compute coordinate vectos x and moments x' * Q * w_p */
     ierr = computeMomentVectors(dm, vecs, user);CHKERRQ(ierr);
     ierr = VecDot(vecs[0],rhs,&density);CHKERRQ(ierr);
     ierr = VecDot(vecs[1],rhs,&momentum);CHKERRQ(ierr);
     ierr = VecDot(vecs[2],rhs,&energy);CHKERRQ(ierr);
-    PetscPrintf(comm, "\t[%D]  x' * Q * w_p (relative error)  rho: %17.10e (%17.10e), momentum_x: %17.10e (%17.10e), energy: %17.10e (%17.10e).\n",rank,density,(density-den0tot)/density,momentum,(momentum-mom0tot)/momentum,energy,(energy-energy0tot)/energy);
+    PetscPrintf(comm, "\t[%D] x' * Q * w_p: x_m ([x_m-x_p]/x_m) rho: %20.13e (%11.4e), momentum_x: %20.13e (%11.4e), energy: %20.13e (%11.4e).\n",rank,density,(density-den0tot)/density,momentum,(momentum-mom0tot)/momentum,energy,(energy-energy0tot)/energy);
     ierr = VecDestroy(&vecs[0]);CHKERRQ(ierr);
     ierr = VecDestroy(&vecs[1]);CHKERRQ(ierr);
     ierr = VecDestroy(&vecs[2]);CHKERRQ(ierr);
@@ -633,7 +633,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ierr = projectToParticles(sw, dm, uproj, QinterpT, user, f_q);CHKERRQ(ierr);
   /* compute particle moments */
   ierr = computeParticleMoments(sw, dm, f_q, user, &den0tot, &mom0tot, &energy0tot);CHKERRQ(ierr);
-  PetscPrintf(comm, "\t[%D] L2 projection back to particles rho: %17.10e,\t\t\tmomentum_x: %17.10e,\t\t\t   energy: %17.10e\n",rank,den0tot,mom0tot,energy0tot);
+  PetscPrintf(comm, "\t[%D] Pseudo-inverse to particles: x_p  rho: %20.13e,\t       momentum_x: %20.13e,\t       energy: %20.13e\n",rank,den0tot,mom0tot,energy0tot);
 
   /* clean up */
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);

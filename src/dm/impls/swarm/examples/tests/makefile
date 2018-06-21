@@ -23,11 +23,11 @@ VALGRIND_ARGS=--dsymutil=yes --leak-check=full --gen-suppressions=no --num-calle
 VAL=$(VALGRIND_PROG) $(VALGRIND_ARGS)
 
 run-bc-periodic:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type gamg -ksp_type cg -ksp_rtol 1.e-14 -petscspace_order 2 -particles_cell ${P} -particle_perturbation 0.1 -mesh_perturbation 1.e-20 -x_boundary periodic
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type gamg -ksp_type cg -ksp_rtol 1.e-14 -petscspace_order 2 -petscfe_default_quadrature_order 4 -particles_cell ${P} -particle_perturbation 0.1 -mesh_perturbation 1.e-20 -x_boundary periodic
 	-@${PETSC_DIR}/lib/petsc/bin/petsc_gen_xdmf.py sol.h5
 
 run:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type gamg -ksp_type cg -ksp_rtol 1.e-14 -petscspace_order 2 -particles_cell ${P} -particle_perturbation 0.1 -mesh_perturbation 1.e-20 -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -particle_interp_mat_view ascii:f.m:ascii_matlab
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type gamg -ksp_type cg -ksp_rtol 1.e-14 -petscspace_order 2 -petscfe_default_quadrature_order 4 -particles_cell ${P} -particle_perturbation 0.1 -mesh_perturbation 1.e-2 -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -particle_interp_mat_view ascii:f.m:ascii_matlab
 #-petscfe_default_quadrature_order 4
 
 val:
