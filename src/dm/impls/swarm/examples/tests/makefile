@@ -22,15 +22,16 @@ VALGRIND_PROG=valgrind
 VALGRIND_ARGS=--dsymutil=yes --leak-check=full --gen-suppressions=no --num-callers=20 --error-limit=no
 VAL=$(VALGRIND_PROG) $(VALGRIND_ARGS)
 
-run:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -ksp_type cg -petscspace_order 1 -particles_cell ${P} -dm_plex_periodic_cut -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -particle_interp_mat_view ascii:f.m:ascii_matlab -x_boundary none
+run-bc-periodic:
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type gamg -ksp_type cg -ksp_rtol 1.e-14 -petscspace_order 2 -particles_cell ${P} -particle_perturbation 0.1 -mesh_perturbation 1.e-20 -x_boundary periodic
 	-@${PETSC_DIR}/lib/petsc/bin/petsc_gen_xdmf.py sol.h5
 
-run2:
-	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type lu -ksp_type cg -petscspace_order 2 -particles_cell ${P} -x_boundary none -dm_view -dm_plex_print_fem 3 -ksp_monitor -petscfe_default_quadrature_order 4
+run:
+	-${MPIEXEC} -n ${NP} ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type gamg -ksp_type cg -ksp_rtol 1.e-14 -petscspace_order 2 -particles_cell ${P} -particle_perturbation 0.1 -mesh_perturbation 1.e-20 -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -particle_interp_mat_view ascii:f.m:ascii_matlab
+#-petscfe_default_quadrature_order 4
 
 val:
-	-${MPIEXEC} -n ${NP} $(VAL) ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type sor -ksp_type cg -petscspace_order 1 -particles_cell ${P} -dm_plex_periodic_cut -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
+	-${MPIEXEC} -n ${NP} $(VAL) ./ex1 -dim 2 -nbrVerEdge ${N} -simplex 0 -dm_plex_separate_marker 0 -pc_type gamg -ksp_type cg -ksp_rtol 1.e-14 -petscspace_order 2 -particles_cell ${P} -x_boundary none -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append
 	-@${PETSC_DIR}/lib/petsc/bin/petsc_gen_xdmf.py sol.h5
 
 # -dm_plex_periodic_cut -dm_view hdf5:sol.h5 -vec_view hdf5:sol.h5::append -particle_interp_mat_view ascii:f.m:ascii_matlab 
