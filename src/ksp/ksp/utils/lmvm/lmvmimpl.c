@@ -313,7 +313,7 @@ PetscErrorCode MatSetUp_LMVM(Mat B)
   Mat_LMVM          *lmvm = (Mat_LMVM*)B->data;
   PetscErrorCode    ierr;
   PetscInt          m, n, M, N;
-  PetscInt          size;
+  PetscMPIInt       size;
   MPI_Comm          comm = PetscObjectComm((PetscObject)B);
   
   PetscFunctionBegin;
