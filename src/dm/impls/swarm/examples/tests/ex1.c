@@ -340,6 +340,8 @@ static void f0_ex(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 }
 
 /* compute particle moments */
+#undef __FUNCT__
+#define __FUNCT__ "computeParticleMoments"
 static PetscErrorCode computeParticleMoments(DM sw, DM dm, Vec f_q, AppCtx *user, double *den0tot, double *mom0tot, double *energy0tot)
 {
   PetscErrorCode   ierr;
@@ -375,7 +377,8 @@ static PetscErrorCode computeParticleMoments(DM sw, DM dm, Vec f_q, AppCtx *user
 
   PetscFunctionReturn(0);
 }
-
+#undef __FUNCT__
+#define __FUNCT__ "getParticleVector"
 static PetscErrorCode getParticleVector(DM dm, DM sw,
                                         PetscErrorCode (*funcs[])(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *),
                                         AppCtx *user, Vec f_q)
@@ -423,7 +426,8 @@ static PetscErrorCode getParticleVector(DM dm, DM sw,
 
   PetscFunctionReturn(0);
 }
-
+#undef __FUNCT__
+#define __FUNCT__ "computeMomentVectors"
 /* compute moment vectors */
 static PetscErrorCode computeMomentVectors(DM dm, Vec vecs[], AppCtx *user)
 {
@@ -440,15 +444,18 @@ static PetscErrorCode computeMomentVectors(DM dm, Vec vecs[], AppCtx *user)
   }
   PetscFunctionReturn(0);
 }
-
+#undef __FUNCT__
+#define __FUNCT__ "projectToParticles"
 /* project u with a post psuedo inverse to f_q */
 static PetscErrorCode projectToParticles(DM sw, DM dm, Vec u, Mat QinterpT, AppCtx *user, Vec f_q)
 {
   PetscErrorCode   ierr;
   KSP              ksp;
   PC               pc;
-  PetscInt         cStart, cEnd, cell, dim, maxC = 0, maxF = 0, *rowIDXs, *colIDXs, rStart;
+  PetscInt         p, c, cStart, cEnd, cell, dim, *rowIDXs, rStart;
   PetscSection     fsection, globalFSection;
+  IS               *rowis, *colis;
+  Mat              *QelemT,QQt;
   PetscFunctionBeginUser;
   ierr = DMGetCoordinateDim(dm, &dim);CHKERRQ(ierr);
   ierr = DMGetDefaultSection(dm, &fsection);CHKERRQ(ierr);
@@ -457,54 +464,57 @@ static PetscErrorCode projectToParticles(DM sw, DM dm, Vec u, Mat QinterpT, AppC
   ierr = VecGetOwnershipRange(f_q,&rStart,NULL);CHKERRQ(ierr);
   ierr = VecSet(f_q,1.e100);CHKERRQ(ierr);
   ierr = DMSwarmSortGetAccess(sw);CHKERRQ(ierr);
-  /* For each cell */
-  for (cell = cStart; cell < cEnd; ++cell) {
+  ierr = PetscMalloc1(cEnd-cStart, &rowis);CHKERRQ(ierr); /* particles */
+  ierr = PetscMalloc1(cEnd-cStart, &colis);CHKERRQ(ierr); /* vertices */
+ /* For each cell */
+  for (cell = cStart, c = 0; cell < cEnd; ++cell, c++) {
     PetscInt *findices,   *cindices; /* fine is vertices, coarse is particles */
     PetscInt  numFIndices, numCIndices;
     ierr = DMPlexGetClosureIndices(dm, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
     ierr = DMSwarmSortGetPointsPerCell(sw, cell, &numCIndices, &cindices);CHKERRQ(ierr);
-    maxC = PetscMax(maxC, numCIndices);
-    maxF = PetscMax(maxF, numFIndices);
+    ierr = PetscMalloc1(numCIndices, &rowIDXs);CHKERRQ(ierr); /* particles */
+    for (p = 0; p < numCIndices; ++p) rowIDXs[p] = cindices[p] + rStart; /* globalize particle (row) index */
+    ierr = ISCreateGeneral(PETSC_COMM_SELF,numCIndices,rowIDXs,PETSC_COPY_VALUES,&rowis[c]);CHKERRQ(ierr);
+    ierr = ISCreateGeneral(PETSC_COMM_SELF,numFIndices,findices,PETSC_COPY_VALUES,&colis[c]);CHKERRQ(ierr);
+    ierr = PetscFree(rowIDXs);CHKERRQ(ierr);
     ierr = PetscFree(cindices);CHKERRQ(ierr);
     ierr = DMPlexRestoreClosureIndices(dm, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
   }
-  ierr = PetscMalloc1(maxC, &rowIDXs);CHKERRQ(ierr); /* particles */
-  ierr = PetscMalloc1(maxF, &colIDXs);CHKERRQ(ierr); /* vertices */
-  for (cell = cStart; cell < cEnd; ++cell) {
+  ierr = DMSwarmSortRestoreAccess(sw);CHKERRQ(ierr);
+  ierr = MatCreateSubMatrices(QinterpT,cEnd-cStart,rowis,colis,MAT_INITIAL_MATRIX,&QelemT);CHKERRQ(ierr);
+
+  ierr = KSPCreate(PETSC_COMM_SELF,&ksp);CHKERRQ(ierr);
+  ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+  ierr = KSPSetType(ksp,KSPPREONLY);CHKERRQ(ierr);
+  ierr = KSPSetInitialGuessNonzero(ksp,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = PCSetType(pc,PCLU);CHKERRQ(ierr);
+  ierr = DMSwarmSortGetAccess(sw);CHKERRQ(ierr);
+  for (cell = cStart, c = 0; cell < cEnd; ++cell, c++) {
     PetscScalar *f0;
     PetscInt    *findices, *cindices; /* fine is vertices, coarse is particles */
-    PetscInt    numFIndices, numCIndices, p;
-    IS          rowis, colis;
-    Mat         QelemT,QQt;
+    PetscInt    numFIndices, numCIndices;
     Vec         loc_part, loc_part2, loc_vert, loc_vert2;
-    ierr = DMPlexGetClosureIndices(dm, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
+    /* TODO -- this requires off processor/ghost vertices, need to get local */
+    ierr = VecGetSubVector(u,colis[c],&loc_vert);CHKERRQ(ierr);
+    ierr = MatCreateVecs(QelemT[c],NULL,&loc_part);CHKERRQ(ierr);
     ierr = DMSwarmSortGetPointsPerCell(sw, cell, &numCIndices, &cindices);CHKERRQ(ierr);
-    for (p = 0; p < numCIndices; ++p) rowIDXs[p] = cindices[p] + rStart; /* globalize particle (row) index */
-    ierr = ISCreateGeneral(PETSC_COMM_SELF,numCIndices,rowIDXs,PETSC_USE_POINTER,&rowis);CHKERRQ(ierr);
-    ierr = ISCreateGeneral(PETSC_COMM_SELF,numFIndices,findices,PETSC_USE_POINTER,&colis);CHKERRQ(ierr);
-    ierr = MatCreateSubMatrix(QinterpT,rowis,colis,MAT_INITIAL_MATRIX,&QelemT);CHKERRQ(ierr); /* get element Q' */
-    ierr = VecGetSubVector(u,colis,&loc_vert);CHKERRQ(ierr);
-    ierr = MatCreateVecs(QelemT,NULL,&loc_part);CHKERRQ(ierr);
+    ierr = DMPlexGetClosureIndices(dm, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
+    ierr = DMPlexRestoreClosureIndices(dm, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
     /* get RHS for pseudo inverse solve */
     if (numCIndices >= numFIndices) { /* Q' (QQ')^-1 */
-      ierr = MatTransposeMatMult(QelemT,QelemT,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&QQt);CHKERRQ(ierr);
+      ierr = MatTransposeMatMult(QelemT[c],QelemT[c],MAT_INITIAL_MATRIX,PETSC_DEFAULT,&QQt);CHKERRQ(ierr);
     } else { /* (Q'Q)^-1 Q' */
-      ierr = MatMatTransposeMult(QelemT,QelemT,MAT_INITIAL_MATRIX,PETSC_DEFAULT,&QQt);CHKERRQ(ierr);
-      ierr = MatCreateVecs(QelemT,NULL,&loc_part2);CHKERRQ(ierr);
-      ierr = MatMult(QelemT, loc_vert, loc_part2);CHKERRQ(ierr);
+      ierr = MatMatTransposeMult(QelemT[c],QelemT[c],MAT_INITIAL_MATRIX,PETSC_DEFAULT,&QQt);CHKERRQ(ierr);
+      ierr = MatCreateVecs(QelemT[c],NULL,&loc_part2);CHKERRQ(ierr);
+      ierr = MatMult(QelemT[c], loc_vert, loc_part2);CHKERRQ(ierr);
     }
     /* create KSP and solve */
-    ierr = KSPCreate(PetscObjectComm((PetscObject)QQt),&ksp);CHKERRQ(ierr);
     ierr = KSPSetOperators(ksp,QQt,QQt);CHKERRQ(ierr);
-    ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
-    ierr = KSPSetType(ksp,KSPPREONLY);CHKERRQ(ierr);
-    ierr = KSPSetInitialGuessNonzero(ksp,PETSC_FALSE);CHKERRQ(ierr);
-    ierr = PCSetType(pc,PCLU);CHKERRQ(ierr);
     ierr = KSPSetUp(ksp);CHKERRQ(ierr);
     if (numCIndices >= numFIndices) { /* Q' (QQ')^-1 */
-      ierr = MatCreateVecs(QelemT,&loc_vert2,NULL);CHKERRQ(ierr);
+      ierr = MatCreateVecs(QelemT[c],&loc_vert2,NULL);CHKERRQ(ierr);
       ierr = KSPSolve(ksp,loc_vert,loc_vert2);CHKERRQ(ierr);
-      ierr = MatMult(QelemT, loc_vert2, loc_part);CHKERRQ(ierr);
+      ierr = MatMult(QelemT[c], loc_vert2, loc_part);CHKERRQ(ierr);
       ierr = VecDestroy(&loc_vert2);CHKERRQ(ierr);
     } else { /* (Q'Q)^-1 Q' */
       ierr = KSPSolve(ksp,loc_part2,loc_part);CHKERRQ(ierr);
@@ -512,26 +522,27 @@ static PetscErrorCode projectToParticles(DM sw, DM dm, Vec u, Mat QinterpT, AppC
     }
     /* Assemble loc_part back to f_q */
     ierr = VecGetArray(loc_part,&f0);CHKERRQ(ierr);
+    ierr = PetscMalloc1(numCIndices, &rowIDXs);CHKERRQ(ierr); /* particles */
+    for (p = 0; p < numCIndices; ++p) rowIDXs[p] = cindices[p] + rStart; /* globalize particle (row) index */
     ierr = VecSetValues(f_q,numCIndices,rowIDXs,f0,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = PetscFree(rowIDXs);CHKERRQ(ierr);
     ierr = VecRestoreArray(loc_part,&f0);CHKERRQ(ierr);
-
-    ierr = VecRestoreSubVector(u,colis,&loc_vert);CHKERRQ(ierr);
-    ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
-    ierr = MatDestroy(&QelemT);CHKERRQ(ierr);
+    ierr = VecRestoreSubVector(u,colis[c],&loc_vert);CHKERRQ(ierr);
     ierr = MatDestroy(&QQt);CHKERRQ(ierr);
     ierr = VecDestroy(&loc_part);CHKERRQ(ierr);
     ierr = VecDestroy(&loc_vert);CHKERRQ(ierr);
-    ierr = ISDestroy(&rowis);CHKERRQ(ierr);
-    ierr = ISDestroy(&colis);CHKERRQ(ierr);
+    ierr = ISDestroy(&rowis[c]);CHKERRQ(ierr);
+    ierr = ISDestroy(&colis[c]);CHKERRQ(ierr);
     ierr = PetscFree(cindices);CHKERRQ(ierr);
-    ierr = DMPlexRestoreClosureIndices(dm, fsection, globalFSection, cell, &numFIndices, &findices, NULL);CHKERRQ(ierr);
+    ierr = MatDestroy(&QelemT[c]);CHKERRQ(ierr);
   }
+  ierr = DMSwarmSortRestoreAccess(sw);CHKERRQ(ierr);
+  ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
   ierr = VecAssemblyBegin(f_q);CHKERRQ(ierr);
   ierr = VecAssemblyEnd(f_q);CHKERRQ(ierr);
-  ierr = PetscFree(colIDXs);CHKERRQ(ierr);
-  ierr = PetscFree(rowIDXs);CHKERRQ(ierr);
-  ierr = DMSwarmSortRestoreAccess(sw);CHKERRQ(ierr);
-
+  ierr = PetscFree(rowis);CHKERRQ(ierr);
+  ierr = PetscFree(colis);CHKERRQ(ierr);
+  ierr = PetscFree(QelemT);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -546,7 +557,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   PetscErrorCode   ierr;
   const PetscScalar none = -1.0;
   PetscInt         dim, Np;
-  PetscMPIInt      rank;
+  PetscMPIInt      rank,size;
   MPI_Comm         comm;
   double           den0tot,mom0tot,energy0tot;
   PetscFunctionBeginUser;
@@ -554,6 +565,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
   ctxs[0] = user;
   comm = PetscObjectComm((PetscObject)dm);
   MPI_Comm_rank(comm,&rank);
+  MPI_Comm_size(comm,&size);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
   ierr = DMSwarmGetLocalSize(sw,&Np);CHKERRQ(ierr);
   ierr = KSPCreate(comm, &ksp);CHKERRQ(ierr);
@@ -631,11 +643,12 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
     ierr = VecDestroy(&vecs[2]);CHKERRQ(ierr);
   }
   /* project solution back to particles (post pseudo inverse) */
-  ierr = projectToParticles(sw, dm, uproj, QinterpT, user, f_q);CHKERRQ(ierr);
-  /* compute particle moments */
-  ierr = computeParticleMoments(sw, dm, f_q, user, &den0tot, &mom0tot, &energy0tot);CHKERRQ(ierr);
-  PetscPrintf(comm, "\t[%D] Pseudo-inverse to particles: x_p  rho: %20.13e,\t       momentum_x: %20.13e,\t       energy: %20.13e\n",rank,den0tot,mom0tot,energy0tot);
-
+  if (size==1) {
+    ierr = projectToParticles(sw, dm, uproj, QinterpT, user, f_q);CHKERRQ(ierr);
+    /* compute particle moments */
+    ierr = computeParticleMoments(sw, dm, f_q, user, &den0tot, &mom0tot, &energy0tot);CHKERRQ(ierr);
+    PetscPrintf(comm, "\t[%D] Pseudo-inverse to particles: x_p  rho: %20.13e,\t       momentum_x: %20.13e,\t       energy: %20.13e\n",rank,den0tot,mom0tot,energy0tot);
+  }
   /* clean up */
   ierr = KSPDestroy(&ksp);CHKERRQ(ierr);
   ierr = VecDestroy(&f_q);CHKERRQ(ierr);
