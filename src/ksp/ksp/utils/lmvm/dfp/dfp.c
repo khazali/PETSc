@@ -105,7 +105,7 @@ PetscErrorCode MatMult_LMVMDFP(Mat B, Vec X, Vec Z)
   Mat_SymBrdn       *ldfp = (Mat_SymBrdn*)lmvm->ctx;
   PetscErrorCode    ierr;
   PetscInt          i;
-  PetscReal         alpha[lmvm->k+1], beta;
+  PetscReal         *alpha, beta;
   PetscScalar       ytx, stz;
   
   PetscFunctionBegin;
@@ -113,6 +113,7 @@ PetscErrorCode MatMult_LMVMDFP(Mat B, Vec X, Vec Z)
   ierr = VecCopy(X, ldfp->work);CHKERRQ(ierr);
   
   /* Start the first loop */
+  ierr = PetscMalloc1(lmvm->k+1, &alpha);CHKERRQ(ierr);
   for (i = lmvm->k; i >= 0; --i) {
     ierr = VecDot(lmvm->Y[i], ldfp->work, &ytx);CHKERRQ(ierr);
     alpha[i] = PetscRealPart(ytx)/ldfp->yts[i];
@@ -128,6 +129,7 @@ PetscErrorCode MatMult_LMVMDFP(Mat B, Vec X, Vec Z)
     beta = PetscRealPart(stz)/ldfp->yts[i];
     ierr = VecAXPY(Z, alpha[i]-beta, lmvm->Y[i]);CHKERRQ(ierr);
   }
+  ierr = PetscFree(alpha);
   PetscFunctionReturn(0);
 }
 

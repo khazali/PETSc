@@ -36,7 +36,7 @@ PetscErrorCode MatSolve_LMVMBFGS(Mat B, Vec F, Vec dX)
   Mat_SymBrdn       *lbfgs = (Mat_SymBrdn*)lmvm->ctx;
   PetscErrorCode    ierr;
   PetscInt          i;
-  PetscReal         alpha[lmvm->k+1], rho[lmvm->k+1], beta;
+  PetscReal         *alpha, beta;
   PetscScalar       stf, ytx;
   
   PetscFunctionBegin;
@@ -47,10 +47,10 @@ PetscErrorCode MatSolve_LMVMBFGS(Mat B, Vec F, Vec dX)
   ierr = VecCopy(F, lbfgs->work);CHKERRQ(ierr);
   
   /* Start the first loop */
+  ierr = PetscMalloc1(lmvm->k+1, &alpha);CHKERRQ(ierr);
   for (i = lmvm->k; i >= 0; --i) {
     ierr = VecDot(lmvm->S[i], lbfgs->work, &stf);CHKERRQ(ierr);
-    rho[i] = 1.0/lbfgs->yts[i];
-    alpha[i] = rho[i] * PetscRealPart(stf);
+    alpha[i] = PetscRealPart(stf)/lbfgs->yts[i];
     ierr = VecAXPY(lbfgs->work, -alpha[i], lmvm->Y[i]);CHKERRQ(ierr);
   }
   
@@ -60,9 +60,10 @@ PetscErrorCode MatSolve_LMVMBFGS(Mat B, Vec F, Vec dX)
   /* Start the second loop */
   for (i = 0; i <= lmvm->k; ++i) {
     ierr = VecDot(lmvm->Y[i], dX, &ytx);CHKERRQ(ierr);
-    beta = rho[i] * PetscRealPart(ytx);
+    beta = PetscRealPart(ytx)/lbfgs->yts[i];
     ierr = VecAXPY(dX, alpha[i]-beta, lmvm->S[i]);CHKERRQ(ierr);
   }
+  ierr = PetscFree(alpha);
   PetscFunctionReturn(0);
 }
 

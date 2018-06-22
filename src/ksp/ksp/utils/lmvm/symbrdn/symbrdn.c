@@ -856,7 +856,7 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
       ierr = VecPointwiseDivide(lsb->W, lmvm->S[0], lsb->invDnew);CHKERRQ(ierr);
 
       ierr = VecDot(lsb->W, lmvm->Y[0], &ytDs);CHKERRQ(ierr);
-      yy_sum = PetscRealPart(ytDs);
+      ys_sum = PetscRealPart(ytDs);
       ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
       ss_sum = PetscRealPart(stDs);
       yy_sum = lsb->yty[0];
