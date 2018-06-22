@@ -184,9 +184,11 @@ static PetscErrorCode x0(PetscInt dim, PetscReal time, const PetscReal x[], Pets
   return 0;
 }
 
-static PetscErrorCode x0_2(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *a_ctx)
+static PetscErrorCode v2(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *a_ctx)
 {
+  int i;
   u[0] = x[0]*x[0];
+  for (i=1;i<dim;i++) u[0] += x[i]*x[i];
   return 0;
 }
 
@@ -330,13 +332,15 @@ static void f0_momx(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 }
 
 #undef __FUNCT__
-#define __FUNCT__ "f0_ex"
-static void f0_ex(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+#define __FUNCT__ "f0_energy"
+static void f0_energy(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                   const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
                   const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
                   PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f0[])
 {
+  int i;
   *f0 = x[0]*x[0]*u[0];
+  for (i=1;i<dim;i++) *f0 += x[i]*x[i]*u[0];
 }
 
 /* compute particle moments */
@@ -347,7 +351,7 @@ static PetscErrorCode computeParticleMoments(DM sw, DM dm, Vec f_q, AppCtx *user
   PetscErrorCode   ierr;
   double           den0,mom0,energy0;
   PetscScalar      *f0;
-  PetscInt         cell,cStart,cEnd,dim,p;
+  PetscInt         cell,cStart,cEnd,dim,p,i;
   const PetscReal *coords, *c2;
   ierr = DMGetDimension(sw, &dim);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
@@ -364,7 +368,7 @@ static PetscErrorCode computeParticleMoments(DM sw, DM dm, Vec f_q, AppCtx *user
       const PetscInt idx = cindices[p];
       den0    +=             f0[idx];
       mom0    += c2[0]      *f0[idx];
-      energy0 += c2[0]*c2[0]*f0[idx];
+      for (i=0;i<dim;i++) energy0 += c2[i]*c2[i]*f0[idx];
     }
     ierr = PetscFree(cindices);CHKERRQ(ierr);
   }
@@ -433,7 +437,7 @@ static PetscErrorCode computeMomentVectors(DM dm, Vec vecs[], AppCtx *user)
 {
   PetscErrorCode  ierr;
   PetscInt        ii;
-  PetscErrorCode (*funcs[3])(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *) = {one,x0,x0_2};
+  PetscErrorCode (*funcs[3])(PetscInt, PetscReal, const PetscReal [], PetscInt, PetscScalar *, void *) = {one,x0,v2};
   AppCtx          *ctxs[1];
   PetscFunctionBeginUser;
   ctxs[0] = user;
@@ -628,7 +632,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM sw, AppCtx *user)
     ierr = PetscDSSetObjective(prob, 0, &f0_momx);CHKERRQ(ierr);
     ierr = DMPlexComputeIntegralFEM(dm,uproj,tt,user);CHKERRQ(ierr);
     momentum = tt[0];
-    ierr = PetscDSSetObjective(prob, 0, &f0_ex);CHKERRQ(ierr);
+    ierr = PetscDSSetObjective(prob, 0, &f0_energy);CHKERRQ(ierr);
     ierr = DMPlexComputeIntegralFEM(dm,uproj,tt,user);CHKERRQ(ierr);
     energy = tt[0];
     PetscPrintf(comm, "\t[%D] L2 projection x_m ([x_m-x_p]/x_m) rho: %20.13e (%11.4e), momentum_x: %20.13e (%11.4e), energy: %20.13e (%11.4e).\n",rank,density,(density-den0tot)/density,momentum,(momentum-mom0tot)/momentum,energy,(energy-energy0tot)/energy);

@@ -262,7 +262,6 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
     ierr = PetscFEGetQuadrature((PetscFE) obj, &quad);CHKERRQ(ierr); /* do we need to do all this to get Nc? */
     ierr = PetscQuadratureGetData(quad, NULL, &Nc, &Nq, NULL, NULL);CHKERRQ(ierr);
     if(Nc!=1) SETERRQ1(PetscObjectComm((PetscObject) dmf), PETSC_ERR_SUP, "Nc!=1 ????????", Nc);
-PetscPrintf(PETSC_COMM_SELF, "\t\t\t[%D]DMSwarmComputeMassMatrix_Private: Nq = %D\n",rank,Nq);
     /* get coordinates */
     ierr = DMSwarmGetField(dmc, DMSwarmPICField_coor, NULL, NULL, (void **) &xx);CHKERRQ(ierr);
     ierr = PetscMalloc1(dim*maxC, &xi);CHKERRQ(ierr);
