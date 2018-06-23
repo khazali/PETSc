@@ -348,12 +348,12 @@ int main(int argc,char **args)
   ierr = MatConvert(B2,MATAIJ,MAT_INITIAL_MATRIX,&T);CHKERRQ(ierr);
   ierr = MatDestroy(&B2);CHKERRQ(ierr);
   ierr = MatConvert(A2,MATIS,MAT_INITIAL_MATRIX,&B2);CHKERRQ(ierr);
-  ierr = CheckMat(B2,T,testT,"MatConvert_Nest_IS MAT_INITIAL_MATRIX");CHKERRQ(ierr);
+  ierr = CheckMat(B2,T,PETSC_TRUE,"MatConvert_Nest_IS MAT_INITIAL_MATRIX");CHKERRQ(ierr);
   ierr = MatConvert(A2,MATIS,MAT_REUSE_MATRIX,&B2);CHKERRQ(ierr);
-  ierr = CheckMat(B2,T,testT,"MatConvert_Nest_IS MAT_REUSE_MATRIX");CHKERRQ(ierr);
+  ierr = CheckMat(B2,T,PETSC_TRUE,"MatConvert_Nest_IS MAT_REUSE_MATRIX");CHKERRQ(ierr);
   ierr = MatDestroy(&B2);CHKERRQ(ierr);
   ierr = MatConvert(A2,MATIS,MAT_INPLACE_MATRIX,&A2);CHKERRQ(ierr);
-  ierr = CheckMat(A2,T,testT,"MatConvert_Nest_IS MAT_INPLACE_MATRIX");CHKERRQ(ierr);
+  ierr = CheckMat(A2,T,PETSC_TRUE,"MatConvert_Nest_IS MAT_INPLACE_MATRIX");CHKERRQ(ierr);
   ierr = MatDestroy(&T);CHKERRQ(ierr);
   ierr = MatDestroy(&A2);CHKERRQ(ierr);
 
