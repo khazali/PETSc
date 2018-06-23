@@ -632,7 +632,7 @@ PetscErrorCode MatSymBrdnSetDelta(Mat B, PetscScalar delta)
   ierr = PetscObjectTypeCompare((PetscObject)B, MATLMVMDFP, &is_dfp);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)B, MATLMVMSYMBRDN, &is_symbrdn);CHKERRQ(ierr);
   if (!is_bfgs && !is_dfp && !is_symbrdn) SETERRQ(PetscObjectComm((PetscObject)B), PETSC_ERR_ARG_INCOMP, "diagonal scaling is only available for DFP, BFGS and SymBrdn matrices");
-  lsb->delta = PetscAbsReal(delta);
+  lsb->delta = PetscAbsReal(PetscRealPart(delta));
   lsb->delta = PetscMin(lsb->delta, lsb->delta_max);CHKERRQ(ierr);
   lsb->delta = PetscMax(lsb->delta, lsb->delta_min);CHKERRQ(ierr);
   PetscFunctionReturn(0);

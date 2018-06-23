@@ -148,7 +148,7 @@ static PetscErrorCode MatUpdate_LMVMSR1(Mat B, Vec X, Vec F)
     ierr = VecDot(lmvm->Xprev, lsr1->work, &sktw);CHKERRQ(ierr);
     ierr = VecNorm(lmvm->Xprev, NORM_2, &snorm);CHKERRQ(ierr);
     ierr = VecNorm(lsr1->work, NORM_2, &pnorm);CHKERRQ(ierr);
-    if (PetscAbsReal(sktw) >= lmvm->eps * snorm * pnorm) {
+    if (PetscAbsReal(PetscRealPart(sktw)) >= lmvm->eps * snorm * pnorm) {
       /* Update is good, accept it */
       lsr1->needP = lsr1->needQ = PETSC_TRUE;
       ierr = MatUpdateKernel_LMVM(B, lmvm->Xprev, lmvm->Fprev);CHKERRQ(ierr);
