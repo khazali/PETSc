@@ -1930,8 +1930,6 @@ PETSC_EXTERN PetscErrorCode MatISSetMPIXAIJPreallocation_Private(Mat A, Mat B, P
   }
   ierr = PetscFree2(my_dnz,my_onz);CHKERRQ(ierr);
 
-
-
   /* Resize preallocation if overestimated */
   for (i=0;i<lrows;i++) {
     dnz[i] = PetscMin(dnz[i],lcols);
@@ -1958,6 +1956,7 @@ PETSC_EXTERN PetscErrorCode MatISSetMPIXAIJPreallocation_Private(Mat A, Mat B, P
   if (issbaij) {
     ierr = MatRestoreRowUpperTriangular(matis->A);CHKERRQ(ierr);
   }
+  ierr = MatSetOption(B,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
