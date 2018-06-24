@@ -65,7 +65,7 @@ PC Object: 1 MPI processes
   type: shell
     no name
   linear system matrix = precond matrix:
-  Mat Object: 1 MPI processes
+  Mat Object: (fetidp_bddc_pc_bddc_dirichlet_) 1 MPI processes
     type: seqaij
     rows=36, cols=36
     total: nonzeros=606, allocated nonzeros=606
@@ -176,7 +176,7 @@ PC Object: (fetidp_bddc_) 9 MPI processes
     type: redundant
       First (color=0) of 9 PCs follows
     linear system matrix = precond matrix:
-    Mat Object: 9 MPI processes
+    Mat Object: (fetidp_bddc_pc_bddc_coarse_) 9 MPI processes
       type: mpiaij
       rows=29, cols=29
       total: nonzeros=369, allocated nonzeros=462

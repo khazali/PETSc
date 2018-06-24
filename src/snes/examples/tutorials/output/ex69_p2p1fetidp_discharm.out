@@ -276,7 +276,7 @@ PC Object: (fetidp_bddc_) 5 MPI processes
     type: redundant
       First (color=0) of 5 PCs follows
     linear system matrix = precond matrix:
-    Mat Object: 5 MPI processes
+    Mat Object: (fetidp_bddc_pc_bddc_coarse_) 5 MPI processes
       type: mpiaij
       rows=14, cols=14
       total: nonzeros=162, allocated nonzeros=189

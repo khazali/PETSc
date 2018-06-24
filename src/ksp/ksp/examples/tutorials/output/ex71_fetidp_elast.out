@@ -53,7 +53,7 @@ PC Object: (fetidp_) 8 MPI processes
             total number of mallocs used during MatSetValues calls =0
               using I-node routines: found 45 nodes, limit used is 5
     linear system matrix = precond matrix:
-    Mat Object: 1 MPI processes
+    Mat Object: (fetidp_bddc_pc_bddc_dirichlet_) 1 MPI processes
       type: seqaij
       rows=144, cols=144
       total: nonzeros=6300, allocated nonzeros=6300
@@ -131,7 +131,7 @@ PC Object: (fetidp_bddc_) 8 MPI processes
     type: redundant
       First (color=0) of 8 PCs follows
     linear system matrix = precond matrix:
-    Mat Object: 8 MPI processes
+    Mat Object: (fetidp_bddc_pc_bddc_coarse_) 8 MPI processes
       type: mpiaij
       rows=87, cols=87
       total: nonzeros=5277, allocated nonzeros=6796

@@ -90,7 +90,7 @@ SNES Object: 9 MPI processes
       type: redundant
         First (color=0) of 9 PCs follows
       linear system matrix = precond matrix:
-      Mat Object: 9 MPI processes
+      Mat Object: (pc_bddc_coarse_) 9 MPI processes
         type: mpiaij
         rows=12, cols=12
         total: nonzeros=72, allocated nonzeros=92

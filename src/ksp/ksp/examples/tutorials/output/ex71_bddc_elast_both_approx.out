@@ -77,7 +77,7 @@ PC Object: 8 MPI processes
     type: redundant
       First (color=0) of 8 PCs follows
     linear system matrix = precond matrix:
-    Mat Object: 8 MPI processes
+    Mat Object: (pc_bddc_coarse_) 8 MPI processes
       type: mpiaij
       rows=87, cols=87
       total: nonzeros=5277, allocated nonzeros=6796

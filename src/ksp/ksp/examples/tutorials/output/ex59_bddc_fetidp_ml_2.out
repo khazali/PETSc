@@ -121,7 +121,7 @@ PC Object: (physical_) 4 MPI processes
         type: redundant
           First (color=0) of 2 PCs follows
         linear system matrix = precond matrix:
-        Mat Object:   2 MPI processes
+        Mat Object:   (physical_pc_bddc_coarse_l1_)   2 MPI processes
           type: mpiaij
           rows=2, cols=2
           total: nonzeros=4, allocated nonzeros=4
@@ -155,7 +155,7 @@ PC Object: (physical_) 4 MPI processes
                 total number of mallocs used during MatSetValues calls =0
                   using I-node routines: found 1 nodes, limit used is 5
     linear system matrix = precond matrix:
-    Mat Object: 4 MPI processes
+    Mat Object: (physical_pc_bddc_coarse_) 4 MPI processes
       type: is
       rows=9, cols=9
       total: nonzeros=82, allocated nonzeros=82

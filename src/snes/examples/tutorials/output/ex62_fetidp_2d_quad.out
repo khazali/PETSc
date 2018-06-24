@@ -163,7 +163,7 @@ PC Object: 5 MPI processes
                 INFOG(33) (value used for ICNTL(8)): 7
                 INFOG(34) (exponent of the determinant if determinant is requested): 0
     linear system matrix = precond matrix:
-    Mat Object: 1 MPI processes
+    Mat Object: (fetidp_bddc_pc_bddc_dirichlet_) 1 MPI processes
       type: seqaij
       rows=242, cols=242
       total: nonzeros=7380, allocated nonzeros=7380
@@ -336,7 +336,7 @@ PC Object: 5 MPI processes
                 INFOG(33) (value used for ICNTL(8)): 7
                 INFOG(34) (exponent of the determinant if determinant is requested): 0
     linear system matrix = precond matrix:
-    Mat Object: 1 MPI processes
+    Mat Object: (fetidp_bddc_pc_bddc_dirichlet_) 1 MPI processes
       type: seqaij
       rows=242, cols=242
       total: nonzeros=7380, allocated nonzeros=7380
@@ -428,7 +428,7 @@ PC Object: (fetidp_bddc_) 5 MPI processes
     type: redundant
       First (color=0) of 5 PCs follows
     linear system matrix = precond matrix:
-    Mat Object: 5 MPI processes
+    Mat Object: (fetidp_bddc_pc_bddc_coarse_) 5 MPI processes
       type: mpiaij
       rows=17, cols=17
       total: nonzeros=251, allocated nonzeros=273
@@ -481,4 +481,4 @@ PC Object: (fetidp_bddc_) 5 MPI processes
       total number of mallocs used during MatSetValues calls =0
         has attached null space
 Number of SNES iterations = 1
-L_2 Error: 5.0914e-09 [3.62955e-10, 5.07845e-09]
+L_2 Error: 5.26631e-09 [5.25393e-10, 5.24004e-09]
