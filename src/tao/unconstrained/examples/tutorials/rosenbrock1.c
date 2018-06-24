@@ -113,7 +113,7 @@ int main(int argc,char **argv)
     ierr = MatSolve(M, out, out2);CHKERRQ(ierr);
     ierr = VecAXPY(out2, -1.0, in);CHKERRQ(ierr);
     ierr = VecNorm(out2, NORM_2, &mult_solve_dist);CHKERRQ(ierr);
-    ierr = PetscPrintf(PetscObjectComm((PetscObject)tao), "error between LMVM MatMult and MatSolve: %e\n", mult_solve_dist);CHKERRQ(ierr);
+    ierr = PetscPrintf(PetscObjectComm((PetscObject)tao), "error between LMVM MatMult and MatSolve: %e\n", (double)mult_solve_dist);CHKERRQ(ierr);
     ierr = MatLMVMGetJ0(M, &J0);CHKERRQ(ierr);
     if (J0) {
       ierr = PetscObjectBaseTypeCompare((PetscObject)J0, MATLMVM, &lmvmJ0);CHKERRQ(ierr);
@@ -122,7 +122,7 @@ int main(int argc,char **argv)
         ierr = MatSolve(J0, out, out2);CHKERRQ(ierr);
         ierr = VecAXPY(out2, -1.0, in);CHKERRQ(ierr);
         ierr = VecNorm(out2, NORM_2, &mult_solve_dist);CHKERRQ(ierr);
-        ierr = PetscPrintf(PetscObjectComm((PetscObject)tao), "error between J0 MatMult and MatSolve: %e\n", mult_solve_dist);CHKERRQ(ierr);
+        ierr = PetscPrintf(PetscObjectComm((PetscObject)tao), "error between J0 MatMult and MatSolve: %e\n", (double)mult_solve_dist);CHKERRQ(ierr);
       }
     }
     ierr = VecDestroy(&in);CHKERRQ(ierr);
