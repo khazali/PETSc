@@ -829,6 +829,7 @@ PetscErrorCode PCBDDCSetupFETIDPPCContext(Mat fetimat, FETIDPPC_ctx fetidppc_ctx
       ierr = KSPSetFromOptions(sksp);CHKERRQ(ierr);
       if (reuse) {
         ierr = KSPSetPC(sksp,sub_schurs->reuse_solver->interior_solver);CHKERRQ(ierr);
+        ierr = PetscObjectIncrementTabLevel((PetscObject)sub_schurs->reuse_solver->interior_solver,(PetscObject)sksp,0);CHKERRQ(ierr);
       }
     } else { /* default Dirichlet preconditioner is pde-harmonic */
       ierr = MatCreateSchurComplement(pcis->A_II,pcis->A_II,pcis->A_IB,pcis->A_BI,pcis->A_BB,&fetidppc_ctx->S_j);CHKERRQ(ierr);
@@ -1023,9 +1024,9 @@ PetscErrorCode FETIDPPCView(PC pc, PetscViewer viewer)
     ierr = PetscViewerGetSubViewer(viewer,PetscObjectComm((PetscObject)pc_ctx->S_j),&sviewer);CHKERRQ(ierr);
     if (!rank) {
       ierr = PetscViewerPushFormat(sviewer,PETSC_VIEWER_ASCII_INFO);CHKERRQ(ierr);
-      ierr = PetscViewerASCIIAddTab(sviewer,2);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPushTab(sviewer);CHKERRQ(ierr);
       ierr = MatView(pc_ctx->S_j,sviewer);CHKERRQ(ierr);
-      ierr = PetscViewerASCIISubtractTab(sviewer,2);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPopTab(sviewer);CHKERRQ(ierr);
       ierr = PetscViewerPopFormat(sviewer);CHKERRQ(ierr);
     }
     ierr = PetscObjectTypeCompare((PetscObject)pc_ctx->B_Ddelta,MATSHELL,&isshell);CHKERRQ(ierr);
@@ -1034,11 +1035,13 @@ PetscErrorCode FETIDPPCView(PC pc, PetscViewer viewer)
       ierr = PetscViewerASCIIPrintf(viewer,"  FETI-DP BDdelta: DB^t * (B D^-1 B^t)^-1 for deluxe scaling (just from rank 0)\n");CHKERRQ(ierr);
       ierr = MatShellGetContext(pc_ctx->B_Ddelta,&ctx);CHKERRQ(ierr);
       if (!rank) {
-        ierr = PetscViewerASCIIAddTab(sviewer,2);CHKERRQ(ierr);
+        PetscInt tl;
+
+        ierr = PetscViewerASCIIGetTab(sviewer,&tl);CHKERRQ(ierr);
+        ierr = PetscObjectSetTabLevel((PetscObject)ctx->kBD,tl);CHKERRQ(ierr);
         ierr = KSPView(ctx->kBD,sviewer);CHKERRQ(ierr);
         ierr = PetscViewerPushFormat(sviewer,PETSC_VIEWER_ASCII_INFO);CHKERRQ(ierr);
         ierr = MatView(ctx->BD,sviewer);CHKERRQ(ierr);
-        ierr = PetscViewerASCIISubtractTab(sviewer,2);CHKERRQ(ierr);
         ierr = PetscViewerPopFormat(sviewer);CHKERRQ(ierr);
       }
     }

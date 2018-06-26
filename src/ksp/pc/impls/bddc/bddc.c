@@ -183,7 +183,7 @@ static PetscErrorCode PCView_BDDC(PC pc,PetscViewer viewer)
     ierr = PetscViewerASCIIPrintf(viewer,"  Detect disconnected: %d (filter %d)\n",pcbddc->detect_disconnected,pcbddc->detect_disconnected_filter);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  Benign subspace trick: %d (change explicit %d)\n",pcbddc->benign_saddle_point,pcbddc->benign_change_explicit);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  Benign subspace trick is active: %d\n",pcbddc->benign_have_null);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer,"  Algebraic computation of no-net-flux %d\n",pcbddc->compute_nonetflux);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"  Algebraic computation of no-net-flux: %d\n",pcbddc->compute_nonetflux);CHKERRQ(ierr);
     if (!pc->setupcalled) PetscFunctionReturn(0);
 
     /* compute interface size */
@@ -215,7 +215,7 @@ static PetscErrorCode PCView_BDDC(PC pc,PetscViewer viewer)
       ratio1 = pc->pmat->rmap->N/(1.*pcbddc->coarse_size);
       ratio2 = PetscRealPart(interface_size)/pcbddc->coarse_size;
     }
-    ierr = PetscViewerASCIIPrintf(viewer,"  ********************************** STATISTICS AT LEVEL %d **********************************\n",pcbddc->current_level);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPrintf(viewer,"********************************** STATISTICS AT LEVEL %d **********************************\n",pcbddc->current_level);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  Global dofs sizes: all %D interface %D coarse %D\n",pc->pmat->rmap->N,(PetscInt)PetscRealPart(interface_size),pcbddc->coarse_size);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  Coarsening ratios: all/coarse %D interface/coarse %D\n",(PetscInt)ratio1,(PetscInt)ratio2);CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  Active processes : %D\n",(PetscInt)gsum[0]);CHKERRQ(ierr);
@@ -229,20 +229,39 @@ static PetscErrorCode PCView_BDDC(PC pc,PetscViewer viewer)
     ierr = PetscViewerASCIIPrintf(viewer,"  Primal    dofs   :\t%D\t%D\t%D\n",(PetscInt)gmin[3],(PetscInt)gmax[3],(PetscInt)(gsum[3]/gsum[0]));CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  Local     dofs   :\t%D\t%D\t%D\n",(PetscInt)gmin[4],(PetscInt)gmax[4],(PetscInt)(gsum[4]/gsum[0]));CHKERRQ(ierr);
     ierr = PetscViewerASCIIPrintf(viewer,"  Local     subs   :\t%D\t%D\n"    ,(PetscInt)gmin[5],(PetscInt)gmax[5]);CHKERRQ(ierr);
-    ierr = PetscViewerASCIIPrintf(viewer,"  ********************************** COARSE PROBLEM DETAILS *********************************\n");CHKERRQ(ierr);
+    ierr = PetscViewerFlush(viewer);CHKERRQ(ierr);
+
+    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)pc),&rank);CHKERRQ(ierr);
+
+    /* local solvers */
+    ierr = PetscViewerGetSubViewer(viewer,PetscObjectComm((PetscObject)pcbddc->ksp_D),&subviewer);CHKERRQ(ierr);
+    if (!rank) {
+      ierr = PetscViewerASCIIPrintf(subviewer,"--- Interior solver (rank 0)\n");CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPushTab(subviewer);CHKERRQ(ierr);
+      ierr = KSPView(pcbddc->ksp_D,subviewer);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPopTab(subviewer);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(subviewer,"--- Correction solver (rank 0)\n");CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPushTab(subviewer);CHKERRQ(ierr);
+      ierr = KSPView(pcbddc->ksp_R,subviewer);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPopTab(subviewer);CHKERRQ(ierr);
+      ierr = PetscViewerFlush(subviewer);CHKERRQ(ierr);
+    }
+    ierr = PetscViewerRestoreSubViewer(viewer,PetscObjectComm((PetscObject)pcbddc->ksp_D),&subviewer);CHKERRQ(ierr);
     ierr = PetscViewerFlush(viewer);CHKERRQ(ierr);
 
     /* the coarse problem can be handled by a different communicator */
     if (pcbddc->coarse_ksp) color = 1;
     else color = 0;
-    ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)pc),&rank);CHKERRQ(ierr);
     ierr = MPI_Comm_size(PetscObjectComm((PetscObject)pc),&size);CHKERRQ(ierr);
     ierr = PetscSubcommCreate(PetscObjectComm((PetscObject)pc),&subcomm);CHKERRQ(ierr);
     ierr = PetscSubcommSetNumber(subcomm,PetscMin(size,2));CHKERRQ(ierr);
     ierr = PetscSubcommSetTypeGeneral(subcomm,color,rank);CHKERRQ(ierr);
     ierr = PetscViewerGetSubViewer(viewer,PetscSubcommChild(subcomm),&subviewer);CHKERRQ(ierr);
     if (color == 1) {
+      ierr = PetscViewerASCIIPrintf(subviewer,"--- Coarse solver\n");CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPushTab(subviewer);CHKERRQ(ierr);
       ierr = KSPView(pcbddc->coarse_ksp,subviewer);CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPopTab(subviewer);CHKERRQ(ierr);
       ierr = PetscViewerFlush(subviewer);CHKERRQ(ierr);
     }
     ierr = PetscViewerRestoreSubViewer(viewer,PetscSubcommChild(subcomm),&subviewer);CHKERRQ(ierr);
@@ -2488,6 +2507,7 @@ static PetscErrorCode PCBDDCCreateFETIDPOperators_BDDC(PC pc, PetscBool fully_re
     ierr = PCShellSetView(lagpc,FETIDPPCView);CHKERRQ(ierr);
     ierr = PCShellSetDestroy(lagpc,PCBDDCDestroyFETIDPPC);CHKERRQ(ierr);
     ierr = KSPSetPC(ksps[0],lagpc);CHKERRQ(ierr);
+    ierr = PetscObjectIncrementTabLevel((PetscObject)lagpc,(PetscObject)ksps[0],0);CHKERRQ(ierr);
     ierr = PCDestroy(&lagpc);CHKERRQ(ierr);
     ierr = PetscFree(ksps);CHKERRQ(ierr);
   }
