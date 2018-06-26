@@ -1181,4 +1181,15 @@ int main(int argc,char **args)
      suffix: bddc_fetidp_ml_3
      args: -physical_pc_bddc_coarsening_ratio 4
 
+ testset:
+   nsize: 9
+   args: -npx 3 -npy 3 -p 2 -nex 6 -ney 6 -physical_pc_bddc_deluxe_singlemat -physical_pc_bddc_use_deluxe_scaling -physical_pc_bddc_graph_maxcount 1 -physical_pc_bddc_levels 3 -physical_pc_bddc_coarsening_ratio 2
+   output_file: output/ex59_bddc_fetidp_ml_eqlimit.out
+   test:
+     suffix: bddc_fetidp_ml_eqlimit_1
+     args: -physical_pc_bddc_coarse_eqs_limit 31 -mat_partitioning_type average -physical_pc_bddc_coarse_pc_bddc_graph_maxcount 1
+   test:
+     suffix: bddc_fetidp_ml_eqlimit_2
+     args: -physical_pc_bddc_coarse_eqs_limit 46
+
 TEST*/
