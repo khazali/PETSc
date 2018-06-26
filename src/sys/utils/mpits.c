@@ -1,6 +1,7 @@
 #include <petscsys.h>        /*I  "petscsys.h"  I*/
 
-PetscLogEvent PETSC_BuildTwoSided,PETSC_BuildTwoSidedF;
+PetscLogEvent PETSC_BuildTwoSided;
+PetscLogEvent PETSC_BuildTwoSidedF;
 
 const char *const PetscBuildTwoSidedTypes[] = {
   "ALLREDUCE",
