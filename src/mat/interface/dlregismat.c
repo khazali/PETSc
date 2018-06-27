@@ -94,7 +94,7 @@ PETSC_EXTERN PetscErrorCode MatSolverTypeRegister_Elemental(void);
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
 PETSC_EXTERN PetscErrorCode MatSolverTypeRegister_Matlab(void);
 #endif
-#if defined(PETSC_HAVE_PETSC_HAVE_ESSL)
+#if defined(PETSC_HAVE_ESSL)
 PETSC_EXTERN PetscErrorCode MatSolverTypeRegister_Essl(void);
 #endif
 #if defined(PETSC_HAVE_SUPERLU)
@@ -363,7 +363,7 @@ PetscErrorCode  MatInitializePackage(void)
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
   ierr = MatSolverTypeRegister_Matlab();CHKERRQ(ierr);
 #endif
-#if defined(PETSC_HAVE_PETSC_HAVE_ESSL)
+#if defined(PETSC_HAVE_ESSL)
   ierr = MatSolverTypeRegister_Essl();CHKERRQ(ierr);
 #endif
 #if defined(PETSC_HAVE_SUPERLU)
