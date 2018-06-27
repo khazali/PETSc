@@ -179,6 +179,7 @@ PetscErrorCode (*PetscTrMalloc)(size_t,int,const char[],const char[],void**) = P
 PetscErrorCode (*PetscTrFree)(void*,int,const char[],const char[])           = PetscFreeAlign;
 PetscErrorCode (*PetscTrRealloc)(size_t,int,const char[],const char[],void**) = PetscReallocAlign;
 
+PETSC_INTERN PetscBool petscsetmallocvisited;
 PetscBool petscsetmallocvisited = PETSC_FALSE;
 
 /*@C
