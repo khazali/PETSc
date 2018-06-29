@@ -1277,15 +1277,12 @@ PetscErrorCode ISGetIndicesCopy(IS is, PetscInt idx[])
 
     Example of Usage:
 .vb
-    PetscScalar, pointer xx_v(:)
+    PetscInt, pointer xx_v(:)
     ....
     call ISGetIndicesF90(x,xx_v,ierr)
     a = xx_v(3)
     call ISRestoreIndicesF90(x,xx_v,ierr)
 .ve
-
-    Notes:
-    Not yet supported for all F90 compilers.
 
     Level: intermediate
 
@@ -1315,15 +1312,12 @@ M*/
 
     Example of Usage:
 .vb
-    PetscScalar, pointer xx_v(:)
+    PetscInt, pointer xx_v(:)
     ....
     call ISGetIndicesF90(x,xx_v,ierr)
     a = xx_v(3)
     call ISRestoreIndicesF90(x,xx_v,ierr)
 .ve
-
-    Notes:
-    Not yet supported for all F90 compilers.
 
     Level: intermediate
 
@@ -1349,15 +1343,12 @@ M*/
 -   ierr - error code
     Example of Usage:
 .vb
-    PetscScalar, pointer xx_v(:)
+    PetscInt, pointer xx_v(:)
     ....
     call ISBlockGetIndicesF90(x,xx_v,ierr)
     a = xx_v(3)
     call ISBlockRestoreIndicesF90(x,xx_v,ierr)
 .ve
-
-    Notes:
-    Not yet supported for all F90 compilers
 
     Level: intermediate
 
@@ -1388,7 +1379,7 @@ M*/
 
     Example of Usage:
 .vb
-    PetscScalar, pointer xx_v(:)
+    PetscInt, pointer xx_v(:)
     ....
     call ISBlockGetIndicesF90(x,xx_v,ierr)
     a = xx_v(3)
