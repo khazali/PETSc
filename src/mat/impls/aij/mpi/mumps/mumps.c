@@ -776,7 +776,7 @@ PetscErrorCode MatSolve_MUMPS(Mat A,Vec b,Vec x)
      Unless the user provides a valid value for ICNTL(26), MatSolve and MatMatSolve routines solve the full system.
      This requires an extra call to PetscMUMPS_c and the computation of the factors for S
   */
-  if (mumps->id.ICNTL(26) < 0 || mumps->id.ICNTL(26) > 2) {
+  if (mumps->id.size_schur > 0 && (mumps->id.ICNTL(26) < 0 || mumps->id.ICNTL(26) > 2)) {
     if (mumps->size > 1) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"Parallel Schur complements not yet supported from PETSc\n");
     second_solve = PETSC_TRUE;
     ierr = MatMumpsHandleSchur_Private(A,PETSC_FALSE);CHKERRQ(ierr);
@@ -813,6 +813,7 @@ PetscErrorCode MatSolve_MUMPS(Mat A,Vec b,Vec x)
     ierr = VecScatterBegin(mumps->scat_sol,mumps->x_seq,x,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
     ierr = VecScatterEnd(mumps->scat_sol,mumps->x_seq,x,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
   }
+  ierr = PetscLogFlops(2.0*mumps->id.RINFO(3));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -881,7 +882,7 @@ PetscErrorCode MatMatSolve_MUMPS(Mat A,Mat B,Mat X)
       mumps->id.ICNTL(20)   = 1;
     }
     /* handle condensation step of Schur complement (if any) */
-    if (mumps->id.ICNTL(26) < 0 || mumps->id.ICNTL(26) > 2) {
+    if (mumps->id.size_schur > 0 && (mumps->id.ICNTL(26) < 0 || mumps->id.ICNTL(26) > 2)) {
       second_solve = PETSC_TRUE;
       ierr = MatMumpsHandleSchur_Private(A,PETSC_FALSE);CHKERRQ(ierr);
     }
@@ -1010,6 +1011,7 @@ PetscErrorCode MatMatSolve_MUMPS(Mat A,Mat B,Mat X)
     ierr = VecScatterDestroy(&scat_rhs);CHKERRQ(ierr);
     ierr = VecScatterDestroy(&scat_sol);CHKERRQ(ierr);
   }
+  ierr = PetscLogFlops(2.0*nrhs*mumps->id.RINFO(3));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1123,6 +1125,7 @@ PetscErrorCode MatFactorNumeric_MUMPS(Mat F,Mat A,const MatFactorInfo *info)
     mumps->id.sol_loc = (MumpsScalar*)sol_loc;
     ierr = VecCreateSeqWithArray(PETSC_COMM_SELF,1,lsol_loc,sol_loc,&mumps->x_seq);CHKERRQ(ierr);
   }
+  ierr = PetscLogFlops(mumps->id.RINFO(2));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1521,7 +1524,7 @@ PetscErrorCode MatView_MUMPS(Mat A,PetscViewer viewer)
       ierr = PetscViewerASCIIPrintf(viewer,"  ICNTL(14) (percentage of estimated workspace increase): %d \n",mumps->id.ICNTL(14));CHKERRQ(ierr);
       /* ICNTL(15-17) not used */
       ierr = PetscViewerASCIIPrintf(viewer,"  ICNTL(18) (input mat struct):                           %d \n",mumps->id.ICNTL(18));CHKERRQ(ierr);
-      ierr = PetscViewerASCIIPrintf(viewer,"  ICNTL(19) (Schur complement info):                       %d \n",mumps->id.ICNTL(19));CHKERRQ(ierr);
+      ierr = PetscViewerASCIIPrintf(viewer,"  ICNTL(19) (Schur complement info):                      %d \n",mumps->id.ICNTL(19));CHKERRQ(ierr);
       ierr = PetscViewerASCIIPrintf(viewer,"  ICNTL(20) (rhs sparse pattern):                         %d \n",mumps->id.ICNTL(20));CHKERRQ(ierr);
       ierr = PetscViewerASCIIPrintf(viewer,"  ICNTL(21) (solution struct):                            %d \n",mumps->id.ICNTL(21));CHKERRQ(ierr);
       ierr = PetscViewerASCIIPrintf(viewer,"  ICNTL(22) (in-core/out-of-core facility):               %d \n",mumps->id.ICNTL(22));CHKERRQ(ierr);
@@ -1578,8 +1581,6 @@ PetscErrorCode MatView_MUMPS(Mat A,PetscViewer viewer)
           ierr = PetscViewerFlush(viewer);CHKERRQ(ierr);
         }
       }
-
-
       ierr = PetscViewerASCIIPopSynchronized(viewer);CHKERRQ(ierr);
 
       if (!mumps->myid) { /* information from the host */
