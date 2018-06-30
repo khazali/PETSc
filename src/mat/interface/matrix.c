@@ -4511,7 +4511,9 @@ PetscErrorCode MatDuplicate(Mat mat,MatDuplicateOption op,Mat *M)
   B    = *M;
 
   ierr = MatGetOperation(mat,MATOP_VIEW,&viewf);CHKERRQ(ierr);
-  ierr = MatSetOperation(B,MATOP_VIEW,viewf);CHKERRQ(ierr);
+  if (viewf) {
+    ierr = MatSetOperation(B,MATOP_VIEW,viewf);CHKERRQ(ierr);
+  }
 
   B->stencil.dim = mat->stencil.dim;
   B->stencil.noc = mat->stencil.noc;
@@ -10788,7 +10790,7 @@ PetscErrorCode MatSetOperation(Mat mat,MatOperation op,void (*f)(void))
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
-  if (op == MATOP_VIEW && !mat->ops->viewnative) {
+  if (op == MATOP_VIEW && !mat->ops->viewnative && f != (void (*)())(mat->ops->view)) {
     mat->ops->viewnative = mat->ops->view;
   }
   (((void(**)(void))mat->ops)[op]) = f;

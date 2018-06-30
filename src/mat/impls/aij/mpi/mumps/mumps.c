@@ -1062,8 +1062,8 @@ PetscErrorCode MatMatSolve_MUMPS(Mat A,Mat B,Mat X)
     ierr = VecDestroy(&b_seq);CHKERRQ(ierr);
     ierr = VecScatterDestroy(&scat_rhs);CHKERRQ(ierr);
   }
-  ierr = PetscLogFlops(2.0*nrhs*mumps->id.RINFO(3));CHKERRQ(ierr);
   ierr = VecScatterDestroy(&scat_sol);CHKERRQ(ierr);
+  ierr = PetscLogFlops(2.0*nrhs*mumps->id.RINFO(3));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
