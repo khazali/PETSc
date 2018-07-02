@@ -68,6 +68,7 @@ PetscErrorCode  DMCreate(MPI_Comm comm,DM *dm)
   v->maxCell                  = NULL;
   v->bdtype                   = NULL;
   v->dimEmbed                 = PETSC_DEFAULT;
+  v->dim                      = PETSC_DETERMINE;
   {
     PetscInt i;
     for (i = 0; i < 10; ++i) {
@@ -877,7 +878,6 @@ PetscErrorCode  DMView(DM dm,PetscViewer v)
   PetscBool         isbinary;
   PetscMPIInt       size;
   PetscViewerFormat format;
-  PetscInt          tabs;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
@@ -887,8 +887,6 @@ PetscErrorCode  DMView(DM dm,PetscViewer v)
   ierr = PetscViewerGetFormat(v,&format);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PetscObjectComm((PetscObject)dm),&size);CHKERRQ(ierr);
   if (size == 1 && format == PETSC_VIEWER_LOAD_BALANCE) PetscFunctionReturn(0);
-  ierr = PetscViewerASCIIGetTab(v, &tabs);CHKERRQ(ierr);
-  ierr = PetscViewerASCIISetTab(v, ((PetscObject)dm)->tablevel);CHKERRQ(ierr);
   ierr = PetscObjectPrintClassNamePrefixType((PetscObject)dm,v);CHKERRQ(ierr);
   ierr = PetscObjectTypeCompare((PetscObject)v,PETSCVIEWERBINARY,&isbinary);CHKERRQ(ierr);
   if (isbinary) {
@@ -902,7 +900,6 @@ PetscErrorCode  DMView(DM dm,PetscViewer v)
   if (dm->ops->view) {
     ierr = (*dm->ops->view)(dm,v);CHKERRQ(ierr);
   }
-  ierr = PetscViewerASCIISetTab(v, tabs);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1644,7 +1641,7 @@ PetscErrorCode DMCreateSubDM(DM dm, PetscInt numFields, const PetscInt fields[],
 - len - The number of DMs
 
   Output Parameters:
-+ is - The global indices for the subproblem
++ is - The global indices for the subproblem, or NULL
 - superdm - The DM for the superproblem
 
   Level: intermediate
@@ -1660,12 +1657,11 @@ PetscErrorCode DMCreateSuperDM(DM dms[], PetscInt len, IS **is, DM *superdm)
   PetscValidPointer(dms,1);
   for (i = 0; i < len; ++i) {PetscValidHeaderSpecific(dms[i],DM_CLASSID,1);}
   if (is) PetscValidPointer(is,3);
-  if (superdm) PetscValidPointer(superdm,4);
+  PetscValidPointer(superdm,4);
   if (len < 0) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Number of DMs must be nonnegative: %D", len);
   if (len) {
-    if (dms[0]->ops->createsuperdm) {
-      ierr = (*dms[0]->ops->createsuperdm)(dms, len, is, superdm);CHKERRQ(ierr);
-    } else SETERRQ(PetscObjectComm((PetscObject) dms[0]), PETSC_ERR_SUP, "This type has no DMCreateSuperDM implementation defined");
+    if (dms[0]->ops->createsuperdm) {ierr = (*dms[0]->ops->createsuperdm)(dms, len, is, superdm);CHKERRQ(ierr);}
+    else SETERRQ(PetscObjectComm((PetscObject) dms[0]), PETSC_ERR_SUP, "This type has no DMCreateSuperDM implementation defined");
   }
   PetscFunctionReturn(0);
 }
@@ -5984,6 +5980,8 @@ PetscErrorCode DMCopyLabels(DM dmA, DM dmB)
     ierr = DMGetLabelName(dmA, l, &name);CHKERRQ(ierr);
     ierr = PetscStrcmp(name, "depth", &flg);CHKERRQ(ierr);
     if (flg) continue;
+    ierr = PetscStrcmp(name, "dim", &flg);CHKERRQ(ierr);
+    if (flg) continue;
     ierr = DMGetLabel(dmA, name, &label);CHKERRQ(ierr);
     ierr = DMLabelDuplicate(label, &labelNew);CHKERRQ(ierr);
     ierr = DMAddLabel(dmB, labelNew);CHKERRQ(ierr);
@@ -6218,7 +6216,7 @@ static PetscErrorCode DMPopulateBoundary(DM dm)
     ierr = PetscNew(&dmbound);CHKERRQ(ierr);
     dmbound->dsboundary = dsbound;
     ierr = DMGetLabel(dm, dsbound->labelname, &(dmbound->label));CHKERRQ(ierr);
-    if (!dmbound->label) PetscInfo2(dm, "DSBoundary %s wants label %s, which is not in this dm.\n",dsbound->name,dsbound->labelname);CHKERRQ(ierr);
+    if (!dmbound->label) {ierr = PetscInfo2(dm, "DSBoundary %s wants label %s, which is not in this dm.\n",dsbound->name,dsbound->labelname);CHKERRQ(ierr);}
     /* push on the back instead of the front so that it is in the same order as in the PetscDS */
     *lastnext = dmbound;
     lastnext = &(dmbound->next);
