@@ -35,19 +35,19 @@ int main(int argc,char **args)
   /* ne*ne; number of global elements */
   ierr = PetscOptionsGetReal(NULL,NULL,"-alpha",&soft_alpha,NULL);CHKERRQ(ierr);
   M    = (ne+1)*(ne+1); /* global number of nodes */
-  /* create stiffness matrix */
-  ierr = MatCreateAIJ(comm,PETSC_DECIDE,PETSC_DECIDE,M,M,
-                      18,NULL,6,NULL,&Amat);CHKERRQ(ierr);
-  ierr = MatCreateAIJ(comm,PETSC_DECIDE,PETSC_DECIDE,M,M,
-                      18,NULL,6,NULL,&Pmat);CHKERRQ(ierr);
+  /* create stiffness matrix (2) */
+  ierr = MatCreate(comm,&Amat);CHKERRQ(ierr);
+  ierr = MatSetSizes(Amat,PETSC_DECIDE,PETSC_DECIDE,M,M);CHKERRQ(ierr);
+  ierr = MatSetType(Amat,MATMPIAIJ);CHKERRQ(ierr);
+  ierr = MatMPIAIJSetPreallocation(Amat,81,NULL,57,NULL);CHKERRQ(ierr);
+
+  ierr = MatCreate(comm,&Pmat);CHKERRQ(ierr);
+  ierr = MatSetSizes(Pmat,PETSC_DECIDE,PETSC_DECIDE,M,M);CHKERRQ(ierr);
+  ierr = MatSetType(Pmat,MATMPIAIJ);CHKERRQ(ierr);
+  ierr = MatMPIAIJSetPreallocation(Pmat,81,NULL,57,NULL);CHKERRQ(ierr);
+
   ierr = MatGetOwnershipRange(Amat,&Istart,&Iend);CHKERRQ(ierr);
   m    = Iend-Istart;
-  /* Generate vectors */
-  ierr = VecCreate(comm,&xx);CHKERRQ(ierr);
-  ierr = VecSetSizes(xx,m,M);CHKERRQ(ierr);
-  ierr = VecSetFromOptions(xx);CHKERRQ(ierr);
-  ierr = VecDuplicate(xx,&bb);CHKERRQ(ierr);
-  ierr = VecSet(bb,.0);CHKERRQ(ierr);
   /* generate element matrices -- see ex56.c on how to use different data set */
   {
     DD1[0][0] =  0.66666666666666663;
@@ -111,16 +111,25 @@ int main(int argc,char **args)
           ierr = MatSetValues(Amat,4,idx,4,idx,(const PetscScalar*)DD,ADD_VALUES);CHKERRQ(ierr);
         }
       }
+    }
+    ierr = MatAssemblyBegin(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatSetFromOptions(Amat);CHKERRQ(ierr);
+    ierr = MatSetFromOptions(Pmat);CHKERRQ(ierr);
+    /* vectors */
+    ierr = MatCreateVecs(Amat,&xx,0);CHKERRQ(ierr);
+    ierr = MatCreateVecs(Amat,&bb,0);CHKERRQ(ierr);
+    ierr = VecSet(bb,.0);CHKERRQ(ierr);
+    for (Ii=Istart; Ii<Iend; Ii++) {
+      j = Ii/(ne+1);
       if (j>0) {
         PetscScalar v  = h*h;
         PetscInt    jj = Ii;
         ierr = VecSetValues(bb,1,&jj,&v,INSERT_VALUES);CHKERRQ(ierr);
       }
     }
-    ierr = MatAssemblyBegin(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyBegin(Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = VecAssemblyBegin(bb);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(bb);CHKERRQ(ierr);
 

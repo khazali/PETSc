@@ -114,12 +114,10 @@ int main(int argc,char **args)
     ierr = MatSetType(Amat,MATAIJ);CHKERRQ(ierr);
     ierr = MatSeqAIJSetPreallocation(Amat,0,d_nnz);CHKERRQ(ierr);
     ierr = MatMPIAIJSetPreallocation(Amat,0,d_nnz,0,o_nnz);CHKERRQ(ierr);
-
     ierr = PetscFree(d_nnz);CHKERRQ(ierr);
     ierr = PetscFree(o_nnz);CHKERRQ(ierr);
 
     ierr = MatGetOwnershipRange(Amat,&Istart,&Iend);CHKERRQ(ierr);
-
     if (m != Iend - Istart) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_PLIB,"m %D does not equal Iend %D - Istart %D",m,Iend,Istart);
     /* Generate vectors */
     ierr = VecCreate(comm,&xx);CHKERRQ(ierr);
@@ -128,8 +126,7 @@ int main(int argc,char **args)
       ierr = VecSetBlockSize(xx,3);CHKERRQ(ierr);
     }
     ierr = VecSetFromOptions(xx);CHKERRQ(ierr);
-    ierr = VecDuplicate(xx,&bb);CHKERRQ(ierr);
-    ierr = VecSet(bb,.0);CHKERRQ(ierr);
+    ierr = VecSet(xx,.0);CHKERRQ(ierr);
     /* generate element matrices */
     {
       PetscBool hasData = PETSC_TRUE;
@@ -167,11 +164,9 @@ int main(int argc,char **args)
         else v2[i] = .0;
       }
     }
-
+    /* forms the element stiffness and coordinates */
     ierr      = PetscMalloc1(m+1, &coords);CHKERRQ(ierr);
     coords[m] = -99.0;
-
-    /* forms the element stiffness and coordinates */
     for (i=Ni0,ic=0,ii=0; i<Ni1; i++,ii++) {
       for (j=Nj0,jj=0; j<Nj1; j++,jj++) {
         for (k=Nk0,kk=0; k<Nk1; k++,kk++,ic++) {
@@ -225,11 +220,11 @@ int main(int argc,char **args)
             if (k>0) {
               if (!test_late_bs) {
                 ierr = MatSetValuesBlocked(Amat,8,idx,8,idx,(const PetscScalar*)DD,ADD_VALUES);CHKERRQ(ierr);
-                ierr = VecSetValuesBlocked(bb,8,idx,(const PetscScalar*)vv,ADD_VALUES);CHKERRQ(ierr);
+                ierr = VecSetValuesBlocked(xx,8,idx,(const PetscScalar*)vv,ADD_VALUES);CHKERRQ(ierr);
               } else {
                 for (ix=0; ix<8; ix++) { idx3[3*ix] = 3*idx[ix]; idx3[3*ix+1] = 3*idx[ix]+1; idx3[3*ix+2] = 3*idx[ix]+2; }
                 ierr = MatSetValues(Amat,24,idx3,24,idx3,(const PetscScalar*)DD,ADD_VALUES);CHKERRQ(ierr);
-                ierr = VecSetValues(bb,24,idx3,(const PetscScalar*)vv,ADD_VALUES);CHKERRQ(ierr);
+                ierr = VecSetValues(xx,24,idx3,(const PetscScalar*)vv,ADD_VALUES);CHKERRQ(ierr);
               }
             } else {
               /* a BC */
@@ -238,39 +233,32 @@ int main(int argc,char **args)
               }
               if (!test_late_bs) {
                 ierr = MatSetValuesBlocked(Amat,8,idx,8,idx,(const PetscScalar*)DD,ADD_VALUES);CHKERRQ(ierr);
-                ierr = VecSetValuesBlocked(bb,8,idx,(const PetscScalar*)v2,ADD_VALUES);CHKERRQ(ierr);
+                ierr = VecSetValuesBlocked(xx,8,idx,(const PetscScalar*)v2,ADD_VALUES);CHKERRQ(ierr);
               } else {
                 for (ix=0; ix<8; ix++) { idx3[3*ix] = 3*idx[ix]; idx3[3*ix+1] = 3*idx[ix]+1; idx3[3*ix+2] = 3*idx[ix]+2; }
                 ierr = MatSetValues(Amat,24,idx3,24,idx3,(const PetscScalar*)DD,ADD_VALUES);CHKERRQ(ierr);
-                ierr = VecSetValues(bb,24,idx3,(const PetscScalar*)v2,ADD_VALUES);CHKERRQ(ierr);
+                ierr = VecSetValues(xx,24,idx3,(const PetscScalar*)v2,ADD_VALUES);CHKERRQ(ierr);
               }
             }
           }
         }
       }
-
     }
-    ierr = MatAssemblyBegin(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(bb);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(bb);CHKERRQ(ierr);
   }
-
+  ierr = MatAssemblyBegin(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = VecAssemblyBegin(xx);CHKERRQ(ierr);
+  ierr = VecAssemblyEnd(xx);CHKERRQ(ierr);
+  ierr = MatSetFromOptions( Amat );CHKERRQ(ierr);
+  ierr = MatCreateVecs(Amat,&bb,NULL);CHKERRQ(ierr);
+  ierr = VecCopy(xx,bb);CHKERRQ(ierr);
+  ierr = VecDestroy(&xx);CHKERRQ(ierr);
+  ierr = VecDuplicate(bb,&xx);CHKERRQ(ierr);
   if (test_late_bs) {
     ierr = VecSetBlockSize(xx,3);CHKERRQ(ierr);
     ierr = VecSetBlockSize(bb,3);CHKERRQ(ierr);
     ierr = MatSetBlockSize(Amat,3);CHKERRQ(ierr);
   }
-
-  if (!PETSC_TRUE) {
-    PetscViewer viewer;
-    ierr = PetscViewerASCIIOpen(comm, "Amat.m", &viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-    ierr = MatView(Amat,viewer);CHKERRQ(ierr);
-    ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
-    ierr = PetscViewerDestroy(&viewer);
-  }
-
   /* finish KSP/PC setup */
   ierr = KSPSetOperators(ksp, Amat, Amat);CHKERRQ(ierr);
   if (use_nearnullspace) {
@@ -991,6 +979,11 @@ PetscErrorCode elem_3d_elast_v_25(PetscScalar *dd)
    test:
       suffix: nns
       args: -ne 9 -alpha 1.e-3 -ksp_converged_reason -ksp_type cg -ksp_max_it 50 -pc_type gamg -pc_gamg_type agg -pc_gamg_agg_nsmooths 1 -pc_gamg_coarse_eq_limit 1000 -mg_levels_ksp_type chebyshev -mg_levels_pc_type sor -pc_gamg_reuse_interpolation true -two_solves -use_mat_nearnullspace -mg_levels_esteig_ksp_type cg
+
+   test:
+      suffix: aijmkl
+      nsize: 2
+      args: -ne 13 -alpha 1.e-3 -ksp_type cg -pc_type gamg -pc_gamg_agg_nsmooths 1 -pc_gamg_reuse_interpolation true -two_solves -ksp_converged_reason -use_mat_nearnullspace -mg_levels_esteig_ksp_type cg -mg_levels_esteig_ksp_max_it 10 -pc_gamg_square_graph 1 -mg_levels_ksp_max_it 1 -mg_levels_ksp_type chebyshev -mg_levels_pc_type jacobi -mg_levels_ksp_chebyshev_esteig 0,0.2,0,1.05 -gamg_est_ksp_type cg -gamg_est_ksp_max_it 10 -pc_gamg_threshold 0.01 -pc_gamg_coarse_eq_limit 2000 -pc_gamg_process_eq_limit 200 -pc_gamg_repartition false -pc_mg_cycle_type v -ksp_monitor_short -mat_type aijmkl
 
    test:
       suffix: nns_telescope
