@@ -3232,7 +3232,7 @@ PetscErrorCode MatCreateSubMatricesMPI_MPIXAIJ(Mat C,PetscInt ismax,const IS isr
       if (scall == MAT_INITIAL_MATRIX) {
 	ierr = MatCreate(((PetscObject)isrow[i])->comm,(*submat)+i);CHKERRQ(ierr);
 	ierr = MatSetSizes((*submat)[i],A[i]->rmap->n,A[i]->cmap->n,PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
-	ierr = MatSetType((*submat)[i],MATMPIAIJ);CHKERRQ(ierr);
+	ierr = MatSetType((*submat)[i],((PetscObject)C)->type_name);CHKERRQ(ierr);
 	ierr = PetscLayoutSetUp((*submat)[i]->rmap);CHKERRQ(ierr);
 	ierr = PetscLayoutSetUp((*submat)[i]->cmap);CHKERRQ(ierr);
       }

@@ -3391,6 +3391,7 @@ PetscErrorCode MatCreateMPIAIJWithSeqAIJ(MPI_Comm comm,Mat A,Mat B,const PetscIn
   PetscScalar    *oa=b->a;
   Mat            Bnew;
   PetscInt       m,n,N;
+  PetscBool      flg;
 
   PetscFunctionBegin;
   ierr = MatCreate(comm,mat);CHKERRQ(ierr);
@@ -3404,7 +3405,16 @@ PetscErrorCode MatCreateMPIAIJWithSeqAIJ(MPI_Comm comm,Mat A,Mat B,const PetscIn
   ierr = MPIU_Allreduce(&n,&N,1,MPIU_INT,MPI_SUM,comm);CHKERRQ(ierr);
 
   ierr = MatSetSizes(*mat,m,n,PETSC_DECIDE,N);CHKERRQ(ierr);
-  ierr = MatSetType(*mat,MATMPIAIJ);CHKERRQ(ierr);
+
+  ierr = PetscObjectTypeCompare((PetscObject)A,MATSEQAIJ,&flg);CHKERRQ(ierr);
+  if (flg) {
+    ierr = MatSetType(*mat,MATMPIAIJ);CHKERRQ(ierr);
+  } else {
+    ierr = PetscObjectTypeCompare((PetscObject)A,MATSEQAIJMKL,&flg);CHKERRQ(ierr);
+    if (flg) {
+      ierr = MatSetType(*mat,MATMPIAIJMKL);CHKERRQ(ierr);
+    } else SETERRQ1(comm,PETSC_ERR_ARG_WRONG,"Unkown mat type %s",((PetscObject)A)->type_name);
+  }
   ierr = MatSetBlockSizes(*mat,A->rmap->bs,A->cmap->bs);CHKERRQ(ierr);
   maij = (Mat_MPIAIJ*)(*mat)->data;
 
@@ -4322,9 +4332,9 @@ PetscErrorCode MatMPIAIJGetSeqAIJ(Mat A,Mat *Ad,Mat *Ao,const PetscInt *colmap[]
   Mat_MPIAIJ     *a = (Mat_MPIAIJ*)A->data;
   PetscBool      flg;
   PetscErrorCode ierr;
-  
+
   PetscFunctionBegin;
-  ierr = PetscObjectTypeCompare((PetscObject)A,MATMPIAIJ,&flg);CHKERRQ(ierr);
+  ierr = PetscObjectBaseTypeCompare((PetscObject)A,MATMPIAIJ,&flg);CHKERRQ(ierr);
   if (!flg) SETERRQ(PetscObjectComm((PetscObject)A),PETSC_ERR_SUP,"This function requires a MATMPIAIJ matrix as input");
   if (Ad)     *Ad     = a->A;
   if (Ao)     *Ao     = a->B;
@@ -4910,7 +4920,7 @@ PetscErrorCode MatMPIAIJGetLocalMat(Mat A,MatReuse scall,Mat *A_loc)
   PetscMPIInt    size;
 
   PetscFunctionBegin;
-  ierr = PetscObjectTypeCompare((PetscObject)A,MATMPIAIJ,&match);CHKERRQ(ierr);
+  ierr = PetscObjectBaseTypeCompare((PetscObject)A,MATMPIAIJ,&match);CHKERRQ(ierr);
   if (!match) SETERRQ(PetscObjectComm((PetscObject)A), PETSC_ERR_SUP,"Requires MATMPIAIJ matrix as input");
   ierr = PetscObjectGetComm((PetscObject)A,&comm);CHKERRQ(ierr);
   ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);

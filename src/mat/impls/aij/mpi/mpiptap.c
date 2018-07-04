@@ -290,6 +290,7 @@ PetscErrorCode MatPtAPSymbolic_MPIAIJ_MPIAIJ_scalable(Mat A,Mat P,PetscReal fill
   Mat_SeqAIJ          *p_loc,*p_oth=NULL,*ad=(Mat_SeqAIJ*)(a->A)->data,*ao=NULL,*c_loc,*c_oth;
   PetscScalar         *apv;
   PetscTable          ta;
+  MatType             mtype;
 #if defined(PETSC_USE_INFO)
   PetscReal           apfill;
 #endif
@@ -303,7 +304,8 @@ PetscErrorCode MatPtAPSymbolic_MPIAIJ_MPIAIJ_scalable(Mat A,Mat P,PetscReal fill
 
   /* create symbolic parallel matrix Cmpi */
   ierr = MatCreate(comm,&Cmpi);CHKERRQ(ierr);
-  ierr = MatSetType(Cmpi,MATMPIAIJ);CHKERRQ(ierr);
+  ierr = MatGetType(A,&mtype);CHKERRQ(ierr);
+  ierr = MatSetType(Cmpi,mtype);CHKERRQ(ierr);
 
   /* create struct Mat_PtAPMPI and attached it to C later */
   ierr        = PetscNew(&ptap);CHKERRQ(ierr);
@@ -629,6 +631,7 @@ PetscErrorCode MatPtAPSymbolic_MPIAIJ_MPIAIJ(Mat A,Mat P,PetscReal fill,Mat *C)
   Mat_SeqAIJ          *p_loc,*p_oth=NULL,*ad=(Mat_SeqAIJ*)(a->A)->data,*ao=NULL,*c_loc,*c_oth;
   PetscScalar         *apv;
   PetscTable          ta;
+  MatType             mtype;
 #if defined(PETSC_USE_INFO)
   PetscReal           apfill;
 #endif
@@ -642,7 +645,8 @@ PetscErrorCode MatPtAPSymbolic_MPIAIJ_MPIAIJ(Mat A,Mat P,PetscReal fill,Mat *C)
 
   /* create symbolic parallel matrix Cmpi */
   ierr = MatCreate(comm,&Cmpi);CHKERRQ(ierr);
-  ierr = MatSetType(Cmpi,MATMPIAIJ);CHKERRQ(ierr);
+  ierr = MatGetType(A,&mtype);CHKERRQ(ierr);
+  ierr = MatSetType(Cmpi,mtype);CHKERRQ(ierr);
 
   /* Do dense axpy in MatPtAPNumeric_MPIAIJ_MPIAIJ() */
   Cmpi->ops->ptapnumeric = MatPtAPNumeric_MPIAIJ_MPIAIJ;

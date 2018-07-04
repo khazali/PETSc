@@ -275,7 +275,7 @@ static PetscErrorCode smoothAggs(PC pc,Mat Gmat_2, Mat Gmat_1,PetscCoarsenData *
   ierr = MatGetOwnershipRange(Gmat_1,&my0,&Iend);CHKERRQ(ierr);
 
   /* get submatrices */
-  ierr = PetscObjectTypeCompare((PetscObject)Gmat_1, MATMPIAIJ, &isMPI);CHKERRQ(ierr);
+  ierr = PetscObjectBaseTypeCompare((PetscObject)Gmat_1, MATMPIAIJ, &isMPI);CHKERRQ(ierr);
   if (isMPI) {
     /* grab matrix objects */
     mpimat_2 = (Mat_MPIAIJ*)Gmat_2->data;
