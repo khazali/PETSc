@@ -35,6 +35,7 @@ int main(int argc,char **args)
   /* ne*ne; number of global elements */
   ierr = PetscOptionsGetReal(NULL,NULL,"-alpha",&soft_alpha,NULL);CHKERRQ(ierr);
   M    = (ne+1)*(ne+1); /* global number of nodes */
+
   /* create stiffness matrix (2) */
   ierr = MatCreate(comm,&Amat);CHKERRQ(ierr);
   ierr = MatSetSizes(Amat,PETSC_DECIDE,PETSC_DECIDE,M,M);CHKERRQ(ierr);
@@ -46,8 +47,12 @@ int main(int argc,char **args)
   ierr = MatSetType(Pmat,MATMPIAIJ);CHKERRQ(ierr);
   ierr = MatMPIAIJSetPreallocation(Pmat,81,NULL,57,NULL);CHKERRQ(ierr);
 
-  ierr = MatGetOwnershipRange(Amat,&Istart,&Iend);CHKERRQ(ierr);
-  m    = Iend-Istart;
+  ierr = MatSetFromOptions(Amat);CHKERRQ(ierr);
+  ierr = MatSetFromOptions(Pmat);CHKERRQ(ierr);
+
+  /* vectors */
+  ierr = MatCreateVecs(Amat,&bb,&xx);CHKERRQ(ierr);
+  ierr = VecSet(bb,.0);CHKERRQ(ierr);
   /* generate element matrices -- see ex56.c on how to use different data set */
   {
     DD1[0][0] =  0.66666666666666663;
@@ -80,8 +85,10 @@ int main(int argc,char **args)
   {
     PetscReal *coords;
     PC             pc;
-    ierr = PetscMalloc1(2*m,&coords);CHKERRQ(ierr);
     /* forms the element stiffness for the Laplacian and coordinates */
+    ierr = MatGetOwnershipRange(Amat,&Istart,&Iend);CHKERRQ(ierr);
+    m    = Iend-Istart;
+    ierr = PetscMalloc1(2*m,&coords);CHKERRQ(ierr);
     for (Ii=Istart,ix=0; Ii<Iend; Ii++,ix++) {
       j = Ii/(ne+1); i = Ii%(ne+1);
       /* coords */
@@ -92,11 +99,8 @@ int main(int argc,char **args)
         /* radius */
         PetscReal radius = PetscSqrtReal((x-.5+h/2)*(x-.5+h/2) + (y-.5+h/2)*(y-.5+h/2));
         PetscReal alpha  = 1.0;
-
         idx[0] = Ii; idx[1] = Ii+1; idx[2] = Ii + (ne+1) + 1; idx[3] =  Ii + (ne+1);
         if (radius < 0.25) alpha = soft_alpha;
-
-
         for (ii=0; ii<4; ii++) {
           for (jj=0; jj<4; jj++) DD[ii][jj] = alpha*DD1[ii][jj];
         }
@@ -111,25 +115,16 @@ int main(int argc,char **args)
           ierr = MatSetValues(Amat,4,idx,4,idx,(const PetscScalar*)DD,ADD_VALUES);CHKERRQ(ierr);
         }
       }
-    }
-    ierr = MatAssemblyBegin(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyBegin(Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatSetFromOptions(Amat);CHKERRQ(ierr);
-    ierr = MatSetFromOptions(Pmat);CHKERRQ(ierr);
-    /* vectors */
-    ierr = MatCreateVecs(Amat,&xx,0);CHKERRQ(ierr);
-    ierr = MatCreateVecs(Amat,&bb,0);CHKERRQ(ierr);
-    ierr = VecSet(bb,.0);CHKERRQ(ierr);
-    for (Ii=Istart; Ii<Iend; Ii++) {
-      j = Ii/(ne+1);
       if (j>0) {
         PetscScalar v  = h*h;
         PetscInt    jj = Ii;
         ierr = VecSetValues(bb,1,&jj,&v,INSERT_VALUES);CHKERRQ(ierr);
       }
     }
+    ierr = MatAssemblyBegin(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(Amat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(Pmat,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = VecAssemblyBegin(bb);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(bb);CHKERRQ(ierr);
 
@@ -223,6 +218,11 @@ int main(int argc,char **args)
    test:
       nsize: 4
       args: -ne 49 -alpha 1.e-3 -ksp_type cg -pc_type gamg -pc_gamg_type agg -pc_gamg_agg_nsmooths 1 -ksp_converged_reason -mg_levels_esteig_ksp_type cg
+
+   test:
+      suffix: seqaijmkl
+      nsize: 4
+      args: -ne 19 -alpha 1.e-3 -pc_type gamg -pc_gamg_agg_nsmooths 1 -ksp_monitor -ksp_converged_reason -ksp_type cg -mat_seqaij_type seqaijmkl
 
    test:
       suffix: Classical
