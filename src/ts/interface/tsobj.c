@@ -801,6 +801,7 @@ PetscErrorCode TSResetObjective(TS ts)
     ierr = MatDestroy(&olink->f_MM);CHKERRQ(ierr);
     ierr = PetscFree(olink);CHKERRQ(ierr);
   }
+  ts->funchead = NULL;
   PetscFunctionReturn(0);
 }
 
