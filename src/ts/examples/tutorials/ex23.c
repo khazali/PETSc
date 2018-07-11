@@ -412,7 +412,7 @@ static PetscErrorCode EvalHessianDAE_UM(TS ts, PetscReal time, Vec U, Vec Udot, 
 
    with u_j the j-th state variable and m_i the i-th design variable, with N the number of state variables and P the number of design variables.
 
-   The output should be computed as:  Y = (\sum_k L_k*F^k_MU)*X = (\sum_k L_k*(F^k_UM)^T)*X, with L_k the k-th entry of the adjoint variable L.
+   The output should be computed as:  Y = (\sum_k L_k*F^k_MU)*X = (\sum_k L_k*(F^k_MU)^T)*X, with L_k the k-th entry of the adjoint variable L.
 */
 static PetscErrorCode EvalHessianDAE_MU(TS ts, PetscReal time, Vec U, Vec Udot, Vec M, Vec L, Vec X, Vec Y, void *ctx)
 {

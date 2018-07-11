@@ -603,7 +603,7 @@ PetscErrorCode AdjointTSComputeForcing(TS adjts, PetscReal time, Vec U, PetscBoo
         ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
         has  = PETSC_TRUE;
       }
-      if (fwdts->HF[1][2]) { /* (L^T \otimes I_N) H_XdotM direction */
+      if (fwdts->HF[1][2]) { /* (Ldot^T \otimes I_N) H_XdotM direction */
         ierr = (*fwdts->HF[1][2])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,adj_ctx->direction,soawork1,fwdts->HFctx);CHKERRQ(ierr);
         ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
         has  = PETSC_TRUE;
