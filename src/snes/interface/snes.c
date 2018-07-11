@@ -2504,6 +2504,18 @@ PetscErrorCode  SNESComputeJacobian(SNES snes,Vec X,Mat A,Mat B)
       ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     }
     PetscFunctionReturn(0);
+  } else if (snes->lagjacobian < -2) {
+    if (snes->iter + snes->jac_iter) {
+      if ((snes->iter + snes->jac_iter) % (-snes->lagjacobian - 1)) {
+        ierr = PetscInfo2(snes,"Reusing Jacobian/preconditioner because lag is %D and SNES iteration is %D\n",-snes->lagjacobian,snes->iter);CHKERRQ(ierr);
+        ierr = PetscObjectTypeCompare((PetscObject)A,MATMFFD,&flag);CHKERRQ(ierr);
+        if (flag) {
+          ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+          ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+        }
+        PetscFunctionReturn(0);
+      } else snes->lagjacobian = -1;
+    }
   }
   if (snes->npc && snes->npcside== PC_LEFT) {
       ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
@@ -3203,7 +3215,8 @@ PetscErrorCode  SNESGetLagPreconditioner(SNES snes,PetscInt *lag)
    Input Parameters:
 +  snes - the SNES context
 -  lag - -1 indicates NEVER rebuild, 1 means rebuild every time the Jacobian is computed within a single nonlinear solve, 2 means every second time
-         the Jacobian is built etc. -2 means rebuild at next chance but then never again
+         the Jacobian is built etc. -2 means rebuild at next chance but then never again, -3 or below means rebuild the Jacobian for -(lag+1) iterates
+         and then freeze it.
 
    Options Database Keys:
 .    -snes_lag_jacobian <lag>
@@ -3225,7 +3238,6 @@ PetscErrorCode  SNESSetLagJacobian(SNES snes,PetscInt lag)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(snes,SNES_CLASSID,1);
-  if (lag < -2) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Lag must be -2, -1, 1 or greater");
   if (!lag) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Lag cannot be 0");
   PetscValidLogicalCollectiveInt(snes,lag,2);
   snes->lagjacobian = lag;
