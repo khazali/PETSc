@@ -1,6 +1,7 @@
 #include <petsc/private/tspdeconstrainedutilsimpl.h>    /*I "petscts.h"  I*/
 #include <petsc/private/tstlmtsimpl.h>
 #include <petsc/private/kspimpl.h>
+#include <petscdm.h>
 
 /* ------------------ Wrappers for quadrature evaluation ----------------------- */
 
@@ -93,6 +94,7 @@ static PetscErrorCode EvalQuadIntegrand_TLM(Vec U, PetscReal t, Vec F, void* ctx
   TS             tlmts = q->tlmts;
   Vec            FWDH[2],FOAH;
   PetscReal      adjt  = q->tf - t + q->t0;
+  PetscInt       tlmts_step;
   PetscBool      AXPY;
   PetscErrorCode ierr;
 
@@ -130,17 +132,23 @@ static PetscErrorCode EvalQuadIntegrand_TLM(Vec U, PetscReal t, Vec F, void* ctx
       AXPY = PETSC_TRUE;
     }
   }
-  if (fwdts->HF[2][1]) { /* (L^T \otimes I_M) H_MXdot \etadot, \eta the TLM solution */
+  ierr = TSGetStepNumber(tlmts,&tlmts_step);CHKERRQ(ierr);
+  if (fwdts->HF[2][1] && tlmts_step) { /* (L^T \otimes I_M) H_MXdot \etadot, \eta the TLM solution */
     Vec TLMHdot;
+    TS  model;
+    DM  dm;
 
-    ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,t,NULL,&TLMHdot);CHKERRQ(ierr);
+    ierr = TLMTSGetModelTS(tlmts,&model);CHKERRQ(ierr);
+    ierr = TSGetDM(model,&dm);CHKERRQ(ierr);
+    ierr = DMGetGlobalVector(dm,&TLMHdot);CHKERRQ(ierr);
+    ierr = TSTrajectoryGetVecs(tlmts->trajectory,NULL,tlmts_step,&t,NULL,TLMHdot);CHKERRQ(ierr);
     if (AXPY) {
       ierr = (*fwdts->HF[2][1])(fwdts,t,FWDH[0],FWDH[1],q->design,FOAH,TLMHdot,q->work1,fwdts->HFctx);CHKERRQ(ierr);
       ierr = VecAXPY(F,1.0,q->work1);CHKERRQ(ierr);
     } else {
       ierr = (*fwdts->HF[2][1])(fwdts,t,FWDH[0],FWDH[1],q->design,FOAH,TLMHdot,F,fwdts->HFctx);CHKERRQ(ierr);
     }
-    ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,NULL,&TLMHdot);CHKERRQ(ierr);
+    ierr = DMRestoreGlobalVector(dm,&TLMHdot);CHKERRQ(ierr);
   }
   ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&FWDH[0],&FWDH[1]);CHKERRQ(ierr);
   if (fwdts->HF[2][0] || fwdts->HF[2][1] || fwdts->HF[2][2]) {
