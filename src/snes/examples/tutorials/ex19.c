@@ -649,7 +649,84 @@ PetscErrorCode NonlinearGS(SNES snes, Vec X, Vec B, void *ctx)
 
 /*TEST
 
+   # Use -snes_monitor_lg_residualnorm -draw_save_final_image $PWD/conv.ppm to get an image of the convergence
+   # https://www.online-utility.org/image/convert/to/PNG for conversion
    test:
+     suffix: matt
+     args: -lidvelocity 100 -grashof 1.3372e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_monitor_short -snes_converged_reason -snes_view -pc_type lu
+
+   test:
+     suffix: matt_chord
+     args: -lidvelocity 100 -grashof 1.3372e2 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_lag_jacobian -3 -snes_linesearch_type cp -snes_max_it 100 -snes_monitor_short -snes_converged_reason -snes_view -pc_type lu
+
+   test:
+     suffix: matt_nrichardson
+     args: -lidvelocity 100 -grashof 1.3372e2 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_type nrichardson -snes_linesearch_type cp -snes_max_it 10000 -snes_monitor_short -snes_converged_reason -snes_view -pc_type lu
+
+   test:
+     suffix: matt_bad
+     args: -lidvelocity 100 -grashof 1.3373e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_max_it 100 -snes_monitor_short -snes_converged_reason -snes_view -pc_type lu
+
+   test:
+     suffix: matt_bad_fas
+     args: -lidvelocity 100 -grashof 1.3373e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_type fas -snes_max_it 100 -snes_monitor_short -snes_converged_reason -snes_view \
+         -fas_levels_snes_type ngs -fas_levels_snes_max_it 6
+
+   test:
+     suffix: matt_bad_fas_big
+     args: -lidvelocity 100 -grashof 5e4 -da_refine 4 \
+       -snes_type fas -snes_monitor_short -snes_converged_reason -snes_view \
+         -fas_levels_snes_type ngs -fas_levels_snes_max_it 6 \
+         -fas_coarse_snes_linesearch_type basic -fas_coarse_snes_converged_reason
+
+   test:
+     suffix: matt_bad_nrichardson
+     args: -lidvelocity 100 -grashof 1.3373e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_type nrichardson -snes_max_it 1000 -snes_view
+
+   test:
+     suffix: matt_bad_nrich_newton_stag
+     args: -lidvelocity 100 -grashof 1.3373e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_type nrichardson -snes_max_it 200 -snes_monitor_short -snes_converged_reason -snes_view \
+       -npc_snes_type newtonls -npc_snes_max_it 3 -npc_snes_converged_reason -npc_pc_type lu
+
+   test:
+     suffix: matt_bad_nrich_newton
+     args: -lidvelocity 100 -grashof 1.3373e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_type nrichardson -snes_monitor_short -snes_converged_reason -snes_view \
+       -npc_snes_type newtonls -npc_snes_max_it 4 -npc_snes_converged_reason -npc_pc_type lu
+
+   test:
+     suffix: matt_bad_newton_nrich_it1
+     args: -lidvelocity 100 -grashof 1.3373e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_type newtonls -pc_type lu -snes_max_it 1000 -snes_monitor_short -snes_converged_reason -snes_view \
+       -npc_snes_type nrichardson -npc_snes_max_it 1
+
+   test:
+     suffix: matt_bad_newton_nrich_it3
+     args: -lidvelocity 100 -grashof 1.3373e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_type newtonls -pc_type lu -snes_max_it 1000 -snes_monitor_short -snes_converged_reason -snes_view \
+       -npc_snes_type nrichardson -npc_snes_max_it 3
+
+   test:
+     suffix: matt_bad_newton_nrich_it5
+     args: -lidvelocity 100 -grashof 1.3373e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_type newtonls -pc_type lu -snes_max_it 1000 -snes_monitor_short -snes_converged_reason -snes_view \
+       -npc_snes_type nrichardson -npc_snes_max_it 5
+
+   test:
+     suffix: matt_bad_newton_nrich_it6
+     args: -lidvelocity 100 -grashof 1.3373e4 -da_grid_x 16 -da_grid_y 16 -da_refine 2 \
+       -snes_type newtonls -pc_type lu -snes_max_it 1000 -snes_monitor_short -snes_converged_reason -snes_view \
+       -npc_snes_type nrichardson -npc_snes_max_it 6
+
+   test:
+      suffix: 1
       nsize: 2
       args: -da_refine 3 -snes_monitor_short -pc_type mg -ksp_type fgmres -pc_mg_type full
       requires: !single

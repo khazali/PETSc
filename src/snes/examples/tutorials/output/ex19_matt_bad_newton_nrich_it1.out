@@ -1,0 +1,165 @@
+lid velocity = 100., prandtl # = 1., grashof # = 13373.
+  0 SNES Function norm 798.771 
+  1 SNES Function norm 798.663 
+  2 SNES Function norm 691.691 
+  3 SNES Function norm 559.478 
+  4 SNES Function norm 527.021 
+  5 SNES Function norm 475.737 
+  6 SNES Function norm 475.581 
+  7 SNES Function norm 365.807 
+  8 SNES Function norm 336.052 
+  9 SNES Function norm 333.019 
+ 10 SNES Function norm 331.53 
+ 11 SNES Function norm 325.623 
+ 12 SNES Function norm 325.422 
+ 13 SNES Function norm 325.273 
+ 14 SNES Function norm 325.257 
+ 15 SNES Function norm 325.257 
+ 16 SNES Function norm 6876.96 
+ 17 SNES Function norm 4432.18 
+ 18 SNES Function norm 3168.68 
+ 19 SNES Function norm 2568.94 
+ 20 SNES Function norm 2171.21 
+ 21 SNES Function norm 1827.3 
+ 22 SNES Function norm 1622.95 
+ 23 SNES Function norm 1535.28 
+ 24 SNES Function norm 1464.32 
+ 25 SNES Function norm 1406.78 
+ 26 SNES Function norm 1357.83 
+ 27 SNES Function norm 1315.68 
+ 28 SNES Function norm 1279.09 
+ 29 SNES Function norm 1246.54 
+ 30 SNES Function norm 1217.2 
+ 31 SNES Function norm 1190.53 
+ 32 SNES Function norm 1165.96 
+ 33 SNES Function norm 1143.31 
+ 34 SNES Function norm 1122.19 
+ 35 SNES Function norm 1102.38 
+ 36 SNES Function norm 1083.68 
+ 37 SNES Function norm 1065.88 
+ 38 SNES Function norm 1048.96 
+ 39 SNES Function norm 1032.79 
+ 40 SNES Function norm 1017.27 
+ 41 SNES Function norm 1002.35 
+ 42 SNES Function norm 987.949 
+ 43 SNES Function norm 974.03 
+ 44 SNES Function norm 960.561 
+ 45 SNES Function norm 947.506 
+ 46 SNES Function norm 934.828 
+ 47 SNES Function norm 922.512 
+ 48 SNES Function norm 910.524 
+ 49 SNES Function norm 898.837 
+ 50 SNES Function norm 887.459 
+ 51 SNES Function norm 876.282 
+ 52 SNES Function norm 865.387 
+ 53 SNES Function norm 854.792 
+ 54 SNES Function norm 844.471 
+ 55 SNES Function norm 834.376 
+ 56 SNES Function norm 824.506 
+ 57 SNES Function norm 814.859 
+ 58 SNES Function norm 805.414 
+ 59 SNES Function norm 796.165 
+ 60 SNES Function norm 787.073 
+ 61 SNES Function norm 778.118 
+ 62 SNES Function norm 769.442 
+ 63 SNES Function norm 760.917 
+ 64 SNES Function norm 752.585 
+ 65 SNES Function norm 744.456 
+ 66 SNES Function norm 736.456 
+ 67 SNES Function norm 728.619 
+ 68 SNES Function norm 720.945 
+ 69 SNES Function norm 713.39 
+ 70 SNES Function norm 706.02 
+ 71 SNES Function norm 698.79 
+ 72 SNES Function norm 691.702 
+ 73 SNES Function norm 684.757 
+ 74 SNES Function norm 677.927 
+ 75 SNES Function norm 671.229 
+ 76 SNES Function norm 664.674 
+ 77 SNES Function norm 658.214 
+ 78 SNES Function norm 651.821 
+ 79 SNES Function norm 645.535 
+ 80 SNES Function norm 639.45 
+ 81 SNES Function norm 633.448 
+ 82 SNES Function norm 627.547 
+ 83 SNES Function norm 621.739 
+ 84 SNES Function norm 616.034 
+ 85 SNES Function norm 610.388 
+ 86 SNES Function norm 604.805 
+ 87 SNES Function norm 599.38 
+ 88 SNES Function norm 594.083 
+ 89 SNES Function norm 588.823 
+ 90 SNES Function norm 583.601 
+ 91 SNES Function norm 578.48 
+ 92 SNES Function norm 573.441 
+ 93 SNES Function norm 568.545 
+ 94 SNES Function norm 563.713 
+ 95 SNES Function norm 558.944 
+ 96 SNES Function norm 554.193 
+ 97 SNES Function norm 549.249 
+ 98 SNES Function norm 544.341 
+ 99 SNES Function norm 539.537 
+100 SNES Function norm 528.692 
+101 SNES Function norm 476.4 
+102 SNES Function norm 435.471 
+103 SNES Function norm 83.0397 
+104 SNES Function norm 8.94709 
+105 SNES Function norm 0.243267 
+106 SNES Function norm 0.000316982 
+107 SNES Function norm 1.399e-10 
+Nonlinear solve converged due to CONVERGED_FNORM_RELATIVE iterations 107
+SNES Object: 1 MPI processes
+  type: newtonls
+  maximum iterations=1000, maximum function evaluations=10000
+  tolerances: relative=1e-08, absolute=1e-50, solution=1e-08
+  total number of linear solver iterations=107
+  total number of function evaluations=666
+  norm schedule ALWAYS
+  SNESLineSearch Object: 1 MPI processes
+    type: bt
+      interpolation: cubic
+      alpha=1.000000e-04
+    maxstep=1.000000e+08, minlambda=1.000000e-12
+    tolerances: relative=1.000000e-08, absolute=1.000000e-15, lambda=1.000000e-08
+    maximum iterations=40
+  SNES Object: (npc_) 1 MPI processes
+    type: nrichardson
+    maximum iterations=1, maximum function evaluations=10000
+    tolerances: relative=0., absolute=0., solution=0.
+    total number of function evaluations=321
+    norm schedule FINALONLY
+    SNESLineSearch Object: (npc_) 1 MPI processes
+      type: l2
+      maxstep=1.000000e+08, minlambda=1.000000e-12
+      tolerances: relative=1.000000e-08, absolute=1.000000e-15, lambda=1.000000e-08
+      maximum iterations=1
+  KSP Object: 1 MPI processes
+    type: gmres
+      restart=30, using Classical (unmodified) Gram-Schmidt Orthogonalization with no iterative refinement
+      happy breakdown tolerance 1e-30
+    maximum iterations=10000, initial guess is zero
+    tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
+    left preconditioning
+    using PRECONDITIONED norm type for convergence test
+  PC Object: 1 MPI processes
+    type: lu
+      out-of-place factorization
+      tolerance for zero pivot 2.22045e-14
+      matrix ordering: nd
+      factor fill ratio given 5., needed 6.45199
+        Factored matrix follows:
+          Mat Object: 1 MPI processes
+            type: seqaij
+            rows=14884, cols=14884, bs=4
+            package used to perform factorization: petsc
+            total: nonzeros=1895440, allocated nonzeros=1895440
+            total number of mallocs used during MatSetValues calls =0
+              using I-node routines: found 3721 nodes, limit used is 5
+    linear system matrix = precond matrix:
+    Mat Object: 1 MPI processes
+      type: seqaij
+      rows=14884, cols=14884, bs=4
+      total: nonzeros=293776, allocated nonzeros=293776
+      total number of mallocs used during MatSetValues calls =0
+        using I-node routines: found 3721 nodes, limit used is 5
+Number of SNES iterations = 107

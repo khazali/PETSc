@@ -1,0 +1,458 @@
+lid velocity = 100., prandtl # = 1., grashof # = 13373.
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+  0 SNES Function norm 798.771 
+  1 SNES Function norm 1074.8 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+  2 SNES Function norm 831.576 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+  3 SNES Function norm 697.101 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+  4 SNES Function norm 567.818 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+  5 SNES Function norm 431.052 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+  6 SNES Function norm 276.1 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+  7 SNES Function norm 275.963 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+  8 SNES Function norm 275.91 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+  9 SNES Function norm 275.853 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 10 SNES Function norm 275.811 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 11 SNES Function norm 275.757 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 12 SNES Function norm 275.712 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 13 SNES Function norm 275.677 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 14 SNES Function norm 275.633 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 15 SNES Function norm 275.348 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 16 SNES Function norm 275.168 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 17 SNES Function norm 275.154 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 18 SNES Function norm 275.145 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 19 SNES Function norm 275.136 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 20 SNES Function norm 275.128 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 21 SNES Function norm 275.081 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 22 SNES Function norm 274.829 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 23 SNES Function norm 272.505 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 24 SNES Function norm 242.585 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 25 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 26 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 27 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 28 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 29 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 30 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 31 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 32 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 33 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 34 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 35 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 36 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 37 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 38 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 39 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 40 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 41 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 42 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 43 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 44 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 45 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 46 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 47 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 48 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 49 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 50 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 51 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 52 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 53 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 54 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 55 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 56 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 57 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 58 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 59 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 60 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 61 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 62 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 63 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 64 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 65 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 66 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 67 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 68 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 69 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 70 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 71 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 72 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 73 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 74 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 75 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 76 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 77 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 78 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 79 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 80 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 81 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 82 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 83 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 84 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 85 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 86 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 87 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 88 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 89 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 90 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 91 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 92 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 93 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 94 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 95 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 96 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 97 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 98 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+ 99 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+100 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+101 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+102 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+103 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+104 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+105 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+106 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+107 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+108 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+109 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+110 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+111 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+112 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+113 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+114 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+115 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+116 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+117 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+118 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+119 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+120 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+121 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+122 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+123 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+124 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+125 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+126 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+127 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+128 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+129 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+130 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+131 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+132 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+133 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+134 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+135 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+136 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+137 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+138 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+139 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+140 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+141 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+142 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+143 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+144 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+145 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+146 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+147 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+148 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+149 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+150 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+151 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+152 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+153 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+154 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+155 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+156 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+157 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+158 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+159 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+160 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+161 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+162 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+163 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+164 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+165 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+166 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+167 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+168 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+169 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+170 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+171 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+172 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+173 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+174 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+175 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+176 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+177 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+178 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+179 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+180 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+181 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+182 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+183 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+184 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+185 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+186 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+187 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+188 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+189 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+190 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+191 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+192 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+193 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+194 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+195 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+196 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+197 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+198 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+199 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+200 SNES Function norm 227.6 
+  Nonlinear npc_ solve did not converge due to DIVERGED_MAX_IT iterations 3
+Nonlinear solve did not converge due to DIVERGED_MAX_IT iterations 200
+SNES Object: 1 MPI processes
+  type: nrichardson
+  maximum iterations=200, maximum function evaluations=30000
+  tolerances: relative=1e-08, absolute=1e-50, solution=1e-20
+  total number of function evaluations=601
+  norm schedule ALWAYS
+  SNESLineSearch Object: 1 MPI processes
+    type: l2
+    maxstep=1.000000e+08, minlambda=1.000000e-12
+    tolerances: relative=1.000000e-08, absolute=1.000000e-15, lambda=1.000000e-08
+    maximum iterations=1
+  SNES Object: (npc_) 1 MPI processes
+    type: newtonls
+    maximum iterations=3, maximum function evaluations=10000
+    tolerances: relative=0., absolute=0., solution=0.
+    total number of linear solver iterations=603
+    total number of function evaluations=9002
+    SNESLineSearch Object: (npc_) 1 MPI processes
+      type: bt
+        interpolation: cubic
+        alpha=1.000000e-04
+      maxstep=1.000000e+08, minlambda=1.000000e-12
+      tolerances: relative=1.000000e-08, absolute=1.000000e-15, lambda=1.000000e-08
+      maximum iterations=40
+    KSP Object: (npc_) 1 MPI processes
+      type: gmres
+        restart=30, using Classical (unmodified) Gram-Schmidt Orthogonalization with no iterative refinement
+        happy breakdown tolerance 1e-30
+      maximum iterations=10000, initial guess is zero
+      tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
+      left preconditioning
+      using PRECONDITIONED norm type for convergence test
+    PC Object: (npc_) 1 MPI processes
+      type: lu
+        out-of-place factorization
+        tolerance for zero pivot 2.22045e-14
+        matrix ordering: nd
+        factor fill ratio given 5., needed 6.45199
+          Factored matrix follows:
+            Mat Object: 1 MPI processes
+              type: seqaij
+              rows=14884, cols=14884, bs=4
+              package used to perform factorization: petsc
+              total: nonzeros=1895440, allocated nonzeros=1895440
+              total number of mallocs used during MatSetValues calls =0
+                using I-node routines: found 3721 nodes, limit used is 5
+      linear system matrix = precond matrix:
+      Mat Object: 1 MPI processes
+        type: seqaij
+        rows=14884, cols=14884, bs=4
+        total: nonzeros=293776, allocated nonzeros=293776
+        total number of mallocs used during MatSetValues calls =0
+          using I-node routines: found 3721 nodes, limit used is 5
+Number of SNES iterations = 200
