@@ -186,6 +186,8 @@ $(OBJDIR)/ksp/f90-mod/petsckspmod.o   : $(OBJDIR)/dm/f90-mod/petscdmplexmod.o
 $(OBJDIR)/snes/f90-mod/petscsnesmod.o : $(OBJDIR)/ksp/f90-mod/petsckspmod.o
 $(OBJDIR)/ts/f90-mod/petsctsmod.o     : $(OBJDIR)/snes/f90-mod/petscsnesmod.o
 $(OBJDIR)/tao/f90-mod/petsctaomod.o   : $(OBJDIR)/ts/f90-mod/petsctsmod.o
+# build somempifort after mpiuni.mod
+$(OBJDIR)/sys/mpiuni/fsrc/somempifort.o : $(if $(MPIUNI_MOD),$(OBJDIR)/sys/mpiuni/f90-mod/mpiunimod.o)
 # F2003 interface
 $(OBJDIR)/sys/objects/f2003-foptionenum.o   : $(OBJDIR)/sys/f90-mod/petscsysmod.o
 $(OBJDIR)/sys/classes/bag/f2003-src/fsrc/bagenum.o  : $(OBJDIR)/sys/f90-mod/petscsysmod.o
