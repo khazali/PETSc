@@ -60,7 +60,7 @@ PetscErrorCode TSTrajectoryReconstruct_Private(TSTrajectory tj,TS ts,PetscReal t
     PetscInt o = tj->lag.order+1;
     ierr = PetscMalloc5(o,&tj->lag.L,o,&tj->lag.T,o,&tj->lag.WW,2*o,&tj->lag.TT,o,&tj->lag.TW);CHKERRQ(ierr);
     for (i = 0; i < o; i++) tj->lag.T[i] = PETSC_MAX_REAL;
-    ierr = VecDuplicateVecs(U,o,&tj->lag.W);CHKERRQ(ierr);
+    ierr = VecDuplicateVecs(U ? U : Udot,o,&tj->lag.W);CHKERRQ(ierr);
   }
   cnt = 0;
   ierr = PetscMemzero(tj->lag.TT,2*(tj->lag.order+1)*sizeof(PetscBool));CHKERRQ(ierr);
