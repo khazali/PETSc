@@ -143,7 +143,8 @@ static PetscErrorCode PCSetUp_HYPRE(PC pc)
   ierr = PetscObjectTypeCompare((PetscObject)pc->pmat,MATHYPRE,&ishypre);CHKERRQ(ierr);
   if (!ishypre) {
     ierr = MatDestroy(&jac->hpmat);CHKERRQ(ierr);
-    ierr = MatConvert(pc->pmat,MATHYPRE,MAT_INITIAL_MATRIX,&jac->hpmat);CHKERRQ(ierr);
+    jac->hpmat = pc->pmat;
+    ierr = MatConvert(pc->pmat,MATHYPRE,MAT_INPLACE_MATRIX,&jac->hpmat);CHKERRQ(ierr);
   } else {
     ierr = PetscObjectReference((PetscObject)pc->pmat);CHKERRQ(ierr);
     ierr = MatDestroy(&jac->hpmat);CHKERRQ(ierr);

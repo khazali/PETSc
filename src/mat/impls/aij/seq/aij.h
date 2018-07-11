@@ -25,6 +25,7 @@
   PetscBool         ignorezeroentries; \
   PetscBool         free_ij;          /* free the column indices j and row offsets i when the matrix is destroyed */ \
   PetscBool         free_a;           /* free the numerical values when matrix is destroy */ \
+  PetscBool         free_ija;         /* free indices and values if they are obtained with one big malloc */ \
   Mat_CompressedRow compressedrow;    /* use compressed row format */                      \
   PetscInt          nz;               /* nonzeros */                                       \
   PetscInt          *i;               /* pointer to beginning of each row */               \
@@ -136,7 +137,7 @@ PETSC_STATIC_INLINE PetscErrorCode MatSeqXAIJFreeAIJ(Mat AA,MatScalar **a,PetscI
   PetscErrorCode ierr;
   Mat_SeqAIJ     *A = (Mat_SeqAIJ*) AA->data;
   if (A->singlemalloc) {
-    ierr = PetscFree3(*a,*j,*i);CHKERRQ(ierr);
+    if (A->free_ija) {ierr = PetscFree3(*a,*j,*i);CHKERRQ(ierr);}
   } else {
     if (A->free_a)  {ierr = PetscFree(*a);CHKERRQ(ierr);}
     if (A->free_ij) {ierr = PetscFree(*j);CHKERRQ(ierr);}
