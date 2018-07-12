@@ -1401,6 +1401,38 @@ static PetscErrorCode MatZeroRowsColumns_HYPRE(Mat A, PetscInt numRows, const Pe
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode MatZeroEntries_HYPRE_CSRMatrix(hypre_CSRMatrix *ha)
+{
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  if (ha) {
+	HYPRE_Int     *ii, size;
+	HYPRE_Complex *a;
+
+	size = hypre_CSRMatrixNumRows(ha);
+	a    = hypre_CSRMatrixData(ha);
+	ii   = hypre_CSRMatrixI(ha);
+
+	if (a) { ierr = PetscMemzero(a,(ii[size])*sizeof(HYPRE_Complex));CHKERRQ(ierr); }
+  }
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode MatZeroEntries_HYPRE(Mat A)
+{
+  hypre_ParCSRMatrix  *parcsr;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  ierr = MatHYPREGetParCSR_HYPRE(A,&parcsr);CHKERRQ(ierr);
+  /* diagonal part */
+  ierr = MatZeroEntries_HYPRE_CSRMatrix(hypre_ParCSRMatrixDiag(parcsr));CHKERRQ(ierr);
+  /* off-diagonal part */
+  ierr = MatZeroEntries_HYPRE_CSRMatrix(hypre_ParCSRMatrixOffd(parcsr));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /*MC
    MATHYPRE - MATHYPRE = "hypre" - A matrix type to be used for sequential and parallel sparse matrices
           based on the hypre IJ interface.
@@ -1435,6 +1467,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_HYPRE(Mat B)
   B->ops->missingdiagonal = MatMissingDiagonal_HYPRE;
   B->ops->scale           = MatScale_HYPRE;
   B->ops->zerorowscolumns = MatZeroRowsColumns_HYPRE;
+  B->ops->zeroentries     = MatZeroEntries_HYPRE;
 
   ierr = MPI_Comm_dup(PetscObjectComm((PetscObject)B),&hB->comm);CHKERRQ(ierr);
   ierr = PetscObjectChangeTypeName((PetscObject)B,MATHYPRE);CHKERRQ(ierr);
