@@ -1433,6 +1433,54 @@ PetscErrorCode MatZeroEntries_HYPRE(Mat A)
   PetscFunctionReturn(0);
 }
 
+
+static PetscErrorCode MatZeroRows_HYPRE_CSRMatrix(hypre_CSRMatrix *hA,PetscInt N,const PetscInt rows[],PetscScalar diag)
+{
+  PetscInt        ii, jj, ibeg, iend, irow;
+  PetscInt        *i, *j;
+  PetscScalar     *a;
+
+  PetscFunctionBegin;
+
+  if (!hA) PetscFunctionReturn(0);
+
+  i = hypre_CSRMatrixI(hA);
+  j = hypre_CSRMatrixJ(hA);
+  a = hypre_CSRMatrixData(hA);
+
+  for (ii = 0; ii < N; ii++) {
+    irow = rows[ii];
+    ibeg = i[irow];
+    iend = i[irow+1];
+    for (jj = ibeg; jj < iend; jj++)
+      if (j[jj] == irow) a[jj] = diag;
+      else a[jj] = 0.0;
+   }
+
+   PetscFunctionReturn(0);
+}
+
+PetscErrorCode MatZeroRows_HYPRE(Mat A,PetscInt N,const PetscInt rows[],PetscScalar diag,Vec x,Vec b)
+{
+  hypre_ParCSRMatrix  *parcsr;
+  PetscInt            *lrows,len;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  if (x || b) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "Does not support to modify the solution and the right hand size \n");
+  /* retrieve the internal matrix */
+  ierr = MatHYPREGetParCSR_HYPRE(A,&parcsr);CHKERRQ(ierr);
+  /* get locally owned rows */
+  ierr = MatZeroRowsMapLocal_Private(A,N,rows,&len,&lrows);CHKERRQ(ierr);
+  /* zero diagonal part */
+  ierr = MatZeroRows_HYPRE_CSRMatrix(hypre_ParCSRMatrixDiag(parcsr),len,lrows,diag);CHKERRQ(ierr);
+  /* zero off-diagonal part */
+  ierr = MatZeroRows_HYPRE_CSRMatrix(hypre_ParCSRMatrixOffd(parcsr),len,lrows,0.0);CHKERRQ(ierr);
+
+  ierr = PetscFree(lrows);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /*MC
    MATHYPRE - MATHYPRE = "hypre" - A matrix type to be used for sequential and parallel sparse matrices
           based on the hypre IJ interface.
@@ -1468,6 +1516,7 @@ PETSC_EXTERN PetscErrorCode MatCreate_HYPRE(Mat B)
   B->ops->scale           = MatScale_HYPRE;
   B->ops->zerorowscolumns = MatZeroRowsColumns_HYPRE;
   B->ops->zeroentries     = MatZeroEntries_HYPRE;
+  B->ops->zerorows        = MatZeroRows_HYPRE;
 
   ierr = MPI_Comm_dup(PetscObjectComm((PetscObject)B),&hB->comm);CHKERRQ(ierr);
   ierr = PetscObjectChangeTypeName((PetscObject)B,MATHYPRE);CHKERRQ(ierr);
