@@ -271,6 +271,7 @@ static PetscErrorCode TSComputeHessian_MFFD(TS ts, PetscReal t0, PetscReal dt, P
   ierr = PetscObjectReference((PetscObject)ts);CHKERRQ(ierr);
   mffd->ts = ts;
   mffd->t0 = t0;
+  if (dt < 0) { ierr = TSGetTimeStep(ts,&dt);CHKERRQ(ierr); }
   mffd->dt = dt;
   mffd->tf = tf;
   if (X) {
