@@ -417,6 +417,18 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec IC,PetscReal *f,Vec G,void *c
   PetscFunctionReturn(0);
 }
 
+/* this function gets called every time we change the design state */
+static PetscErrorCode TSSetUpFromDesign_Private(TS ts, Vec X0, Vec IC, void *ctx)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecCopy(IC,X0);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.001);CHKERRQ(ierr);
+  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* wrapper for TSComputeHessian */
 PetscErrorCode FormHessian_AO(Tao tao,Vec IC,Mat H,Mat Hp,void *ctx)
 {
@@ -451,6 +463,10 @@ PetscErrorCode FormHessian_AO(Tao tao,Vec IC,Mat H,Mat Hp,void *ctx)
   ierr = MatShift(Id,-1.0);CHKERRQ(ierr);
   ierr = TSSetGradientIC(ts,NULL,Id,NULL,NULL);CHKERRQ(ierr);
   ierr = MatDestroy(&Id);CHKERRQ(ierr);
+
+  /* Add TSSetUp from design (needed if we want to use -tshessian_mffd) */
+  ierr = TSSetSetUpFromDesign(ts,TSSetUpFromDesign_Private,NULL);CHKERRQ(ierr);
+
   ierr = TSComputeHessian(ts,0.0,PETSC_DECIDE,0.5,user->x,IC,H);CHKERRQ(ierr);
 #if 0
   {
@@ -480,6 +496,9 @@ PetscErrorCode FormHessian_AO(Tao tao,Vec IC,Mat H,Mat Hp,void *ctx)
     test:
       suffix: ao_hessian_mf
       args: -ts_trajectory_type memory -adjointode -monitor 0 -tao_view -tao_monitor -tao_gttol 1.e-5 -tao_type tron -tao_mf_hessian
+    test:
+      suffix: ao_hessian_tsmf
+      args: -ts_trajectory_type memory -adjointode -monitor 0 -tao_view -tao_monitor -tao_gttol 1.e-5 -tao_type tron -tshessian_mffd
     test:
       suffix: 2
       args: -ts_rhs_jacobian_test_mult_transpose -mat_shell_test_mult_transpose_view -tao_max_it 2 -ts_rhs_jacobian_test_mult -mat_shell_test_mult_view

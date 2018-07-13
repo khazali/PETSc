@@ -567,6 +567,27 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
   PetscFunctionReturn(0);
 }
 
+/* this function gets called every time we change the design state */
+static PetscErrorCode TSSetUpFromDesign_Private(TS ts, Vec X0, Vec P, void *ctx)
+{
+  User user_ptr = (User)ctx;
+  PetscScalar       *x_ptr;
+  const PetscScalar *y_ptr;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBeginUser;
+  ierr = TSSetTimeStep(ts,0.03125);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(P,&y_ptr);CHKERRQ(ierr);
+  user_ptr->mu = y_ptr[0];
+  ierr = VecRestoreArrayRead(P,&y_ptr);CHKERRQ(ierr);
+  ierr = VecGetArray(X0,&x_ptr);CHKERRQ(ierr);
+  x_ptr[0] = 2.0;
+  x_ptr[1] = -0.66666654321;
+  ierr = VecRestoreArray(X0,&x_ptr);CHKERRQ(ierr);
+  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* wrapper for TSComputeHessian */
 PetscErrorCode FormHessian_AO(Tao tao,Vec P,Mat H,Mat Hp,void *ctx)
 {
@@ -601,6 +622,10 @@ PetscErrorCode FormHessian_AO(Tao tao,Vec P,Mat H,Mat Hp,void *ctx)
                             NULL,NULL,NULL,                           /* Udot dependency is NULL */
                             EvalHessianDAE_PU,NULL,NULL,              /* NULL term since there's no dependency on Udot */
                             NULL);CHKERRQ(ierr);
+
+  /* Add TSSetUp from design (needed if we want to use -tshessian_mffd) */
+  ierr = TSSetSetUpFromDesign(ts,TSSetUpFromDesign_Private,user_ptr);CHKERRQ(ierr);
+
   ierr = VecGetArray(user_ptr->x,&x_ptr);CHKERRQ(ierr);
   x_ptr[0] = 2.0;
   x_ptr[1] = -0.66666654321;
@@ -635,5 +660,9 @@ PetscErrorCode FormHessian_AO(Tao tao,Vec P,Mat H,Mat Hp,void *ctx)
     test:
       suffix: ao_hessian_mf
       args: -adjointode -tao_monitor -monitor 0 -tao_view -tao_type tron -tao_mf_hessian -ts_trajectory_type memory
+
+    test:
+      suffix: ao_hessian_tsmf
+      args: -adjointode -tao_monitor -monitor 0 -tao_view -tao_type tron -tshessian_mffd -ts_trajectory_type memory
 
 TEST*/

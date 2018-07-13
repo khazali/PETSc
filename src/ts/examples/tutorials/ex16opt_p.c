@@ -593,6 +593,25 @@ PetscErrorCode FormFunctionGradient_AO(Tao tao,Vec P,PetscReal *f,Vec G,void *ct
   PetscFunctionReturn(0);
 }
 
+/* this function gets called every time we change the design state */
+static PetscErrorCode TSSetUpFromDesign_Private(TS ts, Vec X0, Vec P, void *ctx)
+{
+  User           user = (User)ctx;
+  PetscScalar    *x_ptr;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(P,(const PetscScalar**)&x_ptr);CHKERRQ(ierr);
+  user->mu = x_ptr[0];
+  ierr = VecRestoreArrayRead(P,(const PetscScalar**)&x_ptr);CHKERRQ(ierr);
+  ierr = VecGetArray(X0,&x_ptr);CHKERRQ(ierr);
+  x_ptr[0] = 2.0;
+  x_ptr[1] = 0.66666654321;
+  ierr = VecRestoreArray(X0,&x_ptr);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* wrapper for TSComputeHessian */
 PetscErrorCode FormHessian_AO(Tao tao,Vec P,Mat H,Mat Hp,void *ctx)
 {
@@ -630,6 +649,9 @@ PetscErrorCode FormHessian_AO(Tao tao,Vec P,Mat H,Mat Hp,void *ctx)
                             NULL,NULL,NULL,                           /* Udot dependency is NULL */
                             EvalHessianDAE_PU,NULL,NULL,              /* NULL term since there's no dependency on Udot */
                             NULL);CHKERRQ(ierr);
+  /* Add TSSetUp from design (needed if we want to use -tshessian_mffd) */
+  ierr = TSSetSetUpFromDesign(ts,TSSetUpFromDesign_Private,user);CHKERRQ(ierr);
+
   ierr = TSComputeHessian(ts,0.0,PETSC_DECIDE,0.5,user->x,P,H);CHKERRQ(ierr);
 #if 0
   {
@@ -659,6 +681,10 @@ PetscErrorCode FormHessian_AO(Tao tao,Vec P,Mat H,Mat Hp,void *ctx)
     test:
       suffix: ao_hessian_mf
       args: -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -tsgradient_adjoint_ts_atol 1.e-10 -tao_type tron -tao_mf_hessian
+
+    test:
+      suffix: ao_hessian_tsmf
+      args: -ts_trajectory_type memory -adjointode -tao_view -tao_monitor -tao_gttol 1.e-5 -tsgradient_adjoint_ts_atol 1.e-10 -tao_type tron -tshessian_mffd
 
     test:
       suffix: ao_hessian
