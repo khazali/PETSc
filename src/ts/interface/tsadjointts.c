@@ -778,7 +778,8 @@ PetscErrorCode AdjointTSComputeInitialConditions(TS adjts, Vec svec, PetscBool a
       ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,&svec,NULL);CHKERRQ(ierr);
       rsve = PETSC_FALSE;
     }
-    if (fwdts->HF[1][0] || fwdts->HF[1][1] || fwdts->HF[1][2]) {
+    /* these terms need to be evaluated only if we have point-form functionals */
+    if (has_g && (fwdts->HF[1][0] || fwdts->HF[1][1] || fwdts->HF[1][2])) {
       Vec FOAH,FWDH[2];
 
       ierr = TSTrajectoryGetUpdatedHistoryVecs(foats->trajectory,foats,time,&FOAH,NULL);CHKERRQ(ierr);
@@ -1138,9 +1139,11 @@ initialize:
 
     ierr = TSGetTime(adjts,&t0);CHKERRQ(ierr);
     ierr = TSGetSolution(adjts,&lambda);CHKERRQ(ierr);
+    ierr = VecLockPush(lambda);CHKERRQ(ierr);
     PetscStackPush("ADJTS vector quadrature function");
     ierr = (*qeval_ctx->veval)(lambda,t0,qeval_ctx->wquad[qeval_ctx->old],qeval_ctx->veval_ctx);CHKERRQ(ierr);
     PetscStackPop;
+    ierr = VecLockPop(lambda);CHKERRQ(ierr);
     ierr = TSSetPostStep(adjts,TSQuadraturePostStep_Private);CHKERRQ(ierr); /* XXX */
   }
   PetscFunctionReturn(0);
