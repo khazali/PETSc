@@ -277,16 +277,24 @@ PetscErrorCode TSTrajectoryGetVecs(TSTrajectory tj,TS ts,PetscInt stepnum,PetscR
       ierr = PetscViewerFlush(tj->monitor);CHKERRQ(ierr);
     }
   } else if (U) { /* we were asked to load from stepnum, use TSTrajectoryGet */
-    Vec osol;
+    TS  fakets = ts;
+    Vec U2;
 
-    ierr = TSGetSolution(ts,&osol);CHKERRQ(ierr);
-    ierr = PetscObjectReference((PetscObject)osol);CHKERRQ(ierr);
-    ierr = TSSetSolution(ts,U);CHKERRQ(ierr);
-    ierr = TSTrajectoryGet(tj,ts,stepnum,time);CHKERRQ(ierr);
-    if (osol) {
-      ierr = TSSetSolution(ts,osol);CHKERRQ(ierr);
+    /* use a fake TS if ts is missing */
+    if (!ts) {
+      ierr = PetscObjectQuery((PetscObject)tj,"__fake_ts",(PetscObject*)&fakets);CHKERRQ(ierr);
+      if (!fakets) {
+        ierr = TSCreate(PetscObjectComm((PetscObject)tj),&fakets);CHKERRQ(ierr);
+        ierr = PetscObjectCompose((PetscObject)tj,"__fake_ts",(PetscObject)fakets);CHKERRQ(ierr);
+        ierr = PetscObjectDereference((PetscObject)fakets);CHKERRQ(ierr);
+        ierr = VecDuplicate(U,&U2);CHKERRQ(ierr);
+        ierr = TSSetSolution(fakets,U2);CHKERRQ(ierr);
+        ierr = PetscObjectDereference((PetscObject)U2);CHKERRQ(ierr);
+      }
     }
-    ierr = PetscObjectDereference((PetscObject)osol);CHKERRQ(ierr);
+    ierr = TSTrajectoryGet(tj,fakets,stepnum,time);CHKERRQ(ierr);
+    ierr = TSGetSolution(fakets,&U2);CHKERRQ(ierr);
+    ierr = VecCopy(U2,U);CHKERRQ(ierr);
     ierr = PetscObjectStateGet((PetscObject)U,&tj->lag.Ucached.state);CHKERRQ(ierr);
     ierr = PetscObjectGetId((PetscObject)U,&tj->lag.Ucached.id);CHKERRQ(ierr);
     tj->lag.Ucached.time = *time;
@@ -726,7 +734,7 @@ PetscErrorCode TSTrajectorySetDirname(TSTrajectory tj,const char dirname[])
    Notes:
     The name template should be of the form, for example filename-%06D.bin It should not begin with a leading /
 
-   The final location of the files is determined by dirname/filetemplate where dirname was provided by TSTrajectorySetDirname(). The %06D is replaced by the 
+   The final location of the files is determined by dirname/filetemplate where dirname was provided by TSTrajectorySetDirname(). The %06D is replaced by the
    timestep counter
 
    Level: developer
