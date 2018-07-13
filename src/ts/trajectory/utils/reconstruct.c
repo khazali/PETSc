@@ -1,7 +1,7 @@
 #include <petsc/private/tshistoryimpl.h>
 #include <petscts.h>
 
-/* these two functions are stolen from bdf.c */
+/* these two functions have been stolen from bdf.c */
 PETSC_STATIC_INLINE void LagrangeBasisVals(PetscInt n,PetscReal t,const PetscReal T[],PetscScalar L[])
 {
   PetscInt k,j;
@@ -13,7 +13,7 @@ PETSC_STATIC_INLINE void LagrangeBasisVals(PetscInt n,PetscReal t,const PetscRea
 
 PETSC_STATIC_INLINE void LagrangeBasisDers(PetscInt n,PetscReal t,const PetscReal T[],PetscScalar dL[])
 {
-  PetscInt  k,j,i;
+  PetscInt k,j,i;
   for (k=0; k<n; k++)
     for (dL[k]=0, j=0; j<n; j++)
       if (j != k) {
