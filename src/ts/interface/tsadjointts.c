@@ -584,6 +584,8 @@ PetscErrorCode AdjointTSComputeForcing(TS adjts, PetscReal time, Vec U, PetscBoo
       ierr = TSTrajectoryRestoreUpdatedHistoryVecs(fwdts->trajectory,NULL,&FWDHdot);CHKERRQ(ierr);
       ierr = TSTrajectoryRestoreUpdatedHistoryVecs(foats->trajectory,&FOAH,NULL);CHKERRQ(ierr);
     }
+    /* these terms are computed against Ldot ->
+       The formulas have a minus sign in front of them, but this cancels with time inversion of Ldot */
     if (fwdts->HF[1][0] || fwdts->HF[1][1] || fwdts->HF[1][2]) {
       Vec FOAHdot,FWDHdot;
 
@@ -591,7 +593,7 @@ PetscErrorCode AdjointTSComputeForcing(TS adjts, PetscReal time, Vec U, PetscBoo
       ierr = TSTrajectoryGetUpdatedHistoryVecs(foats->trajectory,foats,time,NULL,&FOAHdot);CHKERRQ(ierr);
       if (fwdts->HF[1][0]) { /* (Ldot^T \otimes I_N) H_XdotX \eta, \eta the TLM solution */
         ierr = (*fwdts->HF[1][0])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,TLMH,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
+        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
         has  = PETSC_TRUE;
       }
       if (fwdts->HF[1][1]) { /* (Ldot^T \otimes I_N) H_XdotXdot \etadot, \eta the TLM solution */
@@ -600,12 +602,12 @@ PetscErrorCode AdjointTSComputeForcing(TS adjts, PetscReal time, Vec U, PetscBoo
         ierr = TSTrajectoryGetUpdatedHistoryVecs(tlmts->trajectory,tlmts,fwdt,NULL,&TLMHdot);CHKERRQ(ierr);
         ierr = (*fwdts->HF[1][1])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,TLMHdot,soawork1,fwdts->HFctx);CHKERRQ(ierr);
         ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tlmts->trajectory,NULL,&TLMHdot);CHKERRQ(ierr);
-        ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
+        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
         has  = PETSC_TRUE;
       }
       if (fwdts->HF[1][2]) { /* (Ldot^T \otimes I_N) H_XdotM direction */
         ierr = (*fwdts->HF[1][2])(fwdts,fwdt,FWDH,FWDHdot,adj_ctx->design,FOAHdot,adj_ctx->direction,soawork1,fwdts->HFctx);CHKERRQ(ierr);
-        ierr = VecAXPY(F,-1.0,soawork1);CHKERRQ(ierr);
+        ierr = VecAXPY(F,1.0,soawork1);CHKERRQ(ierr);
         has  = PETSC_TRUE;
       }
       ierr = TSTrajectoryRestoreUpdatedHistoryVecs(foats->trajectory,NULL,&FOAHdot);CHKERRQ(ierr);
