@@ -1524,6 +1524,32 @@ PetscErrorCode MatAssemblyBegin_HYPRE(Mat mat,MatAssemblyType mode)
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode MatGetRow_HYPRE(Mat A,PetscInt row,PetscInt *nz,PetscInt **idx,PetscScalar **v)
+{
+  hypre_ParCSRMatrix  *parcsr;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  /* retrieve the internal matrix */
+  ierr = MatHYPREGetParCSR_HYPRE(A,&parcsr);CHKERRQ(ierr);
+  /* call HYPRE API */
+  PetscStackCallStandard(HYPRE_ParCSRMatrixGetRow,(parcsr,row,nz,idx,v));
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode MatRestoreRow_HYPRE(Mat A,PetscInt row,PetscInt *nz,PetscInt **idx,PetscScalar **v)
+{
+  hypre_ParCSRMatrix  *parcsr;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  /* retrieve the internal matrix */
+  ierr = MatHYPREGetParCSR_HYPRE(A,&parcsr);CHKERRQ(ierr);
+  /* call HYPRE API */
+  PetscStackCallStandard(HYPRE_ParCSRMatrixRestoreRow,(parcsr,row,nz,idx,v));
+  PetscFunctionReturn(0);
+}
+
 
 /*MC
    MATHYPRE - MATHYPRE = "hypre" - A matrix type to be used for sequential and parallel sparse matrices
@@ -1566,6 +1592,8 @@ PETSC_EXTERN PetscErrorCode MatCreate_HYPRE(Mat B)
   B->ops->zerorowscolumns = MatZeroRowsColumns_HYPRE;
   B->ops->zeroentries     = MatZeroEntries_HYPRE;
   B->ops->zerorows        = MatZeroRows_HYPRE;
+  B->ops->getrow          = MatGetRow_HYPRE;
+  B->ops->restorerow      = MatRestoreRow_HYPRE;
 
   ierr = MPI_Comm_dup(PetscObjectComm((PetscObject)B),&hB->comm);CHKERRQ(ierr);
   ierr = PetscObjectChangeTypeName((PetscObject)B,MATHYPRE);CHKERRQ(ierr);

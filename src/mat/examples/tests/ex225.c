@@ -94,6 +94,26 @@ int main(int argc,char **args)
   ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
+  {
+    const PetscInt *idxA,*idxB;
+    const PetscScalar *vA, *vB;
+    PetscInt rstart, rend, nzA, nzB, j;
+    err = 0.0;
+    ierr = MatGetOwnershipRange(A,&rstart,&rend);CHKERRQ(ierr);
+    for (i=rstart; i<rend; i++) {
+      ierr = MatGetRow(A,i,&nzA, &idxA,&vA);CHKERRQ(ierr);
+      ierr = MatGetRow(B,i,&nzB, &idxB,&vB);CHKERRQ(ierr);
+      if (nzA!=nzB) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Error MatGetRow %d", nzA-nzB);
+      for (j=0;j<nzA;j++) {
+        err +=idxA[j]-idxB[j];
+        err +=vA[j]-vA[j];
+      }
+      ierr = MatRestoreRow(A,i,&nzA, &idxA,&vA);CHKERRQ(ierr);
+      ierr = MatRestoreRow(B,i,&nzB, &idxB,&vB);CHKERRQ(ierr);
+    }
+    if (err > PETSC_SMALL) SETERRQ1(PetscObjectComm((PetscObject)B),PETSC_ERR_PLIB,"Error MatGetRow %g",err);
+  }
+
   /* Compare A and B */
   ierr = MatConvert(B,MATAIJ,MAT_INITIAL_MATRIX,&C);CHKERRQ(ierr);
   ierr = MatAXPY(C,-1.,A,SAME_NONZERO_PATTERN);CHKERRQ(ierr);
