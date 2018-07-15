@@ -7,7 +7,7 @@ int main(int argc,char **args)
 {
   Mat                A, B, C;
   PetscReal          err;
-  PetscInt           i, M = 20;
+  PetscInt           i,j,M = 20;
   PetscErrorCode     ierr;
   PetscMPIInt        NP;
   MPI_Comm           comm;
@@ -34,7 +34,9 @@ int main(int argc,char **args)
   /*Set Values */
   for (i=0; i<M; i++) {
     PetscInt    cols[] = {0,1,2,3,4,5};
-    PetscScalar vals[] = {0,1./NP,2./NP,3./NP,4./NP,5./NP};
+    PetscScalar vals[6] = {0};
+    for (j=0; j<6; j++)
+      vals[j] = ((PetscReal)j)/NP;
     PetscScalar value[] = {100};
 
     ierr = MatSetValues(B,1,&i,6,cols,vals,ADD_VALUES);CHKERRQ(ierr);
@@ -79,7 +81,10 @@ int main(int argc,char **args)
   /* Insert Values */
   for (i=0; i<M; i++) {
     PetscInt    cols[] = {0,1,2,3,4,5};
-    PetscScalar vals[] = {0,1./NP,2./NP,3./NP,4./NP,5./NP};
+    PetscScalar vals[6] = {0};
+    for (j=0; j<6; j++)
+      vals[j] = ((PetscReal)j)/NP;
+
     PetscScalar value[] = {100};
 
     ierr = MatSetValues(B,1,&i,6,cols,vals,INSERT_VALUES);CHKERRQ(ierr);
@@ -112,6 +117,26 @@ int main(int argc,char **args)
       ierr = MatRestoreRow(B,i,&nzB, &idxB,&vB);CHKERRQ(ierr);
     }
     if (err > PETSC_SMALL) SETERRQ1(PetscObjectComm((PetscObject)B),PETSC_ERR_PLIB,"Error MatGetRow %g",err);
+
+    PetscInt    cols[] = {0,1,2,3,4,-5};
+    PetscInt    *rows;
+    PetscScalar *valuesA, *valuesB;
+    ierr = MatGetOwnershipRange(A,&rstart,&rend);CHKERRQ(ierr);
+    ierr = PetscCalloc3((rend-rstart)*6,&valuesA,(rend-rstart)*6,&valuesB,rend-rstart,&rows);CHKERRQ(ierr);
+    for (i=rstart; i<rend; i++)
+      rows[i-rstart] =i;
+
+    ierr = MatGetValues(A,rend-rstart,rows,6,cols,valuesA);CHKERRQ(ierr);
+    ierr = MatGetValues(B,rend-rstart,rows,6,cols,valuesB);CHKERRQ(ierr);
+
+    err = 0;
+    for (i=0; i<(rend-rstart); i++)
+      for (j=0; j<6; j++)
+        err += valuesA[i*6+j] - valuesB[i*6+j];
+
+    ierr = PetscFree3(valuesA,valuesB,rows);CHKERRQ(ierr);
+
+    if (err > PETSC_SMALL) SETERRQ1(PetscObjectComm((PetscObject)B),PETSC_ERR_PLIB,"Error MatGetValueS %g",err);
   }
 
   /* Compare A and B */
