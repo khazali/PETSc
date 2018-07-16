@@ -1480,14 +1480,14 @@ static PetscErrorCode MatZeroEntries_HYPRE_CSRMatrix(hypre_CSRMatrix *ha)
 
   PetscFunctionBegin;
   if (ha) {
-	HYPRE_Int     *ii, size;
-	HYPRE_Complex *a;
+    HYPRE_Int     *ii, size;
+    HYPRE_Complex *a;
 
-	size = hypre_CSRMatrixNumRows(ha);
-	a    = hypre_CSRMatrixData(ha);
-	ii   = hypre_CSRMatrixI(ha);
+    size = hypre_CSRMatrixNumRows(ha);
+    a    = hypre_CSRMatrixData(ha);
+    ii   = hypre_CSRMatrixI(ha);
 
-	if (a) { ierr = PetscMemzero(a,(ii[size])*sizeof(HYPRE_Complex));CHKERRQ(ierr); }
+    if (a) { ierr = PetscMemzero(a,(ii[size])*sizeof(HYPRE_Complex));CHKERRQ(ierr); }
   }
   PetscFunctionReturn(0);
 }
