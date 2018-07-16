@@ -342,6 +342,12 @@ typedef struct {
   PetscInt                *work_indices;
   PetscMPIInt             *work_procs;
   MPI_Request             *work_requests;
+  PetscBool              use_neighborhood;
+#if defined(PETSC_HAVE_MPI_NEIGHBORHOOD_COLLECTIVE)
+  MPI_Request            neigh_request;
+  PetscMPIInt            *neigh_counts,*neigh_displs;
+  MPI_Comm               comm_dist_graph; /* a communicator with distributed graph topology */
+#endif
 } VecScatter_MPI_General;
 
 /* Routines to create, copy, destroy or execute a memcpy plan */

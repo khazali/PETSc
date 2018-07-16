@@ -15,10 +15,11 @@ PetscErrorCode VecScatterView_MPI_MPI1(VecScatter ctx,PetscViewer viewer)
   PetscInt               i;
   PetscMPIInt            rank;
   PetscViewerFormat      format;
-  PetscBool              iascii;
+  PetscBool              iascii,packtogether;
 
   PetscFunctionBegin;
-  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
+  packtogether = (ctx->packtogether || to->use_alltoallv || to->use_window || to->use_neighborhood) ? PETSC_TRUE : PETSC_FALSE;
+  ierr         = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
   if (iascii) {
     ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)ctx),&rank);CHKERRQ(ierr);
     ierr = PetscViewerGetFormat(viewer,&format);CHKERRQ(ierr);
@@ -85,12 +86,16 @@ PetscErrorCode VecScatterView_MPI_MPI1(VecScatter ctx,PetscViewer viewer)
         ierr = PetscViewerASCIIPrintf(viewer,"Uses MPI_alltoallw if INSERT_MODE\n");CHKERRQ(ierr);
       } else
 #endif
-      if (ctx->packtogether || to->use_alltoallv || to->use_window) {
+      if (packtogether) {
         if (to->use_alltoallv) {
           ierr = PetscViewerASCIIPrintf(viewer,"Uses MPI MPI_alltoallv\n");CHKERRQ(ierr);
 #if defined(PETSC_HAVE_MPI_WIN_CREATE_FEATURE)
         } else if (to->use_window) {
           ierr = PetscViewerASCIIPrintf(viewer,"Uses MPI window\n");CHKERRQ(ierr);
+#endif
+#if defined(PETSC_HAVE_MPI_NEIGHBORHOOD_COLLECTIVE)
+        } else if (to->use_neighborhood) {
+          ierr = PetscViewerASCIIPrintf(viewer,"Uses MPI-3.0 neighborhood collectives (MPI_Ineighbor_alltoallv)\n");CHKERRQ(ierr);
 #endif
         } else {
           ierr = PetscViewerASCIIPrintf(viewer,"Packs all messages and then sends them\n");CHKERRQ(ierr);
@@ -116,8 +121,11 @@ PetscErrorCode VecScatterDestroy_PtoP_MPI1(VecScatter ctx)
   VecScatter_MPI_General *from = (VecScatter_MPI_General*)ctx->fromdata;
   PetscErrorCode         ierr;
   PetscInt               i;
+  PetscBool              have_multiple_requests; /* has ctx generated multiple MPI requests? */
 
   PetscFunctionBegin;
+  have_multiple_requests = (!to->use_alltoallv && !to->use_window && !to->use_neighborhood) ? PETSC_TRUE : PETSC_FALSE;
+
   if (to->use_readyreceiver) {
     /*
        Since we have already posted sends we must cancel them before freeing
@@ -157,6 +165,15 @@ PetscErrorCode VecScatterDestroy_PtoP_MPI1(VecScatter ctx)
   }
 #endif
 
+#if defined(PETSC_HAVE_MPI_NEIGHBORHOOD_COLLECTIVE)
+  if (to->use_neighborhood) {
+    ierr = MPI_Comm_free(&to->comm_dist_graph);CHKERRQ(ierr);
+    ierr = MPI_Comm_free(&from->comm_dist_graph);CHKERRQ(ierr);
+    ierr = PetscFree2(to->neigh_counts,to->neigh_displs);CHKERRQ(ierr);
+    ierr = PetscFree2(from->neigh_counts,from->neigh_displs);CHKERRQ(ierr);
+  }
+#endif
+
   if (to->use_alltoallv) {
     ierr = PetscFree2(to->counts,to->displs);CHKERRQ(ierr);
     ierr = PetscFree2(from->counts,from->displs);CHKERRQ(ierr);
@@ -168,7 +185,7 @@ PetscErrorCode VecScatterDestroy_PtoP_MPI1(VecScatter ctx)
      message passing.
   */
 #if !defined(PETSC_HAVE_BROKEN_REQUEST_FREE)
-  if (!to->use_alltoallv && !to->use_window) {   /* currently the to->requests etc are ALWAYS allocated even if not used */
+  if (have_multiple_requests) {   /* currently the to->requests etc are ALWAYS allocated even if not used */
     if (to->requests) {
       for (i=0; i<to->n; i++) {
         ierr = MPI_Request_free(to->requests + i);CHKERRQ(ierr);
@@ -185,7 +202,7 @@ PetscErrorCode VecScatterDestroy_PtoP_MPI1(VecScatter ctx)
     cannot free the requests. It may be fixed now, if not then put the following
     code inside a if (!to->use_readyreceiver) {
   */
-  if (!to->use_alltoallv && !to->use_window) {    /* currently the from->requests etc are ALWAYS allocated even if not used */
+  if (have_multiple_requests) {    /* currently the from->requests etc are ALWAYS allocated even if not used */
     if (from->requests) {
       for (i=0; i<from->n; i++) {
         ierr = MPI_Request_free(from->requests + i);CHKERRQ(ierr);
@@ -339,6 +356,22 @@ PetscErrorCode VecScatterCopy_PtoP_MPI1(VecScatter in,VecScatter out)
     ierr = PetscMalloc1(out_from->n,&out_from->winstarts);CHKERRQ(ierr);
     ierr = PetscMemcpy(out_from->winstarts,in_from->winstarts,out_from->n*sizeof(PetscInt));CHKERRQ(ierr);
  #endif
+#if defined(PETSC_HAVE_MPI_NEIGHBORHOOD_COLLECTIVE)
+  } else if (in_to->use_neighborhood) {
+    out_to->use_neighborhood = out_from->use_neighborhood = PETSC_TRUE;
+
+    ierr = PetscMalloc2(out_to->n,&out_to->neigh_counts,out_to->n,&out_to->neigh_displs);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->neigh_counts,in_to->neigh_counts,out_to->n*sizeof(PetscMPIInt));CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_to->neigh_displs,in_to->neigh_displs,out_to->n*sizeof(PetscMPIInt));CHKERRQ(ierr);
+
+    ierr = PetscMalloc2(out_from->n,&out_from->neigh_counts,out_from->n,&out_from->neigh_displs);CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->neigh_counts,in_from->neigh_counts,out_from->n*sizeof(PetscMPIInt));CHKERRQ(ierr);
+    ierr = PetscMemcpy(out_from->neigh_displs,in_from->neigh_displs,out_from->n*sizeof(PetscMPIInt));CHKERRQ(ierr);
+
+    /* MPI_Comm_dup duplicates topology information etc from input communicator, so no need to start from scratch */
+    ierr = MPI_Comm_dup(in_to->comm_dist_graph,&out_to->comm_dist_graph);CHKERRQ(ierr);
+    ierr = MPI_Comm_dup(in_from->comm_dist_graph,&out_from->comm_dist_graph);CHKERRQ(ierr);
+#endif
   } else {
     /* set up the request arrays for use with isend_init() and irecv_init() */
     PetscMPIInt tag;
@@ -2464,6 +2497,12 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI1(VecScatter_MPI_General *from,Vec
   from->use_window = to->use_window;
 #endif
 
+#if defined(PETSC_HAVE_MPI_NEIGHBORHOOD_COLLECTIVE)
+  to->use_neighborhood = PETSC_TRUE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-vecscatter_neighborhood",&to->use_neighborhood,NULL);CHKERRQ(ierr);
+  from->use_neighborhood = to->use_neighborhood;
+#endif
+
   if (to->use_alltoallv) {
     ierr       = PetscMalloc2(size,&to->counts,size,&to->displs);CHKERRQ(ierr);
     ierr       = PetscMemzero(to->counts,size*sizeof(PetscMPIInt));CHKERRQ(ierr);
@@ -2521,8 +2560,9 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI1(VecScatter_MPI_General *from,Vec
     to->use_alltoallw   = PETSC_FALSE;
     from->use_alltoallw = PETSC_FALSE;
 #endif
+  }
 #if defined(PETSC_HAVE_MPI_WIN_CREATE_FEATURE)
-  } else if (to->use_window) {
+  else if (to->use_window) {
     PetscMPIInt temptag,winsize;
     MPI_Request *request;
     MPI_Status  *status;
@@ -2553,8 +2593,30 @@ PetscErrorCode VecScatterCreateCommon_PtoS_MPI1(VecScatter_MPI_General *from,Vec
     }
     ierr = MPI_Waitall(from->n,request,status);CHKERRQ(ierr);
     ierr = PetscFree2(request,status);CHKERRQ(ierr);
+  }
 #endif
-  } else {
+#if defined(PETSC_HAVE_MPI_NEIGHBORHOOD_COLLECTIVE)
+  else if (to->use_neighborhood) {
+    PetscMPIInt mpito_n,mpifrom_n;
+    ierr = PetscMalloc2(to->n,&to->neigh_counts,to->n,&to->neigh_displs);CHKERRQ(ierr);
+    for (i=0; i<to->n; i++) to->neigh_counts[i] = bs*(to->starts[i+1] - to->starts[i]);
+    for (i=0; i<to->n; i++) to->neigh_displs[i] = bs*to->starts[i];
+
+    ierr = PetscMalloc2(from->n,&from->neigh_counts,from->n,&from->neigh_displs);CHKERRQ(ierr);
+    for (i=0; i<from->n; i++) from->neigh_counts[i] = bs*(from->starts[i+1] - from->starts[i]);
+    for (i=0; i<from->n; i++) from->neigh_displs[i] = bs*from->starts[i];
+    /* use from->n/procs as indegree/sources, to->n/procs as outdegree/destinations, to create a SCATTER_FORWARD comm_dist_graph;
+       and then swap from/to to create a SCATTER_REVERSE comm_dist_graph. We use neigh_counts[] as edge weights, which can be thought
+       as message sizes along edges. But the interpretation of weights and info (here MPI_INFO_NULL) is dependent on MPI implementations
+       and is not specified by MPI.
+     */
+    ierr = PetscMPIIntCast(to->n,&mpito_n);CHKERRQ(ierr);
+    ierr = PetscMPIIntCast(from->n,&mpifrom_n);CHKERRQ(ierr);
+    ierr = MPI_Dist_graph_create_adjacent(comm,mpifrom_n,from->procs,from->neigh_counts/*sourceweights*/,mpito_n,to->procs,to->neigh_counts/*destweights*/,MPI_INFO_NULL,PETSC_TRUE/*reorder*/,&to->comm_dist_graph);CHKERRQ(ierr);
+    ierr = MPI_Dist_graph_create_adjacent(comm,mpito_n,to->procs,to->neigh_counts,mpifrom_n,from->procs,from->neigh_counts,MPI_INFO_NULL,PETSC_TRUE/*reorder*/,&from->comm_dist_graph);CHKERRQ(ierr);
+  }
+#endif
+  else {
     PetscBool   use_rsend = PETSC_FALSE, use_ssend = PETSC_FALSE;
     PetscInt    *sstarts  = to->starts,  *rstarts = from->starts;
     PetscMPIInt *sprocs   = to->procs,   *rprocs  = from->procs;
