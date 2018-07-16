@@ -13,7 +13,7 @@ pipeline {
     }
     stage('Build') {
       steps {
-        sh 'make PETSC_ARCH=arch-c-exodus-dbg-builder PETSC_DIR=/sandbox/petsc/petsc.next-3 all'
+        sh 'make PETSC_ARCH=arch-c-exodus-dbg-builder PETSC_DIR=/sandbox/petsc/workspace/PETSc all'
       }
     }
     stage('Test') {
