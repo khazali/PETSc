@@ -1043,13 +1043,12 @@ static PetscErrorCode MatGetArray_HYPRE(Mat A, PetscInt size, void **array)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode MatRestoreArray_HYPRE(Mat A, PetscInt size, void **array)
+static PetscErrorCode MatRestoreArray_HYPRE(Mat A, void **array)
 {
   Mat_HYPRE          *hA = (Mat_HYPRE*)A->data;
 
   PetscFunctionBegin;
   *array = NULL;
-  size = 0;
   hA->available = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
@@ -1062,7 +1061,7 @@ PetscErrorCode MatSetValues_HYPRE(Mat A, PetscInt nr, const PetscInt rows[], Pet
   PetscScalar        *sscr;
   PetscInt           *cscr[2];
   PetscInt           i,nzc;
-  void               *array;
+  void               *array = NULL;
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
@@ -1077,7 +1076,7 @@ PetscErrorCode MatSetValues_HYPRE(Mat A, PetscInt nr, const PetscInt rows[], Pet
     }
   }
   if (!nzc) {
-    ierr = MatRestoreArray_HYPRE(A,sizeof(PetscInt)*(2*nc)+sizeof(PetscScalar)*nc*nr,&array);CHKERRQ(ierr);
+    ierr = MatRestoreArray_HYPRE(A,&array);CHKERRQ(ierr);
     PetscFunctionReturn(0);
   }
 
@@ -1086,7 +1085,7 @@ PetscErrorCode MatSetValues_HYPRE(Mat A, PetscInt nr, const PetscInt rows[], Pet
       if (rows[i] >= 0 && nzc) {
         PetscInt j;
         for (j=0;j<nzc;j++) sscr[j] = vals[cscr[1][j]];
-        PetscStackCallStandard(HYPRE_IJMatrixAddToValues,(hA->ij,1,&nzc,(HYPRE_Int*)(rows+i),cscr[0],sscr));
+        PetscStackCallStandard(HYPRE_IJMatrixAddToValues,(hA->ij,1,(HYPRE_Int*)&nzc,(HYPRE_Int*)(rows+i),(HYPRE_Int*)cscr[0],sscr));
       }
       vals += nc;
     }
@@ -1102,13 +1101,13 @@ PetscErrorCode MatSetValues_HYPRE(Mat A, PetscInt nr, const PetscInt rows[], Pet
         /* nonlocal values */
         if (rows[i] < rst || rows[i] >= ren) { ierr = MatStashValuesRow_Private(&A->stash,rows[i],nzc,cscr[0],sscr, PETSC_FALSE);CHKERRQ(ierr); }
         /* local values */
-        else PetscStackCallStandard(HYPRE_IJMatrixSetValues,(hA->ij,1,&nzc,(HYPRE_Int*)(rows+i),cscr[0],sscr));
+        else PetscStackCallStandard(HYPRE_IJMatrixSetValues,(hA->ij,1,(HYPRE_Int*)&nzc,(HYPRE_Int*)(rows+i),(HYPRE_Int*)cscr[0],sscr));
       }
       vals += nc;
     }
   }
 
-  ierr = MatRestoreArray_HYPRE(A,sizeof(PetscInt)*(2*nc)+sizeof(PetscScalar)*nc*nr,&array);CHKERRQ(ierr);
+  ierr = MatRestoreArray_HYPRE(A,&array);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -1521,8 +1520,8 @@ static PetscErrorCode MatZeroRows_HYPRE_CSRMatrix(hypre_CSRMatrix *hA,PetscInt N
 
   if (!hA) PetscFunctionReturn(0);
 
-  i = hypre_CSRMatrixI(hA);
-  j = hypre_CSRMatrixJ(hA);
+  i = (PetscInt*) hypre_CSRMatrixI(hA);
+  j = (PetscInt*) hypre_CSRMatrixJ(hA);
   a = hypre_CSRMatrixData(hA);
 
   for (ii = 0; ii < N; ii++) {
@@ -1579,7 +1578,7 @@ PetscErrorCode MatGetRow_HYPRE(Mat A,PetscInt row,PetscInt *nz,PetscInt **idx,Pe
   /* retrieve the internal matrix */
   ierr = MatHYPREGetParCSR_HYPRE(A,&parcsr);CHKERRQ(ierr);
   /* call HYPRE API */
-  PetscStackCallStandard(HYPRE_ParCSRMatrixGetRow,(parcsr,row,nz,idx,v));
+  PetscStackCallStandard(HYPRE_ParCSRMatrixGetRow,(parcsr,row,(HYPRE_Int*)nz,(HYPRE_Int**)idx,v));
   PetscFunctionReturn(0);
 }
 
@@ -1592,7 +1591,7 @@ PetscErrorCode MatRestoreRow_HYPRE(Mat A,PetscInt row,PetscInt *nz,PetscInt **id
   /* retrieve the internal matrix */
   ierr = MatHYPREGetParCSR_HYPRE(A,&parcsr);CHKERRQ(ierr);
   /* call HYPRE API */
-  PetscStackCallStandard(HYPRE_ParCSRMatrixRestoreRow,(parcsr,row,nz,idx,v));
+  PetscStackCallStandard(HYPRE_ParCSRMatrixRestoreRow,(parcsr,row,(HYPRE_Int*)nz,(HYPRE_Int**)idx,v));
   PetscFunctionReturn(0);
 }
 
@@ -1610,7 +1609,7 @@ PetscErrorCode MatGetValues_HYPRE(Mat A,PetscInt m,const PetscInt idxm[],PetscIn
    * And negative column indices should be automatically ignored in hypre
    * */
   for (i=0; i<m; i++)
-    if (idxm[i] >= 0) PetscStackCallStandard(HYPRE_IJMatrixGetValues,(*hIJ,1,&n,(HYPRE_Int*)&idxm[i],(HYPRE_Int*)idxn,&v[i*n]));
+    if (idxm[i] >= 0) PetscStackCallStandard(HYPRE_IJMatrixGetValues,(*hIJ,1,(HYPRE_Int*)&n,(HYPRE_Int*)&idxm[i],(HYPRE_Int*)idxn,&v[i*n]));
 
   PetscFunctionReturn(0);
 }
