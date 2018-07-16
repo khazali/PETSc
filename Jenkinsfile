@@ -12,10 +12,14 @@ pipeline {
       }
     }
     stage('Build') {
-      sh 'make PETSC_ARCH=arch-c-exodus-dbg-builder PETSC_DIR=/sandbox/petsc/petsc.next-3 all'
+      steps {
+        sh 'make PETSC_ARCH=arch-c-exodus-dbg-builder PETSC_DIR=/sandbox/petsc/petsc.next-3 all'
+      }
     }
     stage('Test') {
-      sh "make -f gmakefile test search='tao%'"
+      steps {
+        sh "make -f gmakefile test search='tao_unconstrained%'"
+      }
     }
   }
 }
