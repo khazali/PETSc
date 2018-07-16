@@ -929,10 +929,9 @@ PetscErrorCode TSAdjointInitializeForward(TS ts,Mat didp)
   if (!ts->vecs_sensi2) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Must call TSSetCostHessianProducts() first");
   if (!ts->vec_dir) SETERRQ(PetscObjectComm((PetscObject)ts),PETSC_ERR_USER,"Directional vector is missing. Call TSSetCostHessianProducts() to set it.");
   /* create a single-column dense matrix */
-  ierr = VecGetLocalSize(ts->vec_dir,&lsize);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(ts->vec_sol,&lsize);CHKERRQ(ierr);
   ierr = MatCreateDense(PETSC_COMM_WORLD,lsize,PETSC_DECIDE,PETSC_DECIDE,1,NULL,&A);CHKERRQ(ierr);
-
-  ierr = VecDuplicate(ts->vec_dir,&sp);CHKERRQ(ierr);
+  ierr = VecDuplicate(ts->vec_sol,&sp);CHKERRQ(ierr);
   ierr = MatDenseGetColumn(A,0,&xarr);CHKERRQ(ierr);
   ierr = VecPlaceArray(sp,xarr);CHKERRQ(ierr);
   if (ts->vecs_sensi2p) { /* TLM variable initialized as 2*dIdP*dir */

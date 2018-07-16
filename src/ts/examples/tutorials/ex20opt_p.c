@@ -431,7 +431,6 @@ int main(int argc,char **argv)
   ierr = MatSetFromOptions(user.A);CHKERRQ(ierr);
   ierr = MatSetUp(user.A);CHKERRQ(ierr);
   ierr = MatCreateVecs(user.A,&user.U,NULL);CHKERRQ(ierr);
-  ierr = MatCreateVecs(user.A,&user.Dir,NULL);CHKERRQ(ierr);
   ierr = MatCreateVecs(user.A,&user.Lambda[0],NULL);CHKERRQ(ierr);
   ierr = MatCreateVecs(user.A,&user.Lambda2[0],NULL);CHKERRQ(ierr);
   ierr = MatCreateVecs(user.A,&user.Ihp1[0],NULL);CHKERRQ(ierr);
@@ -441,6 +440,7 @@ int main(int argc,char **argv)
   ierr = MatSetSizes(user.Jacp,PETSC_DECIDE,PETSC_DECIDE,2,1);CHKERRQ(ierr);
   ierr = MatSetFromOptions(user.Jacp);CHKERRQ(ierr);
   ierr = MatSetUp(user.Jacp);CHKERRQ(ierr);
+  ierr = MatCreateVecs(user.Jacp,&user.Dir,NULL);CHKERRQ(ierr);
   ierr = MatCreateVecs(user.Jacp,&user.Mup[0],NULL);CHKERRQ(ierr);
   ierr = MatCreateVecs(user.Jacp,&user.Mup2[0],NULL);CHKERRQ(ierr);
   ierr = MatCreateVecs(user.Jacp,&user.Ihp3[0],NULL);CHKERRQ(ierr);
@@ -472,9 +472,6 @@ int main(int argc,char **argv)
   ierr = VecRestoreArray(user.U,&x_ptr);CHKERRQ(ierr);
   ierr = TSSetTimeStep(user.ts,0.001);CHKERRQ(ierr);
 
-  /* Save trajectory of solution so that TSAdjointSolve() may be used */
-  ierr = TSSetSaveTrajectory(user.ts);CHKERRQ(ierr);
-
   /* Set runtime options */
   ierr = TSSetFromOptions(user.ts);CHKERRQ(ierr);
 
@@ -483,6 +480,11 @@ int main(int argc,char **argv)
   user.ob[0] = y_ptr[0];
   user.ob[1] = y_ptr[1];
   ierr       = VecRestoreArrayRead(user.U,&y_ptr);CHKERRQ(ierr);
+
+  /* Save trajectory of solution so that TSAdjointSolve() may be used.
+     Skip checkpointing for the first TSSolve since no adjoint run follows it.
+   */
+  ierr = TSSetSaveTrajectory(user.ts);CHKERRQ(ierr);
 
   /* Optimization starts */
   ierr = MatCreate(PETSC_COMM_WORLD,&user.H);CHKERRQ(ierr);
@@ -576,7 +578,7 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec P,PetscReal *f,Vec G,void *ctx)
   ierr = VecGetArrayRead(user_ptr->U,&y_ptr);CHKERRQ(ierr);
   *f   = (y_ptr[0]-user_ptr->ob[0])*(y_ptr[0]-user_ptr->ob[0])+(y_ptr[1]-user_ptr->ob[1])*(y_ptr[1]-user_ptr->ob[1]);
   //ierr = PetscPrintf(PETSC_COMM_WORLD,"Observed value y_ob=[%g; %g], ODE solution y=[%g;%g], Cost function f=%g\n",(double)user_ptr->ob[0],(double)user_ptr->ob[1],(double)y_ptr[0],(double)y_ptr[1],(double)(*f));CHKERRQ(ierr);
-  /*   Redet initial conditions for the adjoint integration */
+  /*   Reset initial conditions for the adjoint integration */
   ierr = VecGetArray(user_ptr->Lambda[0],&x_ptr);CHKERRQ(ierr);
   x_ptr[0] = 2.*(y_ptr[0]-user_ptr->ob[0]);
   x_ptr[1] = 2.*(y_ptr[1]-user_ptr->ob[1]);
@@ -610,12 +612,9 @@ PetscErrorCode FormHessian(Tao tao,Vec P,Mat H,Mat Hpre,void *ctx)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  ierr     = VecView(P,0);CHKERRQ(ierr);
-  ierr     = VecGetArray(user_ptr->Dir,&x_ptr);CHKERRQ(ierr);
-  x_ptr[0] = 1.;
-  ierr     = VecRestoreArray(user_ptr->Dir,&x_ptr);CHKERRQ(ierr);
-  ierr     = Adjoint2(P,harr,user_ptr);CHKERRQ(ierr);
-  ierr     = MatSetValues(H,1,rows,1,&col,harr,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = Adjoint2(P,harr,user_ptr);CHKERRQ(ierr);
+  ierr = MatSetValues(H,1,rows,1,&col,harr,INSERT_VALUES);CHKERRQ(ierr);
+
   ierr     = MatAssemblyBegin(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr     = MatAssemblyEnd(H,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   if (H != Hpre) {
@@ -629,22 +628,38 @@ PetscErrorCode Adjoint2(Vec P,PetscScalar arr[],User ctx)
 {
   TS                ts = ctx->ts;
   const PetscScalar *z_ptr;
-  PetscScalar       *x_ptr,*y_ptr;
+  PetscScalar       *x_ptr,*y_ptr,dzdp,dzdp2;
   Mat               tlmsen;
   PetscErrorCode    ierr;
 
   PetscFunctionBeginUser;
+  /* Reset TSAdjoint so that AdjointSetUp will be called again */
   ierr = TSAdjointReset(ts);CHKERRQ(ierr);
+
+  /* The directional vector should be 1 since it is one-dimensional */
+  ierr     = VecGetArray(ctx->Dir,&x_ptr);CHKERRQ(ierr);
+  x_ptr[0] = 1.;
+  ierr     = VecRestoreArray(ctx->Dir,&x_ptr);CHKERRQ(ierr);
 
   ierr = VecGetArrayRead(P,&z_ptr);CHKERRQ(ierr);
   ctx->mu = z_ptr[0];
   ierr = VecRestoreArrayRead(P,&z_ptr);CHKERRQ(ierr);
+
+  dzdp  = -10.0/81.0/ctx->mu/ctx->mu + 2.0*292.0/2187.0/ctx->mu/ctx->mu/ctx->mu;
+  dzdp2 = 2.*10.0/81.0/ctx->mu/ctx->mu/ctx->mu - 3.0*2.0*292.0/2187.0/ctx->mu/ctx->mu/ctx->mu/ctx->mu;
+
   ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
   ierr = TSSetStepNumber(ts,0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(ts,.001);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.001);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   ierr = TSSetCostHessianProducts(ts,1,ctx->Lambda2,ctx->Mup2,ctx->Dir);CHKERRQ(ierr);
-  ierr = TSAdjointInitializeForward(ts,NULL);CHKERRQ(ierr);
+
+  ierr = MatZeroEntries(ctx->Jacp);CHKERRQ(ierr);
+  ierr = MatSetValue(ctx->Jacp,1,0,dzdp,INSERT_VALUES);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(ctx->Jacp,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(ctx->Jacp,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+  ierr = TSAdjointInitializeForward(ts,ctx->Jacp);CHKERRQ(ierr);
   ierr = VecGetArray(ctx->U,&y_ptr);CHKERRQ(ierr);
   y_ptr[0] = 2.0;
   y_ptr[1] = -2.0/3.0 + 10.0/81.0/ctx->mu - 292.0/2187.0/ctx->mu/ctx->mu;
@@ -679,10 +694,17 @@ PetscErrorCode Adjoint2(Vec P,PetscScalar arr[],User ctx)
   }
   ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
 
-  ierr   = VecGetArrayRead(ctx->Mup2[0],&z_ptr);CHKERRQ(ierr);
-  arr[0] = z_ptr[0];
-  ierr   = VecRestoreArrayRead(ctx->Mup2[0],&z_ptr);CHKERRQ(ierr);
+  ierr = VecGetArray(ctx->Lambda[0],&x_ptr);CHKERRQ(ierr);
+  ierr = VecGetArray(ctx->Lambda2[0],&y_ptr);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(ctx->Mup2[0],&z_ptr);CHKERRQ(ierr);
 
+  arr[0] = x_ptr[1]*dzdp2 + y_ptr[1]*dzdp2 + z_ptr[0];
+
+  ierr = VecRestoreArray(ctx->Lambda2[0],&x_ptr);CHKERRQ(ierr);
+  ierr = VecRestoreArray(ctx->Lambda2[0],&y_ptr);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(ctx->Mup2[0],&z_ptr);CHKERRQ(ierr);
+
+  /* Disable second-order adjoint mode */
   ierr = TSAdjointReset(ts);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -691,7 +713,17 @@ PetscErrorCode Adjoint2(Vec P,PetscScalar arr[],User ctx)
     build:
       requires: !complex !single
     test:
-      args:  -monitor 0 -ts_type theta -ts_theta_endpoint -ts_theta_theta 0.5 -viewer_binary_skip_info -tao_view  -ts_trajectory_dirname ex20opt_pdir -tao_blmvm_mat_lmvm_scale_type none
+      args:  -monitor 0 -ts_type cn -viewer_binary_skip_info -tao_view  -ts_trajectory_dirname ex20opt_pdir
       output_file: output/ex20opt_p_1.out
+
+    test:
+      suffix: 2
+      args:  -ts_type beuler -viewer_binary_skip_info -tao_monitor -tao_view -mu 100 -ts_dt 0.01 -tao_type bntr -tao_bnk_pc_type none -ts_trajectory_dirname ex20opt_pdir
+      output_file: output/ex20opt_p_2.out
+
+    test:
+      suffix: 3
+      args:  -ts_type cn -viewer_binary_skip_info -tao_monitor -tao_view -mu 100 -ts_dt 0.01 -tao_type bntr -tao_bnk_pc_type none -ts_trajectory_dirname ex20opt_pdir
+      output_file: output/ex20opt_p_3.out
 
 TEST*/
