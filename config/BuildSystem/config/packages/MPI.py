@@ -241,6 +241,8 @@ class Configure(config.package.Package):
       if (hasattr(self, 'mpich_numversion') and int(self.mpich_numversion) > 30004300) or not hasattr(self, 'mpich_numversion'):
         self.addDefine('HAVE_MPI_WIN_CREATE_FEATURE',1)
         self.addDefine('HAVE_MPI_PROCESS_SHARED_MEMORY',1)
+    if self.libraries.check(self.dlib, "MPI_Dist_graph_create_adjacent") and self.libraries.check(self.dlib, "MPI_Ineighbor_alltoallv"):
+      self.addDefine('HAVE_MPI_NEIGHBORHOOD_COLLECTIVE',1)
     self.compilers.CPPFLAGS = oldFlags
     self.compilers.LIBS = oldLibs
     self.logWrite(self.framework.restoreLog())
