@@ -1,6 +1,6 @@
 pipeline {
   agent none
-  
+  checkout scm
   stages {
     stage('Configure') {
         steps {
