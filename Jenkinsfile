@@ -31,7 +31,7 @@ pipeline {
           }
         }
         node {
-          label 'frog'
+          label 'n-gage'
           steps {
             sh 'make PETSC_ARCH=arch-linux-pkgs-dbg-ftn-interfaces PETSC_DIR=/sandbox/petsc/workspace/PETSc all'
           }
