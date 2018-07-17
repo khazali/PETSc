@@ -83,6 +83,7 @@ typedef struct {
   Vec       direction;
   Vec       work1;
   Vec       work2;
+  PetscBool init;
 } TLMEvalQuadCtx;
 
 /* computes d^2 f / dp^2 direction + d^2 f / dp dx U + (L^T \otimes I_M)(H_MM direction + H_MU U + H_MUdot Udot) durintg TLM runs */
@@ -133,7 +134,7 @@ static PetscErrorCode EvalQuadIntegrand_TLM(Vec U, PetscReal t, Vec F, void* ctx
     }
   }
   ierr = TSGetStepNumber(tlmts,&tlmts_step);CHKERRQ(ierr);
-  if (fwdts->HF[2][1] && tlmts_step) { /* (L^T \otimes I_M) H_MXdot \etadot, \eta the TLM solution */
+  if (fwdts->HF[2][1] && q->init) { /* (L^T \otimes I_M) H_MXdot \etadot, \eta the TLM solution */
     Vec TLMHdot;
     TS  model;
     DM  dm;
@@ -154,6 +155,7 @@ static PetscErrorCode EvalQuadIntegrand_TLM(Vec U, PetscReal t, Vec F, void* ctx
   if (fwdts->HF[2][0] || fwdts->HF[2][1] || fwdts->HF[2][2]) {
     ierr = TSTrajectoryRestoreUpdatedHistoryVecs(adjts->trajectory,&FOAH,NULL);CHKERRQ(ierr);
   }
+  q->init = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
 
@@ -481,6 +483,7 @@ PetscErrorCode TSSolveWithQuadrature_Private(TS ts, Vec X, Vec design, Vec direc
       qtlm.direction = direction;
       qtlm.work1     = qeval_ctx->wquad[2];
       qtlm.work2     = qeval_ctx->wquad[3];
+      qtlm.init      = PETSC_FALSE; /* skip etadot terms when initializing the quadrature */
       qeval_ctx->veval_ctx = &qtlm;
     }
 
