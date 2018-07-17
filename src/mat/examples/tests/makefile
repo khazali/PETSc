@@ -29,6 +29,4 @@ EXAMPLESF	 = ex16f90.F90 ex36f.F ex58f.F ex63f.F ex67f.F ex79f.F90 ex85f.F ex105
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
-
-
 include ${PETSC_DIR}/lib/petsc/conf/test
