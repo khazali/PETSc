@@ -102,6 +102,7 @@ PetscErrorCode TSTrajectorySet(TSTrajectory tj,TS ts,PetscInt stepnum,PetscReal 
   ierr = (*tj->ops->set)(tj,ts,stepnum,time,X);CHKERRQ(ierr);
   ierr = PetscLogEventEnd(TSTrajectory_Set,tj,ts,0,0);CHKERRQ(ierr);
   ierr = TSHistoryUpdate(tj->tsh,stepnum,time);CHKERRQ(ierr);
+  if (tj->lag.caching) tj->lag.Udotcached.time = PETSC_MIN_REAL;
   PetscFunctionReturn(0);
 }
 
