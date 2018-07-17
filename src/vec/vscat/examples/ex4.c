@@ -158,7 +158,7 @@ int main(int argc,char **argv)
 
    test:
       nsize: 4
-      args:
+      args: -vecscatter_useintranodeshm off
       requires: double define(PETSC_USE_LOG)
 
    test:
