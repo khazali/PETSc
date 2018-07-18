@@ -100,6 +100,12 @@ static PetscErrorCode coordX(PetscInt dim, PetscReal time, const PetscReal x[], 
   return 0;
 }
 
+static PetscErrorCode zero(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *ctx)
+{
+  u[0] = 0.0;
+  return 0;
+}
+
 static PetscErrorCode zerovec(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *ctx)
 {
   PetscInt d;
@@ -221,7 +227,7 @@ static void f1_O(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                  PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f1[])
 {
   PetscInt d;
-  for (d = 0; d < dim; ++d) f1[d] = u_x[uOff_x[1]+d];
+  for (d = 0; d < dim; ++d) f1[d] = (1.0 + a[0])*u_x[uOff_x[1]+d];
 }
 
 /* -Gr T_x + U . grad Omega + 4 (x^2 - 2 x y - y^2) + GR */
@@ -254,7 +260,7 @@ static void f1_T(PetscInt dim, PetscInt Nf, PetscInt NfAux,
                  PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f1[])
 {
   PetscInt d;
-  for (d = 0; d < dim; ++d) f1[d] = u_x[uOff_x[2]+d];
+  for (d = 0; d < dim; ++d) f1[d] = (1.0 + a[0])*u_x[uOff_x[2]+d];
 }
 
 /* Pr (U . grad T) - PR (x^2 + y^2) */
@@ -392,13 +398,28 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode SetupMaterial(DM dm, DM dmAux, AppCtx *user)
+{
+  PetscErrorCode (*funcs[1])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar u[], void *ctx) = {zero};
+  Vec            nu;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMCreateLocalVector(dmAux, &nu);CHKERRQ(ierr);
+  ierr = DMProjectFunctionLocal(dmAux, 0.0, funcs, NULL, INSERT_ALL_VALUES, nu);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject) dm, "A", (PetscObject) nu);CHKERRQ(ierr);
+  ierr = VecDestroy(&nu);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
 {
   MPI_Comm        comm;
+  DM              cdm     = dm;
   const PetscInt  dim     = user->dim;
   PetscBool       simplex = user->simplex;
-  PetscDS         prob;
-  PetscFE         feU, feO, feT;
+  PetscDS         prob, probAux;
+  PetscFE         feU, feO, feT, feNu;
   PetscQuadrature q;
   PetscErrorCode  ierr;
 
@@ -417,14 +438,38 @@ static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
   ierr = PetscFESetQuadrature(feT, q);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) feT, "temperature");CHKERRQ(ierr);
 
+  ierr = PetscFECreateDefault(comm, dim, 1, simplex, "visc_", -1, &feNu);CHKERRQ(ierr);
+  ierr = PetscFESetQuadrature(feNu, q);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) feNu, "entropy viscosity");CHKERRQ(ierr);
+
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) feU);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 1, (PetscObject) feO);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 2, (PetscObject) feT);CHKERRQ(ierr);
   ierr = SetupProblem(prob, user);CHKERRQ(ierr);
+
+  ierr = PetscDSCreate(PetscObjectComm((PetscObject) dm), &probAux);CHKERRQ(ierr);
+  ierr = PetscDSSetDiscretization(probAux, 0, (PetscObject) feNu);CHKERRQ(ierr);
+  while (cdm) {
+    DM coordDM, dmAux;
+
+    ierr = DMSetDS(cdm, prob);CHKERRQ(ierr);
+    ierr = DMGetCoordinateDM(cdm, &coordDM);CHKERRQ(ierr);
+
+    ierr = DMClone(cdm, &dmAux);CHKERRQ(ierr);
+    ierr = DMSetCoordinateDM(dmAux, coordDM);CHKERRQ(ierr);
+    ierr = DMSetDS(dmAux, probAux);CHKERRQ(ierr);
+    ierr = PetscObjectCompose((PetscObject) dm, "dmAux", (PetscObject) dmAux);CHKERRQ(ierr);
+    ierr = SetupMaterial(cdm, dmAux, user);CHKERRQ(ierr);
+    ierr = DMDestroy(&dmAux);CHKERRQ(ierr);
+
+    ierr = DMGetCoarseDM(cdm, &cdm);CHKERRQ(ierr);
+  }
+
   ierr = PetscFEDestroy(&feU);CHKERRQ(ierr);
   ierr = PetscFEDestroy(&feO);CHKERRQ(ierr);
   ierr = PetscFEDestroy(&feT);CHKERRQ(ierr);
+  ierr = PetscFEDestroy(&feNu);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
