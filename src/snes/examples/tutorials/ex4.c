@@ -78,16 +78,19 @@ c(u,T) = c_R \|\|u\|\|_{\infty(\Omega)} var(T) |diam(\Omega)|^{\alpha−2}
 #include <petscdmplex.h>
 #include <petscds.h>
 #include <petscsnes.h>
+#include <petscbag.h>
+
+typedef struct {
+  PetscReal prandtl;     /* Prandtl number, ratio of momentum diffusivity to thermal diffusivity */
+  PetscReal grashof;     /* Grashof number, ratio of bouyancy to viscous forces */
+  PetscReal lidvelocity; /* Shear velocity of top boundary */
+} Parameter;
 
 typedef struct {
   PetscInt  dim;            /* Topological dimension */
   char      filename[2048]; /* The optional mesh file */
   PetscBool simplex;        /* Simplicial mesh */
-
-  PetscReal prandtl;        /* Prandtl number, ratio of momentum diffusivity to thermal diffusivity */
-  PetscReal grashof;        /* Grashof number, ratio of bouyancy to viscous forces */
-  PetscReal lidvelocity;    /* ??? */
-
+  PetscBag  params;         /* Problem parameters */
   PetscInt  mms;            /* Number of the MMS solution, or -1 */
 } AppCtx;
 
@@ -106,14 +109,14 @@ static PetscErrorCode zerovec(PetscInt dim, PetscReal time, const PetscReal x[],
 
 static PetscErrorCode lidshear(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *ctx)
 {
-  u[0] = ((AppCtx *) ctx)->lidvelocity;
+  u[0] = ((Parameter *) ctx)->lidvelocity;
   u[1] = 0.0;
   return 0;
 }
 
 static PetscErrorCode tempbc(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar *u, void *ctx)
 {
-  u[0] = ((AppCtx *) ctx)->grashof > 0 ? 1.0 : 0.0;
+  u[0] = ((Parameter *) ctx)->grashof > 0 ? 1.0 : 0.0;
   return 0;
 }
 
@@ -273,20 +276,28 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->dim         = 2;
   options->filename[0] = '\0';
   options->simplex     = PETSC_TRUE;
-  options->prandtl     = 1.0;
-  options->grashof     = 1.0;
-  options->lidvelocity = 1.0 /* was 1.0/(M*N) */;
   options->mms         = -1;
 
   ierr = PetscOptionsBegin(comm, "", "Driven Cavity Problem Options", "DMPLEX");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex4.c", options->dim, &options->dim, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-f", "Mesh filename to read", "ex4.c", options->filename, options->filename, sizeof(options->filename), NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-simplex", "Simplicial (true) or tensor (false) mesh", "ex4.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-prandtl", "The Prandtl number", "ex4.c", options->prandtl, &options->prandtl, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-grashof", "The Grashof number", "ex4.c", options->grashof, &options->grashof, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsReal("-lidvelocity", "The lid velocity", "ex4.c", options->lidvelocity, &options->lidvelocity, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-mms", "The MMS solution number", "ex4.c", options->mms, &options->mms, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode SetupParameters(AppCtx *user)
+{
+  Parameter     *p;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = PetscBagGetData(user->params, (void **) &p);CHKERRQ(ierr);
+  ierr = PetscBagSetName(user->params, "par", "Problem parameters");CHKERRQ(ierr);
+  ierr = PetscBagRegisterReal(user->params, &p->prandtl,     1.0, "prandtl",     "Prandtl number, ratio of momentum diffusivity to thermal diffusivity");CHKERRQ(ierr);
+  ierr = PetscBagRegisterReal(user->params, &p->grashof,     1.0, "grashof",     "Grashof number, ratio of bouyancy to viscous forces");CHKERRQ(ierr);
+  ierr = PetscBagRegisterReal(user->params, &p->lidvelocity, 1.0, "lidvelocity", "Shear velocity of top boundary");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -327,11 +338,13 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
 static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
 {
+  Parameter     *param;
   PetscScalar    constants[3];
   PetscInt       ids[4] = {1, 2, 3, 4};
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
+  ierr = PetscBagGetData(user->params, (void **) &param);CHKERRQ(ierr);
   if (user->mms >= 0) {ierr = PetscPrintf(PetscObjectComm((PetscObject) prob), "Using MMS solution %D\n", user->mms);CHKERRQ(ierr);}
   switch(user->mms) {
   case 0:
@@ -357,24 +370,25 @@ static PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
     ierr = PetscDSSetResidual(prob, 1, f0_O, f1_O);CHKERRQ(ierr);
     ierr = PetscDSSetResidual(prob, 2, f0_T, f1_T);CHKERRQ(ierr);
     /* Boundary conditions */
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "U bottom wall",     "marker", 0, 0, NULL, (void (*)()) zerovec,       1, &ids[0], user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "U right wall",      "marker", 0, 0, NULL, (void (*)()) zerovec,       1, &ids[1], user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "U top wall",        "marker", 0, 0, NULL, (void (*)()) lidshear,      1, &ids[2], user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "U left wall",       "marker", 0, 0, NULL, (void (*)()) zerovec,       1, &ids[3], user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL_FIELD, "Omega bottom wall", "marker", 1, 0, NULL, (void (*)()) omegabc_horiz, 1, &ids[0], user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL_FIELD, "Omega right wall",  "marker", 1, 0, NULL, (void (*)()) omegabc_vert,  1, &ids[1], user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL_FIELD, "Omega top wall",    "marker", 1, 0, NULL, (void (*)()) omegabc_horiz, 1, &ids[2], user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL_FIELD, "Omega left wall",   "marker", 1, 0, NULL, (void (*)()) omegabc_vert,  1, &ids[3], user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "T right wall",      "marker", 2, 0, NULL, (void (*)()) zerovec,       1, &ids[1], user);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "T left wall",       "marker", 2, 0, NULL, (void (*)()) tempbc,        1, &ids[3], user);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "U bottom wall",     "marker", 0, 0, NULL, (void (*)()) zerovec,       1, &ids[0], param);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "U right wall",      "marker", 0, 0, NULL, (void (*)()) zerovec,       1, &ids[1], param);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "U top wall",        "marker", 0, 0, NULL, (void (*)()) lidshear,      1, &ids[2], param);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "U left wall",       "marker", 0, 0, NULL, (void (*)()) zerovec,       1, &ids[3], param);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL_FIELD, "Omega bottom wall", "marker", 1, 0, NULL, (void (*)()) omegabc_horiz, 1, &ids[0], param);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL_FIELD, "Omega right wall",  "marker", 1, 0, NULL, (void (*)()) omegabc_vert,  1, &ids[1], param);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL_FIELD, "Omega top wall",    "marker", 1, 0, NULL, (void (*)()) omegabc_horiz, 1, &ids[2], param);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL_FIELD, "Omega left wall",   "marker", 1, 0, NULL, (void (*)()) omegabc_vert,  1, &ids[3], param);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "T right wall",      "marker", 2, 0, NULL, (void (*)()) zerovec,       1, &ids[1], param);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob, DM_BC_ESSENTIAL,       "T left wall",       "marker", 2, 0, NULL, (void (*)()) tempbc,        1, &ids[3], param);CHKERRQ(ierr);
     break;
   }
   /* Physical Constants */
-  constants[0] = user->prandtl;
-  constants[1] = user->grashof;
-  constants[2] = user->lidvelocity;
+  constants[0] = param->prandtl;
+  constants[1] = param->grashof;
+  constants[2] = param->lidvelocity;
   ierr = PetscDSSetConstants(prob, 3, constants);CHKERRQ(ierr);
   ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
+  ierr = PetscPrintf(PetscObjectComm((PetscObject) prob), "lid velocity = %g, prandtl # = %g, grashof # = %g\n", (double) param->lidvelocity, (double) param->prandtl, (double) param->grashof);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -427,12 +441,13 @@ int main(int argc, char **argv)
   ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
   comm = PETSC_COMM_WORLD;
   ierr = ProcessOptions(comm, &user);CHKERRQ(ierr);
-  ierr = PetscPrintf(comm, "lid velocity = %g, prandtl # = %g, grashof # = %g\n", (double)user.lidvelocity, (double)user.prandtl, (double)user.grashof);CHKERRQ(ierr);
   ierr = CreateMesh(comm, &user, &dm);CHKERRQ(ierr);
   ierr = SNESCreate(comm, &snes);CHKERRQ(ierr);
   ierr = SNESSetDM(snes, dm);CHKERRQ(ierr);
   ierr = DMSetApplicationContext(dm, &user);CHKERRQ(ierr);
 
+  ierr = PetscBagCreate(comm, sizeof(Parameter), &user.params);CHKERRQ(ierr);
+  ierr = SetupParameters(&user);CHKERRQ(ierr);
   ierr = SetupDiscretization(dm, &user);CHKERRQ(ierr);
   ierr = DMPlexSetSNESLocalFEM(dm, &user, &user, &user);CHKERRQ(ierr);
   ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
@@ -447,6 +462,7 @@ int main(int argc, char **argv)
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
+  ierr = PetscBagDestroy(&user.params);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return ierr;
 }
