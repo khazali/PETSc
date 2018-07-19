@@ -156,9 +156,9 @@ PetscErrorCode PETSCMAP1(VecScatterBeginMPI1)(VecScatter ctx,Vec xin,Vec yin,Ins
        reset by sender. Receiver finds the flag is 1 and gladly reads the (wrong) data and resets the flag to 0, making
        sender wait for its data forever. An integer state separates different vescatter transcations and avoids this bug.
 
-       On x86, wirte_memory_barrier
-       is a store fence instruction (sfence). One could also use MPI_Win_sync(shmcomm) as the barrier. But MPI_Win_sync
-       has additional requirements. To avoid the complexity and be efficient, we do the barrier on our own.
+       On x86, wirte_memory_barrier is a store fence instruction (sfence). One could also use MPI_Win_sync(shmwin) as the
+       barrier. But MPI_Win_sync has additional requirements. To avoid the complexity and be efficient, we do the barrier
+       on our own when PETSC_WRITE_MEMORY_BARRIER is defined (see below)
      */
 
     if (to->use_intranodeshm) {
@@ -172,7 +172,16 @@ PetscErrorCode PETSCMAP1(VecScatterBeginMPI1)(VecScatter ctx,Vec xin,Vec yin,Ins
         } else {
           PETSCMAP1(Pack_MPI1)(to->shmstarts[i+1]-to->shmstarts[i],to->shmindices+to->shmstarts[i],xv,to->shmspaces[i],bs);
         }
+#if defined(PETSC_WRITE_MEMORY_BARRIER)
         PETSC_WRITE_MEMORY_BARRIER();
+#else
+        /* MPI_Win_sync() synchronizes the private and public window copies of shmwin. It is a memory barrier implemented by
+           MPI. MPI standard states that calls of MPI_Win_sync must be within passive target epochs (see MPI3.1 Chapter 11.5.4).
+           We use the cheapest MPI_Win_lock_all(MPI_MODE_NOCHECK,..)/MPI_Win_unlock_all() to create such an epoch beginned at
+           shmwin creation and ended at shmwin destroy. We actually do not do any MPI RMA operations inside the epoch.
+        */
+        ierr = MPI_Win_sync(to->shmwin);CHKERRQ(ierr);
+#endif
         *to->shmstates[i] = state+1; /* update shmstate after write */
       }
       ierr = PetscObjectStateIncrease((PetscObject)ctx);CHKERRQ(ierr); /* finish a VecScatterBegin transcation */

@@ -202,6 +202,9 @@ PetscErrorCode VecScatterDestroy_PtoP_MPI1(VecScatter ctx)
 
 #if defined(PETSC_HAVE_MPI_PROCESS_SHARED_MEMORY)
   if (to->use_intranodeshm) {
+#if !defined(PETSC_WRITE_MEMORY_BARRIER)
+    ierr = MPI_Win_unlock_all(to->shmwin);CHKERRQ(ierr); /* see comments in VecScatterBegin for why this call */
+#endif
     ierr = MPI_Win_free(&to->shmwin);CHKERRQ(ierr); /* free shmwin and the associated shared memory. from->shmwin = to->shmwin, so do not free the window twice */
     ierr = PetscFree5(to->shmprocs,to->shmspaces,to->shmstates,to->shmstarts,to->shmindices);CHKERRQ(ierr);
     ierr = PetscFree5(from->shmprocs,from->shmspaces,from->shmstates,from->shmstarts,from->shmindices);CHKERRQ(ierr);
@@ -432,6 +435,9 @@ PetscErrorCode VecScatterCopy_PtoP_MPI1(VecScatter in,VecScatter out)
     ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
     sz   = bs*out_to->shmstarts[out_to->shmn]*sizeof(PetscScalar) + (out_to->shmn+1)*PETSC_LEVEL1_DCACHE_LINESIZE;
     ierr = MPI_Win_allocate_shared(sz,sizeof(PetscScalar),info,out_to->shmcomm,&shmspace,&out_to->shmwin);CHKERRQ(ierr);
+#if !defined(PETSC_WRITE_MEMORY_BARRIER)
+    ierr = MPI_Win_lock_all(MPI_MODE_NOCHECK,out_to->shmwin);CHKERRQ(ierr); /* see comments in VecScatterBegin for why this call */
+#endif
     ierr = MPI_Info_free(&info);CHKERRQ(ierr);
     shmspace = (char*)((((PETSC_UINTPTR_T)(shmspace))+(PETSC_LEVEL1_DCACHE_LINESIZE-1)) & ~(PETSC_LEVEL1_DCACHE_LINESIZE-1));
     for (i=0; i<out_to->shmn; i++) {
@@ -2716,6 +2722,9 @@ PetscErrorCode VecScatterCreateLocal_PtoS_MPI1(PetscInt nx,const PetscInt *inidx
     ierr = MPI_Info_set(info, "alloc_shared_noncontig", "true");CHKERRQ(ierr);
     sz   = bs*to->shmstarts[to->shmn]*sizeof(PetscScalar) + (to->shmn+1)*PETSC_LEVEL1_DCACHE_LINESIZE; /* add an extra cacheline for alignment purpose */
     ierr = MPI_Win_allocate_shared(sz,sizeof(PetscScalar),info,to->shmcomm,&shmspace,&to->shmwin);CHKERRQ(ierr);
+#if !defined(PETSC_WRITE_MEMORY_BARRIER)
+    ierr = MPI_Win_lock_all(MPI_MODE_NOCHECK,to->shmwin);CHKERRQ(ierr); /* see comments in VecScatterBegin for why this call */
+#endif
     ierr = MPI_Info_free(&info);CHKERRQ(ierr);
 
     /* Align the returned shared memory address to cacheline, where the state area
