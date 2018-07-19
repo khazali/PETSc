@@ -9,34 +9,22 @@ pipeline {
     stages {
         stage('Local Merge') {
             steps {
-                node {
-                    label node_name
-                    checkout scm
-                }
+                checkout scm
             }
         }
         stage('Configure') {
             steps {
-                node {
-                    label node_name
-                    sh "python ./config/examples/${arch_name}.py"
-                }
+                sh "python ./config/examples/${arch_name}.py"
             }
         }
         stage('Make') {
             steps {
-                node {
-                    label node_name
-                    sh "make PETSC_ARCH=${arch_name} PETSC_DIR=${WORKSPACE} all"
-                }
+                sh "make PETSC_ARCH=${arch_name} PETSC_DIR=${WORKSPACE} all"
             }
         }
         stage('Examples') {
             steps {
-                node {
-                    label node_name
-                    sh "make PETSC_ARCH=${arch_name} PETSC_DIR=${WORKSPACE} -f gmakefile test"   
-                }
+                sh "make PETSC_ARCH=${arch_name} PETSC_DIR=${WORKSPACE} -f gmakefile test"    
             }
         }
     }  
