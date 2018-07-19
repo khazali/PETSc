@@ -18,7 +18,6 @@ pipeline {
         }
         stage('Configure') {
             steps {
-                checkout scm
                 sh 'python ./config/examples/${arch_name}.py'
             }
         }
