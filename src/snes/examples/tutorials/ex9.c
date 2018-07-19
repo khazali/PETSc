@@ -32,7 +32,7 @@ Example usage:
 
 #include <petsc.h>
 
-// z = psi(x,y) is the hemispherical obstacle, but made C^1 with "skirt" at r=r0
+/* z = psi(x,y) is the hemispherical obstacle, but made C^1 with "skirt" at r=r0 */
 PetscReal psi(PetscReal x, PetscReal y) {
     const PetscReal  r = x * x + y * y,
                      r0 = 0.9,
@@ -62,8 +62,8 @@ PetscReal u_exact(PetscReal x, PetscReal y) {
                     B     = 0.471519893402112;
     PetscReal  r;
     r = PetscSqrtReal(x * x + y * y);
-    return (r <= afree) ? psi(x,y)  // active set; on the obstacle
-                        : - A * PetscLogReal(r) + B; // solves laplace eqn
+    return (r <= afree) ? psi(x,y)  /* active set; on the obstacle */
+                        : - A * PetscLogReal(r) + B; /* solves laplace eqn */
 }
 
 extern PetscErrorCode FormExactSolution(DMDALocalInfo*,Vec);
@@ -252,16 +252,19 @@ PetscErrorCode FormJacobianLocal(DMDALocalInfo *info, PetscScalar **au, Mat A, M
 
    test:
       suffix: 1
+      requires: !single
       nsize: 1
       args: -da_refine 1 -snes_monitor_short -snes_type vinewtonrsls
 
    test:
       suffix: 2
+      requires: !single
       nsize: 2
       args: -da_refine 1 -snes_monitor_short -snes_type vinewtonssls
 
    test:
       suffix: 3
+      requires: !single
       nsize: 2
       args: -snes_grid_sequence 2 -snes_vi_monitor -snes_type vinewtonrsls
 
@@ -272,11 +275,13 @@ PetscErrorCode FormJacobianLocal(DMDALocalInfo *info, PetscScalar **au, Mat A, M
 
    test:
       suffix: 5
+      requires: !single
       nsize: 1
       args: -ksp_converged_reason -snes_fd_color
 
    test:
       suffix: 6
+      requires: !single
       nsize: 2
       args: -snes_grid_sequence 2 -pc_type mg -snes_monitor_short -ksp_converged_reason
 
