@@ -1,11 +1,9 @@
 #!/usr/bin/env groovy
+def alljob = JOB_NAME.tokenize('/') as String[]
+def node_name = alljob[0]
 
-pipeline {
-    environment{
-        NODE_NAME=$(basename $(dirname ${JOB_NAME}))
-    }
-    
-    agent env.NODE_NAME
+pipeline { 
+    agent { node { label node_name} }
     
     stages {
         stage('Configure') {
@@ -24,5 +22,5 @@ pipeline {
                 sh 'make PETSC_ARCH=${JOB_BASE_NAME} PETSC_DIR=${WORKSPACE} -f gmakefile test'    
             }
         }
-    }
+    }  
 }
