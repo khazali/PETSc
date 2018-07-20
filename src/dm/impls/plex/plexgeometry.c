@@ -1682,6 +1682,33 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode DMPlexGetCoordinateDisc_Internal(DM dm, PetscFE *fe)
+{
+  DM             cdm;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidPointer(fe, 2);
+  *fe = NULL;
+  ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
+  if (cdm) {
+    PetscDS  prob;
+    PetscInt Nf;
+
+    ierr = DMGetDS(cdm, &prob);CHKERRQ(ierr);
+    ierr = PetscDSGetNumFields(prob, &Nf);CHKERRQ(ierr);
+    if (Nf) {
+      PetscObject  disc;
+      PetscClassId id;
+
+      ierr = PetscDSGetDiscretization(prob, 0, &disc);CHKERRQ(ierr);
+      ierr = PetscObjectGetClassId(disc, &id);CHKERRQ(ierr);
+      if (id == PETSCFE_CLASSID) *fe = (PetscFE) disc;
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
 /*@C
   DMPlexComputeCellGeometryFEM - Compute the Jacobian, inverse Jacobian, and Jacobian determinant at each quadrature point in the given cell
 
@@ -1709,28 +1736,126 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
 @*/
 PetscErrorCode DMPlexComputeCellGeometryFEM(DM dm, PetscInt cell, PetscQuadrature quad, PetscReal *v, PetscReal *J, PetscReal *invJ, PetscReal *detJ)
 {
-  PetscFE        fe = NULL;
+  PetscFE        fe;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidPointer(detJ, 7);
-  if (dm->coordinateDM) {
-    PetscClassId id;
-    PetscInt     numFields;
-    PetscDS      prob = dm->coordinateDM->prob;
-    PetscObject  disc;
-
-    ierr = PetscDSGetNumFields(prob, &numFields);CHKERRQ(ierr);
-    if (numFields) {
-      ierr = PetscDSGetDiscretization(prob,0,&disc);CHKERRQ(ierr);
-      ierr = PetscObjectGetClassId(disc,&id);CHKERRQ(ierr);
-      if (id == PETSCFE_CLASSID) {
-        fe = (PetscFE) disc;
-      }
-    }
-  }
+  ierr = DMPlexGetCoordinateDisc_Internal(dm, &fe);CHKERRQ(ierr);
   if (!fe) {ierr = DMPlexComputeCellGeometryFEM_Implicit(dm, cell, quad, v, J, invJ, detJ);CHKERRQ(ierr);}
   else     {ierr = DMPlexComputeCellGeometryFEM_FE(dm, fe, cell, quad, v, J, invJ, detJ);CHKERRQ(ierr);}
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMPlexComputeCellDiameter_Implicit_Internal(DM dm, PetscInt cell, PetscReal *d)
+{
+  Vec             coordinates;
+  PetscSection    coordSection;
+  PetscScalar    *coords = NULL;
+  PetscInt        depth, dim, coordDim, coneSize;
+  PetscInt        numCoords, numSelfCoords, pStart, pEnd, e, f;
+  DMLabel         depthLabel;
+  PetscReal       J0[9], R[9], diam;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
+  ierr = DMPlexGetConeSize(dm, cell, &coneSize);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthLabel(dm, &depthLabel);CHKERRQ(ierr);
+  ierr = DMLabelGetValue(depthLabel, cell, &dim);CHKERRQ(ierr);
+  if (depth == 1 && dim == 1) {
+    ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+  }
+  ierr = DMGetCoordinateDim(dm, &coordDim);CHKERRQ(ierr);
+  if (coordDim > 3) SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "Unsupported coordinate dimension %D > 3", coordDim);
+  *d = 0.0;
+  ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
+  if (!coordinates) PetscFunctionReturn(0);
+  ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
+  ierr = PetscSectionGetChart(coordSection, &pStart, &pEnd);CHKERRQ(ierr);
+  if (cell >= pStart && cell < pEnd) {ierr = PetscSectionGetDof(coordSection, cell, &numSelfCoords);CHKERRQ(ierr);}
+  ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, cell, &numCoords, &coords);CHKERRQ(ierr);
+  numCoords = numSelfCoords ? numSelfCoords : numCoords;
+  switch (dim) {
+  case 0: break;
+  case 1:
+    ierr = DMPlexComputeLineGeometry_Internal(dm, cell, NULL, J0, NULL, d);CHKERRQ(ierr);
+    *d  *= 0.5;
+    break;
+  case 2:
+    switch (coneSize) {
+    case 3:
+      if (numCoords == 9) {
+        ierr = DMPlexComputeProjection3Dto2D(numCoords, coords, R);CHKERRQ(ierr);
+      } else if (numCoords != 6) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "The number of coordinates for this triangle is %D != 6 or 9", numCoords);
+      for (f = 0; f < dim; f++) {
+        diam = 0.0;
+        for (e = 0; e < dim; e++) {
+          diam += PetscSqr(PetscRealPart(coords[(f+1)*dim+e]) - PetscRealPart(coords[0*dim+e]));
+        }
+        *d = PetscMax(*d, diam);
+      }
+      break;
+    case 4:
+      if (numCoords == 12) {
+        ierr = DMPlexComputeProjection3Dto2D(numCoords, coords, R);CHKERRQ(ierr);
+      } else if (numCoords != 8) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "The number of coordinates for this quadrilateral is %D != 8 or 12", numCoords);
+      diam = 0.0;
+      for (e = 0; e < dim; e++) {
+        diam += PetscSqr(PetscRealPart(coords[2*dim+e]) - PetscRealPart(coords[0*dim+e]));
+      }
+      *d = PetscMax(*d, diam);
+      diam = 0.0;
+      for (e = 0; e < dim; e++) {
+        diam += PetscSqr(PetscRealPart(coords[3*dim+e]) - PetscRealPart(coords[1*dim+e]));
+      }
+      *d = PetscMax(*d, diam);
+      break;
+    default:
+      SETERRQ2(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "Unsupported number of faces %D in cell %D for element diameter computation", coneSize, cell);
+    }
+    break;
+  case 3:
+    switch (coneSize) {
+    case 4:
+      for (f = 0; f < dim; f++) {
+        diam = 0.0;
+        for (e = 0; e < dim; e++) {
+          diam += PetscSqr(PetscRealPart(coords[(f+1)*dim+e]) - PetscRealPart(coords[0*dim+e]));
+        }
+        *d = PetscMax(*d, diam);
+      }
+      break;
+    case 6: /* Faces */
+    case 8: /* Vertices */
+      diam = 0.0;
+      for (e = 0; e < dim; e++) {
+        diam += PetscSqr(PetscRealPart(coords[6*dim+e]) - PetscRealPart(coords[0*dim+e]));
+      }
+      *d = PetscMax(*d, diam);
+      diam = 0.0;
+      for (e = 0; e < dim; e++) {
+        diam += PetscSqr(PetscRealPart(coords[5*dim+e]) - PetscRealPart(coords[1*dim+e]));
+      }
+      *d = PetscMax(*d, diam);
+      diam = 0.0;
+      for (e = 0; e < dim; e++) {
+        diam += PetscSqr(PetscRealPart(coords[4*dim+e]) - PetscRealPart(coords[2*dim+e]));
+      }
+      *d = PetscMax(*d, diam);
+      diam = 0.0;
+      for (e = 0; e < dim; e++) {
+        diam += PetscSqr(PetscRealPart(coords[7*dim+e]) - PetscRealPart(coords[3*dim+e]));
+      }
+      *d = PetscMax(*d, diam);
+      break;
+    default:
+      SETERRQ2(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "Unsupported number of faces %D in cell %D for element diameter computation", coneSize, cell);
+    }
+    break;
+  default:
+    SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_SUP, "Unsupported dimension %D for element diameter computation", dim);
+  }
   PetscFunctionReturn(0);
 }
 

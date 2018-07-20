@@ -389,4 +389,6 @@ PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolateFieldAndGradient_Static(Pet
   PetscFunctionReturn(0);
 }
 
+PETSC_INTERN PetscErrorCode DMPlexComputeCellDiameter_Implicit_Internal(DM, PetscInt, PetscReal*);
+
 #endif
