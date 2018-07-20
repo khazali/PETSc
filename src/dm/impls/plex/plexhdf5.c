@@ -199,6 +199,7 @@ PetscErrorCode VecView_Plex_HDF5_Internal(Vec v, PetscViewer viewer)
 {
   DM             dm;
   Vec            locv;
+  PetscObject    isResidual;
   const char    *name;
   PetscReal      time;
   PetscErrorCode ierr;
@@ -208,10 +209,12 @@ PetscErrorCode VecView_Plex_HDF5_Internal(Vec v, PetscViewer viewer)
   ierr = DMGetLocalVector(dm, &locv);CHKERRQ(ierr);
   ierr = PetscObjectGetName((PetscObject) v, &name);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) locv, name);CHKERRQ(ierr);
+  ierr = PetscObjectQuery((PetscObject) v, "__residual__", (PetscObject *) &isResidual);CHKERRQ(ierr);
+  if (isResidual) {ierr = VecSet(locv, 0.0);CHKERRQ(ierr);}
   ierr = DMGlobalToLocalBegin(dm, v, INSERT_VALUES, locv);CHKERRQ(ierr);
   ierr = DMGlobalToLocalEnd(dm, v, INSERT_VALUES, locv);CHKERRQ(ierr);
   ierr = DMGetOutputSequenceNumber(dm, NULL, &time);CHKERRQ(ierr);
-  ierr = DMPlexInsertBoundaryValues(dm, PETSC_TRUE, locv, time, NULL, NULL, NULL);CHKERRQ(ierr);
+  if (!isResidual) {ierr = DMPlexInsertBoundaryValues(dm, PETSC_TRUE, locv, time, NULL, NULL, NULL);CHKERRQ(ierr);}
   ierr = PetscViewerHDF5PushGroup(viewer, "/fields");CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(viewer, PETSC_VIEWER_HDF5_VIZ);CHKERRQ(ierr);
   ierr = VecView_Plex_Local_HDF5_Internal(locv, viewer);CHKERRQ(ierr);

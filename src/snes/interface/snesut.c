@@ -62,16 +62,26 @@ PetscErrorCode  SNESMonitorSolution(SNES snes,PetscInt its,PetscReal fgnorm,Pets
 @*/
 PetscErrorCode  SNESMonitorResidual(SNES snes,PetscInt its,PetscReal fgnorm,PetscViewerAndFormat *vf)
 {
-  PetscErrorCode ierr;
   Vec            x;
   PetscViewer    viewer = vf->viewer;
+  char           name[PETSC_MAX_PATH_LEN];
+  char           oldname[PETSC_MAX_PATH_LEN];
+  const char    *tmp;
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(viewer,PETSC_VIEWER_CLASSID,4);
   ierr = SNESGetFunction(snes,&x,0,0);CHKERRQ(ierr);
+  ierr = PetscSNPrintf(name, PETSC_MAX_PATH_LEN, "Residual, Iterate %d", (int) its);CHKERRQ(ierr);
+  ierr = PetscObjectGetName((PetscObject) x, &tmp);CHKERRQ(ierr);
+  ierr = PetscStrncpy(oldname, tmp, PETSC_MAX_PATH_LEN-1);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) x, name);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject) x, "__residual__", (PetscObject) snes);CHKERRQ(ierr);
   ierr = PetscViewerPushFormat(viewer,vf->format);CHKERRQ(ierr);
   ierr = VecView(x,viewer);CHKERRQ(ierr);
   ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject) x, "__residual__", NULL);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) x, oldname);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
