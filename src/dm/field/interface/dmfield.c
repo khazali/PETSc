@@ -450,7 +450,7 @@ C@*/
 PetscErrorCode DMFieldCreateFEGeom(DMField field, IS pointIS, PetscQuadrature quad, PetscBool faceData, PetscFEGeom **geom)
 {
   PetscInt       dim, dE;
-  PetscInt       nPoints;
+  PetscInt       nPoints, c;
   PetscFEGeom    *g;
   PetscErrorCode ierr;
 
@@ -537,6 +537,7 @@ PetscErrorCode DMFieldCreateFEGeom(DMField field, IS pointIS, PetscQuadrature qu
     if (!field->ops->computeFaceData) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "DMField implementation does not compute face data\n");
     ierr = (*field->ops->computeFaceData) (field, pointIS, quad, g);CHKERRQ(ierr);
   }
+  for (c = 0; c < g->numCells; ++c) {ierr = DMPlexComputeCellDiameter_Implicit_Internal(field->dm, c, &g->diam[c]);CHKERRQ(ierr);}
   *geom = g;
   PetscFunctionReturn(0);
 }
