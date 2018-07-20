@@ -1647,6 +1647,139 @@ PetscErrorCode PetscFVComputeGradient(PetscFV fvm, PetscInt numFaces, PetscScala
 }
 
 /*C
+  PetscFVIntegrate - Produce the cell integral of a given function
+
+  Not collective
+
+  Input Parameters:
++ fvm          - The PetscFV object for the field being integrated
+. prob         - The PetscDS specifing the discretizations and continuum functions
+. field        - The field being integrated
+. Ne           - The number of elements in the chunk
+. cgeom        - The cell geometry for each cell in the chunk
+. coefficients - The array of cell averages for the elements
+. probAux      - The PetscDS specifying the auxiliary discretizations
+. coefficientsAux - The array of auxiliary cell averages for the elements
+. dmGrad       - DM for cell gradients
+- locGrad      - Local vector of cell gradients
+
+  Output Parameter
+. integral     - the integral for this field
+
+  Level: developer
+
+.seealso: PetscFVMax(), PetscFEIntegrate(), PetscFEMax()
+*/
+PetscErrorCode PetscFVIntegrate(PetscFV fvm, PetscDS prob, PetscInt field, PetscInt Ne, PetscFVCellGeom *cgeom, const PetscScalar coefficients[],
+                                PetscDS probAux, const PetscScalar coefficientsAux[], DM dmGrad, Vec locGrad, PetscScalar integral[])
+{
+  PetscPointFunc     obj_func;
+  PetscScalar        lint;
+  const PetscScalar *lgrad, *constants;
+  PetscInt           Nf,    totDim,    *uOff, *uOff_x, numConstants;
+  PetscInt           NfAux, totDimAux, *aOff = NULL;
+  PetscInt           dim, foff, c;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(fvm, PETSCFV_CLASSID, 1);
+  ierr = PetscDSGetNumFields(prob, &Nf);CHKERRQ(ierr);
+  ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
+  ierr = PetscDSGetComponentOffsets(prob, &uOff);CHKERRQ(ierr);
+  ierr = PetscDSGetComponentDerivativeOffsets(prob, &uOff_x);CHKERRQ(ierr);
+  ierr = PetscDSGetConstants(prob, &numConstants, &constants);CHKERRQ(ierr);
+  ierr = PetscDSGetSpatialDimension(prob, &dim);CHKERRQ(ierr);
+  ierr = PetscDSGetObjective(prob, field, &obj_func);CHKERRQ(ierr);
+  ierr = PetscDSGetFieldOffset(prob, field, &foff);CHKERRQ(ierr);
+  if (probAux) {
+    ierr = PetscDSGetNumFields(probAux, &NfAux);CHKERRQ(ierr);
+    ierr = PetscDSGetTotalDimension(probAux, &totDimAux);CHKERRQ(ierr);
+    ierr = PetscDSGetComponentOffsets(probAux, &aOff);CHKERRQ(ierr);
+  } else {
+    NfAux = totDimAux = 0;
+  }
+  if (obj_func) {
+    ierr = VecGetArrayRead(locGrad, &lgrad);CHKERRQ(ierr);
+    for (c = 0; c < Ne; ++c) {
+      const PetscScalar *u_x;
+
+      ierr = DMPlexPointLocalRead(dmGrad, c, lgrad, &u_x);CHKERRQ(ierr);
+      obj_func(dim, Nf, NfAux, uOff, uOff_x, &coefficients[totDim*c+foff], NULL, u_x, aOff, NULL, &coefficientsAux[totDimAux*c], NULL, NULL, 0.0, cgeom[c].centroid, numConstants, constants, &lint);
+      integral[c*Nf+field] += PetscRealPart(lint)*cgeom[c].volume;
+    }
+    ierr = VecRestoreArrayRead(locGrad, &lgrad);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+/*C
+  PetscFVMax - Produce the cell $L_\infty$ integral of a given function
+
+  Not collective
+
+  Input Parameters:
++ fvm          - The PetscFV object for the field being integrated
+. prob         - The PetscDS specifing the discretizations and continuum functions
+. field        - The field being integrated
+. Ne           - The number of elements in the chunk
+. cgeom        - The cell geometry for each cell in the chunk
+. coefficients - The array of cell averages for the elements
+. probAux      - The PetscDS specifying the auxiliary discretizations
+. coefficientsAux - The array of auxiliary cell averages for the elements
+. dmGrad       - DM for cell gradients
+- locGrad      - Local vector of cell gradients
+
+  Output Parameter
+. integral     - the $L_\infty$ integral for this field
+
+  Level: developer
+
+.seealso: PetscFVIntegrate(), PetscFEIntegrate(), PetscFEMax()
+*/
+PetscErrorCode PetscFVMax(PetscFV fvm, PetscDS prob, PetscInt field, PetscInt Ne, PetscFVCellGeom *cgeom, const PetscScalar coefficients[],
+                          PetscDS probAux, const PetscScalar coefficientsAux[], DM dmGrad, Vec locGrad, PetscScalar integral[])
+{
+  PetscPointFunc     obj_func;
+  PetscScalar        lint;
+  const PetscScalar *lgrad, *constants;
+  PetscInt           Nf,    totDim,    *uOff, *uOff_x, numConstants;
+  PetscInt           NfAux, totDimAux, *aOff = NULL;
+  PetscInt           dim, foff, c;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(fvm, PETSCFV_CLASSID, 1);
+  ierr = PetscDSGetNumFields(prob, &Nf);CHKERRQ(ierr);
+  ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
+  ierr = PetscDSGetComponentOffsets(prob, &uOff);CHKERRQ(ierr);
+  ierr = PetscDSGetComponentDerivativeOffsets(prob, &uOff_x);CHKERRQ(ierr);
+  ierr = PetscDSGetConstants(prob, &numConstants, &constants);CHKERRQ(ierr);
+  ierr = PetscDSGetSpatialDimension(prob, &dim);CHKERRQ(ierr);
+  ierr = PetscDSGetObjective(prob, field, &obj_func);CHKERRQ(ierr);
+  ierr = PetscDSGetFieldOffset(prob, field, &foff);CHKERRQ(ierr);
+  if (probAux) {
+    ierr = PetscDSGetNumFields(probAux, &NfAux);CHKERRQ(ierr);
+    ierr = PetscDSGetTotalDimension(probAux, &totDimAux);CHKERRQ(ierr);
+    ierr = PetscDSGetComponentOffsets(probAux, &aOff);CHKERRQ(ierr);
+  } else {
+    NfAux = totDimAux = 0;
+  }
+  if (obj_func) {
+    ierr = VecGetArrayRead(locGrad, &lgrad);CHKERRQ(ierr);
+    for (c = 0; c < Ne; ++c) {
+      const PetscScalar *u_x;
+
+      /* TODO This should use u_x and the cell width to get the max */
+      ierr = DMPlexPointLocalRead(dmGrad, c, lgrad, &u_x);CHKERRQ(ierr);
+      obj_func(dim, Nf, NfAux, uOff, uOff_x, &coefficients[totDim*c+foff], NULL, u_x, aOff, NULL, &coefficientsAux[totDimAux*c], NULL, NULL, 0.0, cgeom[c].centroid, numConstants, constants, &lint);
+      integral[c*Nf+field] = PetscRealPart(lint);
+    }
+    ierr = VecRestoreArrayRead(locGrad, &lgrad);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+/*C
   PetscFVIntegrateRHSFunction - Produce the cell residual vector for a chunk of elements by quadrature integration
 
   Not collective

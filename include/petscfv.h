@@ -92,6 +92,8 @@ PETSC_EXTERN PetscErrorCode PetscFVRestoreTabulation(PetscFV, PetscInt, const Pe
 
 PETSC_EXTERN PetscErrorCode PetscFVComputeGradient(PetscFV, PetscInt, PetscScalar[], PetscScalar[]);
 PETSC_EXTERN PetscErrorCode PetscFVIntegrateRHSFunction(PetscFV, PetscDS, PetscInt, PetscInt, PetscFVFaceGeom *, PetscReal *, PetscScalar[], PetscScalar[], PetscScalar[], PetscScalar[]);
+PETSC_EXTERN PetscErrorCode PetscFVIntegrate(PetscFV, PetscDS, PetscInt, PetscInt, PetscFVCellGeom *, const PetscScalar[], PetscDS, const PetscScalar[], DM, Vec, PetscScalar[]);
+PETSC_EXTERN PetscErrorCode PetscFVMax(PetscFV, PetscDS, PetscInt, PetscInt, PetscFVCellGeom *, const PetscScalar[], PetscDS, const PetscScalar[], DM, Vec, PetscScalar[]);
 
 PETSC_EXTERN PetscErrorCode PetscFVLeastSquaresSetMaxFaces(PetscFV, PetscInt);
 

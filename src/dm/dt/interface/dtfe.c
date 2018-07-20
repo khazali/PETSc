@@ -5061,6 +5061,95 @@ PetscErrorCode PetscFEIntegrate_Basic(PetscFE fem, PetscDS prob, PetscInt field,
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode PetscFEMax_Basic(PetscFE fem, PetscDS prob, PetscInt field, PetscInt Ne, PetscFEGeom *cgeom,
+                                const PetscScalar coefficients[], PetscDS probAux, const PetscScalar coefficientsAux[], PetscScalar integral[])
+{
+  const PetscInt     debug = 0;
+  PetscPointFunc     obj_func;
+  PetscQuadrature    quad;
+  PetscScalar       *u, *u_x, *a, *a_x, *refSpaceDer, *refSpaceDerAux;
+  const PetscScalar *constants;
+  PetscReal         *x;
+  PetscReal        **B, **D, **BAux = NULL, **DAux = NULL;
+  PetscInt          *uOff, *uOff_x, *aOff = NULL, *aOff_x = NULL, *Nb, *Nc, *NbAux = NULL, *NcAux = NULL;
+  PetscInt           dim, dE, Np, numConstants, Nf, NfAux = 0, totDim, totDimAux = 0, cOffset = 0, cOffsetAux = 0, e;
+  PetscBool          isAffine, hasDiameter;
+  const PetscReal   *quadPoints, *quadWeights;
+  PetscInt           qNc, Nq, q;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscDSGetObjective(prob, field, &obj_func);CHKERRQ(ierr);
+  if (!obj_func) PetscFunctionReturn(0);
+  ierr = PetscFEGetSpatialDimension(fem, &dim);CHKERRQ(ierr);
+  ierr = PetscFEGetQuadrature(fem, &quad);CHKERRQ(ierr);
+  ierr = PetscDSGetNumFields(prob, &Nf);CHKERRQ(ierr);
+  ierr = PetscDSGetTotalDimension(prob, &totDim);CHKERRQ(ierr);
+  ierr = PetscDSGetDimensions(prob, &Nb);CHKERRQ(ierr);
+  ierr = PetscDSGetComponents(prob, &Nc);CHKERRQ(ierr);
+  ierr = PetscDSGetComponentOffsets(prob, &uOff);CHKERRQ(ierr);
+  ierr = PetscDSGetComponentDerivativeOffsets(prob, &uOff_x);CHKERRQ(ierr);
+  ierr = PetscDSGetEvaluationArrays(prob, &u, NULL, &u_x);CHKERRQ(ierr);
+  ierr = PetscDSGetRefCoordArrays(prob, &x, &refSpaceDer);CHKERRQ(ierr);
+  ierr = PetscDSGetTabulation(prob, &B, &D);CHKERRQ(ierr);
+  ierr = PetscDSGetConstants(prob, &numConstants, &constants);CHKERRQ(ierr);
+  if (probAux) {
+    ierr = PetscDSGetNumFields(probAux, &NfAux);CHKERRQ(ierr);
+    ierr = PetscDSGetTotalDimension(probAux, &totDimAux);CHKERRQ(ierr);
+    ierr = PetscDSGetDimensions(probAux, &NbAux);CHKERRQ(ierr);
+    ierr = PetscDSGetComponents(probAux, &NcAux);CHKERRQ(ierr);
+    ierr = PetscDSGetComponentOffsets(probAux, &aOff);CHKERRQ(ierr);
+    ierr = PetscDSGetComponentDerivativeOffsets(probAux, &aOff_x);CHKERRQ(ierr);
+    ierr = PetscDSGetEvaluationArrays(probAux, &a, NULL, &a_x);CHKERRQ(ierr);
+    ierr = PetscDSGetRefCoordArrays(probAux, NULL, &refSpaceDerAux);CHKERRQ(ierr);
+    ierr = PetscDSGetTabulation(probAux, &BAux, &DAux);CHKERRQ(ierr);
+  }
+  ierr = PetscQuadratureGetData(quad, NULL, &qNc, &Nq, &quadPoints, &quadWeights);CHKERRQ(ierr);
+  Np = cgeom->numPoints;
+  dE = cgeom->dimEmbed;
+  isAffine    = cgeom->isAffine;
+  hasDiameter = numConstants > 9 ? PETSC_TRUE : PETSC_FALSE;
+  for (e = 0; e < Ne; ++e) {
+    const PetscReal *v0   = &cgeom->v[e*Np*dE];
+    const PetscReal *J    = &cgeom->J[e*Np*dE*dE];
+
+    if (hasDiameter) ((PetscReal *) constants)[numConstants-1] = cgeom->diam[e];
+    if (qNc != 1) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_SUP, "Only supports scalar quadrature, not %D components\n", qNc);
+    for (q = 0; q < Nq; ++q) {
+      PetscScalar integrand;
+      const PetscReal *v;
+      const PetscReal *invJ;
+      PetscReal detJ;
+
+      if (isAffine) {
+        CoordinatesRefToReal(dE, dim, cgeom->xi, v0, J, &quadPoints[q*dim], x);
+        v = x;
+        invJ = &cgeom->invJ[e*dE*dE];
+        detJ = cgeom->detJ[e];
+      } else {
+        v = &v0[q*dE];
+        invJ = &cgeom->invJ[(e*Np+q)*dE*dE];
+        detJ = cgeom->detJ[e*Np + q];
+      }
+      if (debug > 1 && q < Np) {
+        ierr = PetscPrintf(PETSC_COMM_SELF, "  detJ: %g\n", detJ);CHKERRQ(ierr);
+#if !defined(PETSC_USE_COMPLEX)
+        ierr = DMPrintCellMatrix(e, "invJ", dim, dim, invJ);CHKERRQ(ierr);
+#endif
+      }
+      if (debug) {ierr = PetscPrintf(PETSC_COMM_SELF, "  quad point %d\n", q);CHKERRQ(ierr);}
+      EvaluateFieldJets(dim, Nf, Nb, Nc, q, B, D, refSpaceDer, invJ, &coefficients[cOffset], NULL, u, u_x, NULL);
+      if (probAux) EvaluateFieldJets(dim, NfAux, NbAux, NcAux, q, BAux, DAux, refSpaceDerAux, invJ, &coefficientsAux[cOffsetAux], NULL, a, a_x, NULL);
+      obj_func(dim, Nf, NfAux, uOff, uOff_x, u, NULL, u_x, aOff, aOff_x, a, NULL, a_x, 0.0, v, numConstants, constants, &integrand);
+      integral[e*Nf+field] = PetscMax(integral[e*Nf+field], integrand);
+      if (debug > 1) {ierr = PetscPrintf(PETSC_COMM_SELF, "    int: %g %g\n", (double) PetscRealPart(integrand), (double) PetscRealPart(integral[field]));CHKERRQ(ierr);}
+    }
+    cOffset    += totDim;
+    cOffsetAux += totDimAux;
+  }
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode PetscFEIntegrateResidual_Basic(PetscFE fem, PetscDS prob, PetscInt field, PetscInt Ne, PetscFEGeom *cgeom,
                                               const PetscScalar coefficients[], const PetscScalar coefficients_t[], PetscDS probAux, const PetscScalar coefficientsAux[], PetscReal t, PetscScalar elemVec[])
 {
@@ -5683,6 +5772,7 @@ PetscErrorCode PetscFEInitialize_Basic(PetscFE fem)
   fem->ops->getdimension            = PetscFEGetDimension_Basic;
   fem->ops->gettabulation           = PetscFEGetTabulation_Basic;
   fem->ops->integrate               = PetscFEIntegrate_Basic;
+  fem->ops->max                     = PetscFEMax_Basic;
   fem->ops->integrateresidual       = PetscFEIntegrateResidual_Basic;
   fem->ops->integratebdresidual     = PetscFEIntegrateBdResidual_Basic;
   fem->ops->integratejacobianaction = NULL/* PetscFEIntegrateJacobianAction_Basic */;
@@ -7050,6 +7140,40 @@ PetscErrorCode PetscFEIntegrate(PetscFE fem, PetscDS prob, PetscInt field, Petsc
   PetscValidHeaderSpecific(fem, PETSCFE_CLASSID, 1);
   PetscValidHeaderSpecific(prob, PETSCDS_CLASSID, 2);
   if (fem->ops->integrate) {ierr = (*fem->ops->integrate)(fem, prob, field, Ne, cgeom, coefficients, probAux, coefficientsAux, integral);CHKERRQ(ierr);}
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  PetscFEMax - Produce the $L_\infty$ integral for the given field for a chunk of elements by quadrature integration
+
+  Not collective
+
+  Input Parameters:
++ fem          - The PetscFE object for the field being integrated
+. prob         - The PetscDS specifying the discretizations and continuum functions
+. field        - The field being integrated
+. Ne           - The number of elements in the chunk
+. cgeom        - The cell geometry for each cell in the chunk
+. coefficients - The array of FEM basis coefficients for the elements
+. probAux      - The PetscDS specifying the auxiliary discretizations
+- coefficientsAux - The array of FEM auxiliary basis coefficients for the elements
+
+  Output Parameter
+. integral     - the $L_\infty$ integral for this field
+
+  Level: developer
+
+.seealso: PetscFEIntegrateResidual()
+@*/
+PetscErrorCode PetscFEMax(PetscFE fem, PetscDS prob, PetscInt field, PetscInt Ne, PetscFEGeom *cgeom,
+                          const PetscScalar coefficients[], PetscDS probAux, const PetscScalar coefficientsAux[], PetscScalar integral[])
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(fem, PETSCFE_CLASSID, 1);
+  PetscValidHeaderSpecific(prob, PETSCDS_CLASSID, 2);
+  if (fem->ops->max) {ierr = (*fem->ops->max)(fem, prob, field, Ne, cgeom, coefficients, probAux, coefficientsAux, integral);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 

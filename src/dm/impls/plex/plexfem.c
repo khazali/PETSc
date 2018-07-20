@@ -1148,7 +1148,7 @@ PetscErrorCode DMPlexComputeGradientClementInterpolant(DM dm, Vec locX, Vec locC
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cStart, PetscInt cEnd, PetscScalar *cintegral, void *user)
+static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cStart, PetscInt cEnd, PetscBool isMax, PetscScalar *cintegral, void *user)
 {
   DM                 dmAux = NULL;
   PetscDS            prob,    probAux = NULL;
@@ -1167,7 +1167,6 @@ static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cSta
   PetscQuadrature    affineQuad = NULL;
   Vec                cellGeometryFVM = NULL, faceGeometryFVM = NULL, locGrad = NULL;
   PetscFVCellGeom   *cgeomFVM;
-  const PetscScalar *lgrad;
   PetscBool          isAffine;
   DMField            coordField;
   IS                 cellIS;
@@ -1251,7 +1250,6 @@ static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cSta
     ierr = DMRestoreGlobalVector(dmGrad, &grad);CHKERRQ(ierr);
     /* Handle non-essential (e.g. outflow) boundary values */
     ierr = DMPlexInsertBoundaryValues(dm, PETSC_FALSE, locX, 0.0, faceGeometryFVM, cellGeometryFVM, locGrad);CHKERRQ(ierr);
-    ierr = VecGetArrayRead(locGrad, &lgrad);CHKERRQ(ierr);
   }
   /* Read out data from inputs */
   for (c = cStart; c < cEnd; ++c) {
@@ -1296,34 +1294,23 @@ static PetscErrorCode DMPlexComputeIntegral_Internal(DM dm, Vec X, PetscInt cSta
         ierr = DMFieldCreateFEGeom(coordField,cellIS,q,PETSC_FALSE,&cgeomFEM);CHKERRQ(ierr);
       }
       ierr = PetscFEGeomGetChunk(cgeomFEM,0,offset,&chunkGeom);CHKERRQ(ierr);
-      ierr = PetscFEIntegrate(fe, prob, f, Ne, chunkGeom, u, probAux, a, cintegral);CHKERRQ(ierr);
+      if (isMax) {ierr = PetscFEMax(      fe, prob, f, Ne, chunkGeom, u, probAux, a, cintegral);CHKERRQ(ierr);}
+      else       {ierr = PetscFEIntegrate(fe, prob, f, Ne, chunkGeom, u, probAux, a, cintegral);CHKERRQ(ierr);}
+      ierr = PetscFEGeomRestoreChunk(cgeomFEM,0,offset,&chunkGeom);CHKERRQ(ierr);
       ierr = PetscFEGeomGetChunk(cgeomFEM,offset,numCells,&chunkGeom);CHKERRQ(ierr);
-      ierr = PetscFEIntegrate(fe, prob, f, Nr, chunkGeom, &u[offset*totDim], probAux, &a[offset*totDimAux], &cintegral[offset*Nf]);CHKERRQ(ierr);
+      if (isMax) {ierr = PetscFEMax(      fe, prob, f, Nr, chunkGeom, &u[offset*totDim], probAux, &a[offset*totDimAux], &cintegral[offset*Nf]);CHKERRQ(ierr);}
+      else       {ierr = PetscFEIntegrate(fe, prob, f, Nr, chunkGeom, &u[offset*totDim], probAux, &a[offset*totDimAux], &cintegral[offset*Nf]);CHKERRQ(ierr);}
       ierr = PetscFEGeomRestoreChunk(cgeomFEM,offset,numCells,&chunkGeom);CHKERRQ(ierr);
       if (!affineQuad) {
         ierr = PetscFEGeomDestroy(&cgeomFEM);CHKERRQ(ierr);
       }
     } else if (id == PETSCFV_CLASSID) {
-      PetscInt       foff;
-      PetscPointFunc obj_func;
-      PetscScalar    lint;
-
-      ierr = PetscDSGetObjective(prob, f, &obj_func);CHKERRQ(ierr);
-      ierr = PetscDSGetFieldOffset(prob, f, &foff);CHKERRQ(ierr);
-      if (obj_func) {
-        for (c = 0; c < numCells; ++c) {
-          PetscScalar *u_x;
-
-          ierr = DMPlexPointLocalRead(dmGrad, c, lgrad, &u_x);CHKERRQ(ierr);
-          obj_func(dim, Nf, NfAux, uOff, uOff_x, &u[totDim*c+foff], NULL, u_x, aOff, NULL, &a[totDimAux*c], NULL, NULL, 0.0, cgeomFVM[c].centroid, numConstants, constants, &lint);
-          cintegral[c*Nf+f] += PetscRealPart(lint)*cgeomFVM[c].volume;
-        }
-      }
+      if (isMax) {ierr = PetscFVMax(      (PetscFV) obj, prob, f, numCells, cgeomFVM, u, probAux, a, dmGrad, locGrad, cintegral);CHKERRQ(ierr);}
+      else       {ierr = PetscFVIntegrate((PetscFV) obj, prob, f, numCells, cgeomFVM, u, probAux, a, dmGrad, locGrad, cintegral);CHKERRQ(ierr);}
     } else SETERRQ1(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", f);
   }
   /* Cleanup data arrays */
   if (useFVM) {
-    ierr = VecRestoreArrayRead(locGrad, &lgrad);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(cellGeometryFVM, (const PetscScalar **) &cgeomFVM);CHKERRQ(ierr);
     ierr = DMRestoreLocalVector(dmGrad, &locGrad);CHKERRQ(ierr);
     ierr = VecDestroy(&faceGeometryFVM);CHKERRQ(ierr);
@@ -1376,7 +1363,7 @@ PetscErrorCode DMPlexComputeIntegralFEM(DM dm, Vec X, PetscScalar *integral, voi
   cEnd = cEndInterior[cellHeight] < 0 ? cEnd : cEndInterior[cellHeight];
   /* TODO Introduce a loop over large chunks (right now this is a single chunk) */
   ierr = PetscCalloc2(Nf, &lintegral, (cEnd-cStart)*Nf, &cintegral);CHKERRQ(ierr);
-  ierr = DMPlexComputeIntegral_Internal(dm, X, cStart, cEnd, cintegral, user);CHKERRQ(ierr);
+  ierr = DMPlexComputeIntegral_Internal(dm, X, cStart, cEnd, PETSC_FALSE, cintegral, user);CHKERRQ(ierr);
   /* Sum up values */
   for (cell = cStart; cell < cEnd; ++cell) {
     const PetscInt c = cell - cStart;
@@ -1431,7 +1418,7 @@ PetscErrorCode DMPlexComputeCellwiseIntegralFEM(DM dm, Vec X, Vec F, void *user)
   cEnd = cEndInterior[cellHeight] < 0 ? cEnd : cEndInterior[cellHeight];
   /* TODO Introduce a loop over large chunks (right now this is a single chunk) */
   ierr = PetscCalloc1((cEnd-cStart)*Nf, &cintegral);CHKERRQ(ierr);
-  ierr = DMPlexComputeIntegral_Internal(dm, X, cStart, cEnd, cintegral, user);CHKERRQ(ierr);
+  ierr = DMPlexComputeIntegral_Internal(dm, X, cStart, cEnd, PETSC_FALSE, cintegral, user);CHKERRQ(ierr);
   /* Put values in F*/
   ierr = VecGetDM(F, &dmF);CHKERRQ(ierr);
   ierr = DMGetDefaultSection(dmF, &sectionF);CHKERRQ(ierr);
@@ -1441,6 +1428,63 @@ PetscErrorCode DMPlexComputeCellwiseIntegralFEM(DM dm, Vec X, Vec F, void *user)
     PetscInt       dof, off;
 
     if (mesh->printFEM > 1) {ierr = DMPrintCellVector(cell, "Cell Integral", Nf, &cintegral[c*Nf]);CHKERRQ(ierr);}
+    ierr = PetscSectionGetDof(sectionF, cell, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(sectionF, cell, &off);CHKERRQ(ierr);
+    if (dof != Nf) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "The number of cell dofs %D != %D", dof, Nf);
+    for (f = 0; f < Nf; ++f) af[off+f] = cintegral[c*Nf+f];
+  }
+  ierr = VecRestoreArray(F, &af);CHKERRQ(ierr);
+  ierr = PetscFree(cintegral);CHKERRQ(ierr);
+  ierr = PetscLogEventEnd(DMPLEX_IntegralFEM,dm,0,0,0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
+  DMPlexComputeCellwiseMaxFEM - Form the vector of cellwise $L_\infty$ integrals F from the global input X using pointwise functions specified by the user
+
+  Input Parameters:
++ dm - The mesh
+. X  - Global input vector
+- user - The user context
+
+  Output Parameter:
+. integral - Cellwise $L_\infty$ integrals for each field
+
+  Level: developer
+
+.seealso: DMPlexComputeResidualFEM()
+@*/
+PetscErrorCode DMPlexComputeCellwiseMaxFEM(DM dm, Vec X, Vec F, void *user)
+{
+  DM_Plex       *mesh = (DM_Plex *) dm->data;
+  DM             dmF;
+  PetscSection   sectionF;
+  PetscScalar   *cintegral, *af;
+  PetscInt       Nf, f, cellHeight, cStart, cEnd, cEndInterior[4], cell;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidHeaderSpecific(X, VEC_CLASSID, 2);
+  PetscValidHeaderSpecific(F, VEC_CLASSID, 3);
+  ierr = PetscLogEventBegin(DMPLEX_IntegralFEM,dm,0,0,0);CHKERRQ(ierr);
+  ierr = DMGetNumFields(dm, &Nf);CHKERRQ(ierr);
+  ierr = DMPlexGetVTKCellHeight(dm, &cellHeight);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, cellHeight, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetHybridBounds(dm, &cEndInterior[0], &cEndInterior[1], &cEndInterior[2], &cEndInterior[3]);CHKERRQ(ierr);
+  cEnd = cEndInterior[cellHeight] < 0 ? cEnd : cEndInterior[cellHeight];
+  /* TODO Introduce a loop over large chunks (right now this is a single chunk) */
+  ierr = PetscCalloc1((cEnd-cStart)*Nf, &cintegral);CHKERRQ(ierr);
+  ierr = DMPlexComputeIntegral_Internal(dm, X, cStart, cEnd, PETSC_TRUE, cintegral, user);CHKERRQ(ierr);
+  /* Put values in F */
+  ierr = VecGetDM(F, &dmF);CHKERRQ(ierr);
+  ierr = DMGetDefaultSection(dmF, &sectionF);CHKERRQ(ierr);
+  ierr = VecGetArray(F, &af);CHKERRQ(ierr);
+  for (cell = cStart; cell < cEnd; ++cell) {
+    const PetscInt c = cell - cStart;
+    PetscInt       dof, off;
+
+    if (mesh->printFEM > 1) {ierr = DMPrintCellVector(cell, "Cell Max", Nf, &cintegral[c*Nf]);CHKERRQ(ierr);}
     ierr = PetscSectionGetDof(sectionF, cell, &dof);CHKERRQ(ierr);
     ierr = PetscSectionGetOffset(sectionF, cell, &off);CHKERRQ(ierr);
     if (dof != Nf) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "The number of cell dofs %D != %D", dof, Nf);
