@@ -40,10 +40,17 @@ Discrete System with 3 fields
         Space in 2 variables of order 2 with 1 components
         Tensor polynomial space of degree 2
       Continuous Tensor Lagrange dual space of order 2      
-  3 constants
+  10 constants
     1.
     1.
     100.
+    1.
+    0.03
+    1.41421
+    0.
+    0.
+    0.
+    0.
 lid velocity = 100., prandtl # = 1., grashof # = 1.
 L_2 Error: [< 1.0e-11, < 1.0e-11, < 1.0e-11]
 L_2 Residual: 7.41803e-15
