@@ -631,6 +631,41 @@ PetscErrorCode VecView_MPI_Matlab(Vec xin,PetscViewer viewer)
 }
 #endif
 
+#if defined(PETSC_HAVE_ADIOS)
+#include <adios.h>
+#include <adios_read.h>
+#include <petsc/private/vieweradiosimpl.h>
+#include <petsc/private/viewerimpl.h>
+
+PetscErrorCode VecView_MPI_ADIOS(Vec xin, PetscViewer viewer)
+{
+  PetscViewer_ADIOS *adios = (PetscViewer_ADIOS*)viewer->data;
+  PetscErrorCode    ierr;
+  const char        *vecname;
+  int64_t           id;
+  PetscInt          n,N,rstart;
+  const PetscScalar *array;
+  char              nglobalname[16],nlocalname[16],coffset[16];
+
+  PetscFunctionBegin;
+  ierr = PetscObjectGetName((PetscObject) xin, &vecname);CHKERRQ(ierr);
+
+  ierr = VecGetLocalSize(xin,&n);CHKERRQ(ierr);
+  ierr = VecGetSize(xin,&N);CHKERRQ(ierr);
+  ierr = VecGetOwnershipRange(xin,&rstart,NULL);CHKERRQ(ierr);
+
+  sprintf(nlocalname,"%d",(int)n);
+  sprintf(nglobalname,"%d",(int)N);
+  sprintf(coffset,"%d",(int)rstart);
+  id   = adios_define_var(Petsc_adios_group,vecname,"",adios_double,nlocalname,nglobalname,coffset);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(xin,&array);CHKERRQ(ierr);
+  ierr = adios_write_byid(adios->adios_handle,id,array);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(xin,&array);CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+#endif
+
 #if defined(PETSC_HAVE_HDF5)
 PetscErrorCode VecView_MPI_HDF5(Vec xin, PetscViewer viewer)
 {
@@ -859,6 +894,9 @@ PETSC_EXTERN PetscErrorCode VecView_MPI(Vec xin,PetscViewer viewer)
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
   PetscBool      ismatlab;
 #endif
+#if defined(PETSC_HAVE_ADIOS)
+  PetscBool      isadios;
+#endif
   PetscBool      isglvis;
 
   PetscFunctionBegin;
@@ -875,6 +913,9 @@ PETSC_EXTERN PetscErrorCode VecView_MPI(Vec xin,PetscViewer viewer)
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERMATLAB,&ismatlab);CHKERRQ(ierr);
 #endif
   ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERGLVIS,&isglvis);CHKERRQ(ierr);
+#if defined(PETSC_HAVE_ADIOS)
+  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERADIOS,&isadios);CHKERRQ(ierr);
+#endif
   if (iascii) {
     ierr = VecView_MPI_ASCII(xin,viewer);CHKERRQ(ierr);
   } else if (isbinary) {
@@ -894,6 +935,10 @@ PETSC_EXTERN PetscErrorCode VecView_MPI(Vec xin,PetscViewer viewer)
 #if defined(PETSC_HAVE_HDF5)
   } else if (ishdf5) {
     ierr = VecView_MPI_HDF5(xin,viewer);CHKERRQ(ierr);
+#endif
+#if defined(PETSC_HAVE_ADIOS)
+  } else if (isadios) {
+    ierr = VecView_MPI_ADIOS(xin,viewer);CHKERRQ(ierr);
 #endif
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
   } else if (ismatlab) {
