@@ -53,7 +53,10 @@ int main(int argc,char *argv[])
 
    test:
       nsize: 4
-      args: -n 1000 -mat_view ascii::ascii_info_detail
+      # Turn off vecscatter_useintranodeshm since the remote processors may change when it is on, causing diffs in MatView
+      args: -n 1000 -mat_view ascii::ascii_info_detail -vecscatter_useintranodeshm off
+      # Use this filter since the default vecscatter may change
+      filter: grep -v "Method used to implement the VecScatter"
       requires: double !complex !define(PETSC_USE_64BIT_INDICES)
 
 TEST*/

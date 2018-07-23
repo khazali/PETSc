@@ -61,7 +61,10 @@ int main(int argc,char *argv[])
 
    test:
       nsize: 2
-      args: -mat_ignore_lower_triangular
+      # Turn off vecscatter_useintranodeshm since the remote processors may change when it is on, causing diffs in MatView
+      args: -mat_ignore_lower_triangular -vecscatter_useintranodeshm off
+      # Use this filter since the default vecscatter may change
+      filter: grep -v "Method used to implement the VecScatter"
       requires: double !complex  !define(PETSC_USE_64BIT_INDICES)
 
 TEST*/
