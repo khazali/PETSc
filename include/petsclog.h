@@ -338,6 +338,19 @@ PETSC_STATIC_INLINE PetscErrorCode PetscMPITypeSizeComm(MPI_Comm comm, PetscLogD
   return 0;
 }
 
+PETSC_STATIC_INLINE PetscErrorCode PetscMPITypeSizeCount(PetscInt n, PetscLogDouble *buff,PetscMPIInt *counts,MPI_Datatype type)
+{
+  PetscMPIInt mysize, p;
+  PetscErrorCode _myierr;
+
+  if (type == MPI_DATATYPE_NULL) return 0;
+  _myierr = MPI_Type_size(type,&mysize);CHKERRQ(_myierr);
+  for (p = 0; p < n; ++p) {
+    *buff += (PetscLogDouble) (counts[p]*mysize);
+  }
+  return 0;
+}
+
 /*
     Returns 1 if the communicator is parallel else zero
 */
@@ -391,6 +404,10 @@ PETSC_STATIC_INLINE int PetscMPIParallelComm(MPI_Comm comm)
 #define MPI_Alltoallv(sendbuf,sendcnts,sdispls,sendtype,recvbuf,recvcnts,rdispls,recvtype,comm) \
   ((petsc_allreduce_ct += PetscMPIParallelComm((comm)),0) || PetscMPITypeSizeComm((comm),(&petsc_send_len),(sendcnts),(sendtype)) || MPI_Alltoallv((sendbuf),(sendcnts),(sdispls),(sendtype),(recvbuf),(recvcnts),(rdispls),(recvtype),(comm)))
 
+/* we treat MPI_Ineighbor_alltoallv as a set of isend/irecv instead of a traditional MPI collective */
+#define MPI_Start_ineighbor_alltoallv(outdegree,indegree,sendbuf,sendcnts,sdispls,sendtype,recvbuf,recvcnts,rdispls,recvtype,comm,request) \
+  ((petsc_isend_ct += (PetscLogDouble)(outdegree),0) || (petsc_irecv_ct += (PetscLogDouble)(indegree),0) || PetscMPITypeSizeCount((outdegree),(&petsc_isend_len),(sendcnts),(sendtype)) || PetscMPITypeSizeCount((indegree),(&petsc_irecv_len),(recvcnts),(recvtype)) || MPI_Ineighbor_alltoallv((sendbuf),(sendcnts),(sdispls),(sendtype),(recvbuf),(recvcnts),(rdispls),(recvtype),(comm),(request)))
+
 #define MPI_Allgather(sendbuf,sendcount,sendtype,recvbuf,recvcount,recvtype,comm) \
   ((petsc_gather_ct += PetscMPIParallelComm((comm)),0) || MPI_Allgather((sendbuf),(sendcount),(sendtype),(recvbuf),(recvcount),(recvtype),(comm)))
 
@@ -419,6 +436,9 @@ PETSC_STATIC_INLINE int PetscMPIParallelComm(MPI_Comm comm)
 
 #define MPI_Start_isend(count,requests) \
   (MPI_Start((requests)))
+
+#define MPI_Start_ineighbor_alltoallv(outdegree,sendbuf,sendcnts,sdispls,sendtype,recvbuf,recvcnts,rdispls,recvtype,comm,request) \
+  (MPI_Ineighbor_alltoallv((sendbuf),(sendcnts),(sdispls),(sendtype),(recvbuf),(recvcnts),(rdispls),(recvtype),(comm),(request)))
 
 #endif /* !__MPIUNI_H && ! PETSC_HAVE_BROKEN_RECURSIVE_MACRO */
 

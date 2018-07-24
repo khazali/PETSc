@@ -98,7 +98,7 @@ PetscErrorCode PETSCMAP1(VecScatterBeginMPI1)(VecScatter ctx,Vec xin,Vec yin,Ins
 #endif
 #if defined(PETSC_HAVE_MPI_NEIGHBORHOOD_COLLECTIVE)
       else if (to->use_neighborhood) {
-        ierr = MPI_Ineighbor_alltoallv(to->values,to->neigh_counts,to->neigh_displs,MPIU_SCALAR,from->values,from->neigh_counts,from->neigh_displs,MPIU_SCALAR,to->comm_dist_graph,&to->neigh_request);CHKERRQ(ierr);
+        ierr = MPI_Start_ineighbor_alltoallv(to->n,from->n,to->values,to->neigh_counts,to->neigh_displs,MPIU_SCALAR,from->values,from->neigh_counts,from->neigh_displs,MPIU_SCALAR,to->comm_dist_graph,&to->neigh_request);CHKERRQ(ierr);
       }
 #endif
       else if (nsends) {
