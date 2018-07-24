@@ -2,7 +2,7 @@
 #define c12 0
 #define c21 2.0
 #define c22 1.0
-static char help[] = "Solves a DAE-constrained optimization problem -- finding the optimal initial conditions for the van der Pol equation.\n";
+static char help[] = "Solves a ODE-constrained optimization problem -- finding the optimal initial conditions for the van der Pol equation.\n";
 
 /**
   Concepts: TS^time-dependent nonlinear problems
@@ -12,11 +12,12 @@ static char help[] = "Solves a DAE-constrained optimization problem -- finding t
 */
 /**
   Notes:
-  This code demonstrates how to solve a DAE-constrained optimization problem with TAO, TSAdjoint and TS.
-  The nonlinear problem is written in a DAE equivalent form.
+  This code demonstrates how to solve an ODE-constrained optimization problem with TAO, TSAdjoint and TS.
+  The nonlinear problem is written in an ODE equivalent form.
   The objective is to minimize the difference between observation and model prediction by finding optimal values for initial conditions.
-  The gradient is computed with the discrete adjoint of an implicit theta method, see ex20adj.c for details.
+  The gradient is computed with the discrete adjoint of an implicit method or an explicit method, see ex20adj.c for details.
 */
+
 #include <petsctao.h>
 #include <petscts.h>
 
@@ -37,10 +38,87 @@ struct _n_User {
   Vec       Ihp1[1];                 /* working space for Hessian evaluations */
   Vec       Dir;                     /* direction vector */
   PetscReal ob[2];                   /* observation used by the cost function */
+  PetscBool implicitform;            /* implicit ODE? */
 };
 PetscErrorCode Adjoint2(Vec,PetscScalar[],User);
 
-/* ------------------ User-defined routines for TS -------------------------- */
+/* ----------------------- Explicit form of the ODE  -------------------- */
+
+static PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec U,Vec F,void *ctx)
+{
+  PetscErrorCode    ierr;
+  User              user = (User)ctx;
+  PetscScalar       *f;
+  const PetscScalar *u;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(U,&u);CHKERRQ(ierr);
+  ierr = VecGetArray(F,&f);CHKERRQ(ierr);
+  f[0] = u[1];
+  f[1] = user->mu*((1.-u[0]*u[0])*u[1]-u[0]);
+  ierr = VecRestoreArrayRead(U,&u);CHKERRQ(ierr);
+  ierr = VecRestoreArray(F,&f);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec U,Mat A,Mat B,void *ctx)
+{
+  PetscErrorCode    ierr;
+  User              user = (User)ctx;
+  PetscReal         mu   = user->mu;
+  PetscInt          rowcol[] = {0,1};
+  PetscScalar       J[2][2];
+  const PetscScalar *u;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(U,&u);CHKERRQ(ierr);
+  J[0][0] = 0;
+  J[1][0] = -mu*(2.0*u[1]*u[0]+1.);
+  J[0][1] = 1.0;
+  J[1][1] = mu*(1.0-u[0]*u[0]);
+  ierr    = MatSetValues(A,2,rowcol,2,rowcol,&J[0][0],INSERT_VALUES);CHKERRQ(ierr);
+  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  if (A != B) {
+    ierr = MatAssemblyBegin(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(B,MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  }
+  ierr = VecRestoreArrayRead(U,&u);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode RHSHessianProductUU(TS ts,PetscReal t,Vec U,Vec *Vl,Vec Vr,Vec *VHV,void *ctx)
+{
+  const PetscScalar *vl,*vr,*u;
+  PetscScalar       *vhv;
+  PetscScalar       dJdU[2][2][2]={{{0}}};
+  PetscInt          i,j,k;
+  User              user = (User)ctx;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBeginUser;
+  ierr = VecGetArrayRead(U,&u);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(Vl[0],&vl);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(Vr,&vr);CHKERRQ(ierr);
+  ierr = VecGetArray(VHV[0],&vhv);CHKERRQ(ierr);
+
+  dJdU[1][0][0] = -2.*user->mu*u[1];
+  dJdU[1][1][0] = -2.*user->mu*u[0];
+  dJdU[1][0][1] = -2.*user->mu*u[0];
+  for (j=0;j<2;j++) {
+    vhv[j] = 0;
+    for (k=0;k<2;k++)
+      for (i=0;i<2;i++ )
+        vhv[j] += vl[i]*dJdU[i][j][k]*vr[k];
+  }
+  ierr = VecRestoreArrayRead(U,&u);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(Vl[0],&vl);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(Vr,&vr);CHKERRQ(ierr);
+  ierr = VecRestoreArray(VHV[0],&vhv);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/* ----------------------- Implicit form of the ODE  -------------------- */
 
 static PetscErrorCode IFunction(TS ts,PetscReal t,Vec U,Vec Udot,Vec F,void *ctx)
 {
@@ -84,9 +162,7 @@ static PetscErrorCode IJacobian(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal a,Mat
   PetscFunctionReturn(0);
 }
 
-/**
-  Monitor timesteps and use interpolation to output at integer multiples of 0.1
-*/
+/* Monitor timesteps and use interpolation to output at integer multiples of 0.1 */
 static PetscErrorCode Monitor(TS ts,PetscInt step,PetscReal t,Vec U,void *ctx)
 {
   PetscErrorCode    ierr;
@@ -127,9 +203,9 @@ static PetscErrorCode IHessianProductUU(TS ts,PetscReal t,Vec U,Vec *Vl,Vec Vr,V
   ierr          = VecGetArrayRead(Vl[0],&vl);CHKERRQ(ierr);
   ierr          = VecGetArrayRead(Vr,&vr);CHKERRQ(ierr);
   ierr          = VecGetArray(VHV[0],&vhv);CHKERRQ(ierr);
-  dJdU[1][0][0] = -2.*user->mu*u[1];
-  dJdU[1][1][0] = -2.*user->mu*u[0];
-  dJdU[1][0][1] = -2.*user->mu*u[0];
+  dJdU[1][0][0] = 2.*user->mu*u[1];
+  dJdU[1][1][0] = 2.*user->mu*u[0];
+  dJdU[1][0][1] = 2.*user->mu*u[0];
   for (j=0;j<2;j++) {
     vhv[j] = 0;
     for (k=0;k<2;k++)
@@ -158,7 +234,7 @@ static PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,voi
 
   ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
   ierr = TSSetStepNumber(ts,0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(ts,0.0001);CHKERRQ(ierr); /* can be overwritten by command line options */
+  ierr = TSSetTimeStep(ts,0.001);CHKERRQ(ierr); /* can be overwritten by command line options */
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
 
   ierr = TSSolve(ts,user_ptr->U);CHKERRQ(ierr);
@@ -242,7 +318,7 @@ PetscErrorCode Adjoint2(Vec U,PetscScalar arr[],User ctx)
 
   ierr = TSSetTime(ts,0.0);CHKERRQ(ierr);
   ierr = TSSetStepNumber(ts,0);CHKERRQ(ierr);
-  ierr = TSSetTimeStep(ts,.0001);CHKERRQ(ierr);
+  ierr = TSSetTimeStep(ts,0.001);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
   ierr = TSSetCostHessianProducts(ts,1,ctx->Lambda2,NULL,ctx->Dir);CHKERRQ(ierr);
   ierr = TSAdjointInitializeForward(ts,NULL);CHKERRQ(ierr);
@@ -264,7 +340,11 @@ PetscErrorCode Adjoint2(Vec U,PetscScalar arr[],User ctx)
   ierr = MatDenseRestoreColumn(tlmsen,&x_ptr);CHKERRQ(ierr);
 
   ierr = TSSetCostGradients(ts,1,ctx->Lambda,NULL);CHKERRQ(ierr);
-  ierr = TSSetIHessianProduct(ts,ctx->Ihp1,IHessianProductUU,NULL,NULL,NULL,NULL,NULL,NULL,ctx);CHKERRQ(ierr);
+  if (ctx->implicitform) {
+    ierr = TSSetIHessianProduct(ts,ctx->Ihp1,IHessianProductUU,NULL,NULL,NULL,NULL,NULL,NULL,ctx);CHKERRQ(ierr);
+  } else {
+    ierr = TSSetRHSHessianProduct(ts,ctx->Ihp1,RHSHessianProductUU,NULL,NULL,NULL,NULL,NULL,NULL,ctx);CHKERRQ(ierr);
+  }
   ierr = TSAdjointSolve(ts);CHKERRQ(ierr);
 
   ierr   = VecGetArray(ctx->Lambda2[0],&x_ptr);CHKERRQ(ierr);
@@ -357,10 +437,11 @@ int main(int argc,char **argv)
   if (size != 1) SETERRQ(PETSC_COMM_SELF,1,"This is a uniprocessor example only!");
 
   /* Set runtime options */
-  user.next_output = 0.0;
-  user.mu          = 1.0e6;
-  user.steps       = 0;
-  user.ftime       = 0.5;
+  user.next_output  = 0.0;
+  user.mu           = 1.0e3;
+  user.steps        = 0;
+  user.ftime        = 0.5;
+  user.implicitform = PETSC_TRUE;
 
   ierr = PetscOptionsGetBool(NULL,NULL,"-monitor",&monitor,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetReal(NULL,NULL,"-mu",&user.mu,NULL);CHKERRQ(ierr);
@@ -368,6 +449,7 @@ int main(int argc,char **argv)
   ierr = PetscOptionsGetReal(NULL,NULL,"-ic1",&ic1,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetReal(NULL,NULL,"-ic2",&ic2,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetBool(NULL,NULL,"-my_tao_mf",&mf,NULL);CHKERRQ(ierr); /* matrix-free hessian for optimization */
+  ierr = PetscOptionsGetBool(NULL,NULL,"-implicitform",&user.implicitform,NULL);CHKERRQ(ierr);
 
   /* Create necessary matrix and vectors, solve same ODE on every process */
   ierr = MatCreate(PETSC_COMM_WORLD,&user.A);CHKERRQ(ierr);
@@ -382,9 +464,15 @@ int main(int argc,char **argv)
 
   /* Create timestepping solver context */
   ierr = TSCreate(PETSC_COMM_WORLD,&user.ts);CHKERRQ(ierr);
-  ierr = TSSetType(user.ts,TSCN);CHKERRQ(ierr);
-  ierr = TSSetIFunction(user.ts,NULL,IFunction,&user);CHKERRQ(ierr);
-  ierr = TSSetIJacobian(user.ts,user.A,user.A,IJacobian,&user);CHKERRQ(ierr);
+  if (user.implicitform) {
+    ierr = TSSetIFunction(user.ts,NULL,IFunction,&user);CHKERRQ(ierr);
+    ierr = TSSetIJacobian(user.ts,user.A,user.A,IJacobian,&user);CHKERRQ(ierr);
+    ierr = TSSetType(user.ts,TSCN);CHKERRQ(ierr);
+  } else {
+    ierr = TSSetRHSFunction(user.ts,NULL,RHSFunction,&user);CHKERRQ(ierr);
+    ierr = TSSetRHSJacobian(user.ts,user.A,user.A,RHSJacobian,&user);CHKERRQ(ierr);
+    ierr = TSSetType(user.ts,TSRK);CHKERRQ(ierr);
+  }
   ierr = TSSetMaxTime(user.ts,user.ftime);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(user.ts,TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
@@ -394,8 +482,8 @@ int main(int argc,char **argv)
 
   /* Set ODE initial conditions */
   ierr     = VecGetArray(user.U,&x_ptr);CHKERRQ(ierr);
-  x_ptr[0] = 2.;
-  x_ptr[1] = -0.66666654321;
+  x_ptr[0] = 2.0;
+  x_ptr[1] = -2.0/3.0 + 10.0/81.0/user.mu - 292.0/2187.0/user.mu/user.mu;
   ierr     = VecRestoreArray(user.U,&x_ptr);CHKERRQ(ierr);
 
   /* Save trajectory of solution so that TSAdjointSolve() may be used */
