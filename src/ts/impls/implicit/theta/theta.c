@@ -853,22 +853,6 @@ static PetscErrorCode TSReset_Theta(TS ts)
   ierr = VecDestroy(&th->vec_lte_work);CHKERRQ(ierr);
 
   ierr = VecDestroy(&th->VecCostIntegral0);CHKERRQ(ierr);
-  if (ts->forward_solve) {
-    if (ts->vecs_integral_sensip) {
-      ierr = VecDestroy(&th->VecIntegralSensipTemp);CHKERRQ(ierr);
-      ierr = VecDestroyVecs(ts->numcost,&th->VecsIntegralSensip0);CHKERRQ(ierr);
-    }
-    ierr = VecDestroy(&th->VecDeltaFwdSensipCol);CHKERRQ(ierr);
-    ierr = MatDestroy(&th->MatDeltaFwdSensip);CHKERRQ(ierr);
-    ierr = MatDestroy(&th->MatFwdSensip0);CHKERRQ(ierr);
-  }
-  ierr = VecDestroyVecs(ts->numcost,&th->VecsDeltaLam);CHKERRQ(ierr);
-  ierr = VecDestroyVecs(ts->numcost,&th->VecsDeltaMu);CHKERRQ(ierr);
-  ierr = VecDestroyVecs(ts->numcost,&th->VecsDeltaLam2);CHKERRQ(ierr);
-  ierr = VecDestroyVecs(ts->numcost,&th->VecsDeltaMu2);CHKERRQ(ierr);
-  ierr = VecDestroyVecs(ts->numcost,&th->VecsSensiTemp);CHKERRQ(ierr);
-  ierr = VecDestroyVecs(ts->numcost,&th->VecsSensi2Temp);CHKERRQ(ierr);
-
   PetscFunctionReturn(0);
 }
 
