@@ -97,7 +97,9 @@ PetscErrorCode PETSCMAP1(VecScatterBeginMPI1)(VecScatter ctx,Vec xin,Vec yin,Ins
 #endif
 #if defined(PETSC_HAVE_MPI_NEIGHBORHOOD_COLLECTIVE)
       else if (to->use_neighborhood) {
-        ierr = MPI_Start_ineighbor_alltoallv(to->n,from->n,to->values,to->neigh_counts,to->neigh_displs,MPIU_SCALAR,from->values,from->neigh_counts,from->neigh_displs,MPIU_SCALAR,to->comm_dist_graph,&to->neigh_request);CHKERRQ(ierr);
+        /* OpenMPI-3.0 ran into error with to->n = from->n = 0, so I added this trival workaround */
+        if (to->n || from->n) { ierr = MPI_Start_ineighbor_alltoallv(to->n,from->n,to->values,to->neigh_counts,to->neigh_displs,MPIU_SCALAR,from->values,from->neigh_counts,from->neigh_displs,MPIU_SCALAR,to->comm_dist_graph,&to->neigh_request);CHKERRQ(ierr); }
+        else to->neigh_request = MPI_REQUEST_NULL;
       }
 #endif
       else if (to->n) { ierr = MPI_Startall_isend(to->starts[to->n]*bs,to->n,swaits);CHKERRQ(ierr); }
