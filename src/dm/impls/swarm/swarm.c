@@ -230,7 +230,7 @@ static PetscErrorCode DMSwarmComputeMassMatrix_Private(DM dmc, DM dmf, Mat mass,
           if (key.j >= 0) {
             /* Get indices for coarse elements */
             for (c = 0; c < numCIndices; ++c) {
-              key.k = cindices[c] + rStart; /* local rows (from Swarm) */
+              key.k = cindices[c] + rStart; /* local cols (from Swarm) */
               if (key.k < 0) continue;
               ierr = PetscHashJKPut(ht, key, &missing, &iter);CHKERRQ(ierr);
               if (missing) {
