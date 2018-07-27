@@ -4,8 +4,8 @@ CFLAGS		 =
 FFLAGS		 =
 CPPFLAGS         =
 FPPFLAGS         =
-TUTORIALS        = plate2.c jbearing2.c plate2f.F90
-EXAMPLESC        = plate2.c jbearing2.c
+TUTORIALS        = plate2.c jbearing2.c camel6.c plate2f.F90
+EXAMPLESC        = plate2.c jbearing2.c camel6.c
 EXAMPLECH        =
 EXAMPLESF        = plate2f.F90
 EXAMPLESFH       = plate2f.h
@@ -13,7 +13,7 @@ LOCDIR		 = src/tao/bound/examples/tutorials/
 MANSEC		 =
 DOCS		 =
 DIRS		 =
-CLEANFILES       = plate2 jbearing2 plate2f jbearing2f
+CLEANFILES       = plate2 jbearing2 plate2f jbearing2f camel6
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
@@ -29,5 +29,9 @@ plate2f: plate2f.o chkopts
 jbearing2: jbearing2.o chkopts
 	-${CLINKER} -o jbearing2 jbearing2.o ${PETSC_TAO_LIB}
 	${RM} jbearing2.o
+	
+camel6: camel6.o chkopts
+	-${CLINKER} -o camel6 camel6.o ${PETSC_TAO_LIB}
+	${RM} camel6.o
 
 include ${PETSC_DIR}/lib/petsc/conf/test
