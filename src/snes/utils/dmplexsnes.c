@@ -1423,7 +1423,7 @@ static PetscErrorCode DMPlexComputeBdResidual_Single_Internal(DM dm, PetscReal t
     ierr = DMConvert(dmAux, DMPLEX, &plexA);CHKERRQ(ierr);
     ierr = DMGetDS(plexA, &probAux);CHKERRQ(ierr);
     ierr = PetscDSGetTotalDimension(probAux, &totDimAux);CHKERRQ(ierr);
-    ierr = DMGetSection(plex, &sectionAux);CHKERRQ(ierr);
+    ierr = DMGetSection(plexA, &sectionAux);CHKERRQ(ierr);
   }
   for (v = 0; v < numValues; ++v) {
     PetscBool        isAffine;
