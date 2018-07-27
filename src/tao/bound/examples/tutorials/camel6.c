@@ -1,14 +1,9 @@
-/* Program usage: mpiexec -n 1 rosenbrock1 [-help] [all TAO options] */
-
 /*  Include "petsctao.h" so we can use TAO solvers.  */
 #include <petsctao.h>
 
 static  char help[] = "This example demonstrates use of the TAO package to \n\
-solve an unconstrained minimization problem on a single processor.  We \n\
-minimize the extended Rosenbrock function: \n\
-   sum_{i=0}^{n/2-1} ( alpha*(x_{2i+1}-x_{2i}^2)^2 + (1-x_{2i})^2 ) \n\
-or the chained Rosenbrock function:\n\
-   sum_{i=0}^{n-1} alpha*(x_{i+1} - x_i^2)^2 + (1 - x_i)^2\n";
+solve a bound constrained minimization problem on a single processor.  We \n\
+minimize the six-hump camel problem.";
 
 /*T
    Concepts: TAO^Solving a bound constrained minimization problem
