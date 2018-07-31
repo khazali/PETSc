@@ -212,7 +212,14 @@ int main(int argc,char **argv)
    test:
       suffix: 1
       nsize: 2
-      args:
+      args: -vecscatter_useintranodeshm on
       requires: double
-TEST*/
 
+   test:
+      suffix: 2
+      nsize: 2
+      args: -vecscatter_useintranodeshm off
+      output_file: output/ex5_1.out
+      requires: double
+
+TEST*/
