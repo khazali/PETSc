@@ -277,7 +277,7 @@ int main(int argc,char **args)
         ierr = ISGetIndices(is, &faces);CHKERRQ(ierr);
         ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
         ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
-        ierr = DMGetDefaultSection(cdm, &cs);CHKERRQ(ierr);
+        ierr = DMGetSection(cdm, &cs);CHKERRQ(ierr);
         /* Check for each boundary face if any component of its centroid is either 0.0 or 1.0 */
         for (f = 0; f < Nf; ++f) {
           PetscReal   faceCoord;
@@ -392,7 +392,7 @@ int main(int argc,char **args)
       PetscDS        prob;
       DM             cdm = dm;
 
-      ierr = PetscFECreateDefault(dm, dim, dim, PETSC_FALSE, NULL, PETSC_DECIDE, &fe);CHKERRQ(ierr); /* elasticity */
+      ierr = PetscFECreateDefault(PetscObjectComm((PetscObject) dm), dim, dim, PETSC_FALSE, NULL, PETSC_DECIDE, &fe);CHKERRQ(ierr); /* elasticity */
       ierr = PetscObjectSetName((PetscObject) fe, "deformation");CHKERRQ(ierr);
       /* FEM prob */
       ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);

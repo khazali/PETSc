@@ -139,7 +139,7 @@ static PetscErrorCode KSPGuessUpdate_Fischer_1(KSPGuess guess, Vec b, Vec x)
       ierr = VecScale(itg->xtilde[curl],1.0/norm);CHKERRQ(ierr);
       itg->curl++;
     } else {
-      ierr = PetscInfo(guess,"Not increasing dimension of Fischer space because new direction is identical to previous\n");CHKERRQ(ierr);
+      ierr = PetscInfo(guess->ksp,"Not increasing dimension of Fischer space because new direction is identical to previous\n");CHKERRQ(ierr);
     }
   }
   PetscFunctionReturn(0);
@@ -202,7 +202,7 @@ static PetscErrorCode KSPGuessUpdate_Fischer_2(KSPGuess guess, Vec b, Vec x)
       ierr = VecScale(itg->xtilde[curl],1.0/PetscSqrtScalar(norm));CHKERRQ(ierr);
       itg->curl++;
     } else {
-      ierr = PetscInfo(guess,"Not increasing dimension of Fischer space because new direction is identical to previous\n");CHKERRQ(ierr);
+      ierr = PetscInfo(guess->ksp,"Not increasing dimension of Fischer space because new direction is identical to previous\n");CHKERRQ(ierr);
     }
   }
   PetscFunctionReturn(0);
@@ -310,7 +310,8 @@ static PetscErrorCode KSPGuessFischerSetModel_Fischer(KSPGuess guess,PetscInt mo
   References:
 .   1. -   http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19940020363_1994020363.pdf
 
-   Notes: the algorithm is different from the paper because we do not CHANGE the right hand side of the new
+   Notes:
+    the algorithm is different from the paper because we do not CHANGE the right hand side of the new
     problem and solve the problem with an initial guess of zero, rather we solve the original new problem
     with a nonzero initial guess (this is done so that the linear solver convergence tests are based on
     the original RHS.) But we use the xtilde = x - xguess as the new direction so that it is not

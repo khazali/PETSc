@@ -13,7 +13,7 @@ class Configure(config.package.Package):
     self.cxx             = 0
     self.complex         = 0   # Currently CUSP with complex numbers is not supported
     self.CUSPVersion     = ''
-    self.CUSPMinVersion  = '400' # Minimal cusp version is 0.4
+    self.CUSPMinVersion  = '500' # Minimal cusp version is 0.5.0
     return
 
   def setupDependencies(self, framework):
@@ -32,13 +32,13 @@ class Configure(config.package.Package):
       self.installDirProvider.printSudoPasswordMessage()
       try:
         output,err,ret  = config.base.Configure.executeShellCommand(self.installSudo+'mkdir -p '+destdir+' && '+self.installSudo+'rm -rf '+destdir+'  && '+self.installSudo+'cp -rf '+srcdir+' '+destdir, timeout=6000, log = self.log)
-      except RuntimeError, e:
+      except RuntimeError as e:
         raise RuntimeError('Error copying Cusp files from '+os.path.join(self.packageDir, 'Cusp')+' to '+packageDir)
     else:
       try:
         if os.path.isdir(destdir): shutil.rmtree(destdir)
         shutil.copytree(srcdir,destdir)
-      except RuntimeError,e:
+      except RuntimeError as e:
         raise RuntimeError('Error installing Cusp include files: '+str(e))
     return self.installDir
 

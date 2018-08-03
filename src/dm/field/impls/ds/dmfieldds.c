@@ -447,7 +447,7 @@ static PetscErrorCode DMFieldEvaluateFV_DS(DMField field, IS pointIS, PetscDataT
   dsfield = (DMField_DS *) field->data;
   ierr = DMGetCoordinateDim(field->dm, &dimC);CHKERRQ(ierr);
   ierr = DMGetDimension(field->dm, &dim);CHKERRQ(ierr);
-  ierr = ISGetLocalSize(pointIS, &numPoints);
+  ierr = ISGetLocalSize(pointIS, &numPoints);CHKERRQ(ierr);
   ierr = ISGetMinMax(pointIS,&imin,NULL);CHKERRQ(ierr);
   for (h = 0; h < dsfield->height; h++) {
     PetscInt hEnd;
@@ -682,7 +682,7 @@ static PetscErrorCode DMFieldGetDegree_DS(DMField field, IS pointIS, PetscInt *m
 
 static PetscErrorCode DMFieldCreateDefaultQuadrature_DS(DMField field, IS pointIS, PetscQuadrature *quad)
 {
-  PetscInt       h, dim, imax, imin;
+  PetscInt       h, dim, imax, imin, cellHeight;
   DM             dm;
   DMField_DS     *dsfield;
   PetscObject    disc;
@@ -694,14 +694,16 @@ static PetscErrorCode DMFieldCreateDefaultQuadrature_DS(DMField field, IS pointI
   PetscFunctionBegin;
   dm = field->dm;
   dsfield = (DMField_DS *) field->data;
-  ierr = ISGetMinMax(pointIS,&imax,&imin);CHKERRQ(ierr);
+  ierr = ISGetMinMax(pointIS,&imin,&imax);CHKERRQ(ierr);
   ierr = DMGetDimension(dm,&dim);CHKERRQ(ierr);
   for (h = 0; h <= dim; h++) {
     PetscInt hStart, hEnd;
 
     ierr = DMPlexGetHeightStratum(dm,h,&hStart,&hEnd);CHKERRQ(ierr);
-    if (imin >= hStart && imax < hEnd) break;
+    if (imax >= hStart && imin < hEnd) break;
   }
+  ierr = DMPlexGetVTKCellHeight(dm, &cellHeight);CHKERRQ(ierr);
+  h -= cellHeight;
   *quad = NULL;
   if (h < dsfield->height) {
     ierr = DMFieldDSGetHeightDisc(field,h,&disc);CHKERRQ(ierr);
@@ -807,7 +809,9 @@ static PetscErrorCode DMFieldComputeFaceData_DS(DMField field, IS pointIS, Petsc
     ierr = PetscDualSpaceGetDM(dsp, &K); CHKERRQ(ierr);
     ierr = DMPlexGetConeSize(K,0,&coneSize);CHKERRQ(ierr);
     ierr = DMPlexGetCone(K,0,&coneK);CHKERRQ(ierr);
-    ierr = PetscMalloc4(numFaces,&co,dE*Nq,&cellPoints,coneSize,&counts,Nq,&dummyWeights);CHKERRQ(ierr);
+    ierr = PetscMalloc2(numFaces, &co, coneSize, &counts);CHKERRQ(ierr);
+    ierr = PetscMalloc1(dE*Nq, &cellPoints);CHKERRQ(ierr);
+    ierr = PetscMalloc1(Nq, &dummyWeights);CHKERRQ(ierr);
     ierr = PetscQuadratureCreate(PetscObjectComm((PetscObject)field), &cellQuad);CHKERRQ(ierr);
     ierr = PetscQuadratureSetData(cellQuad, dE, 1, Nq, cellPoints, dummyWeights);CHKERRQ(ierr);
     minOrient = PETSC_MAX_INT;
@@ -838,7 +842,7 @@ static PetscErrorCode DMFieldComputeFaceData_DS(DMField field, IS pointIS, Petsc
         co[p][s][1] = orient[f];
         co[p][s][2] = cell;
         minOrient = PetscMin(minOrient, orient[f]);
-        maxOrient = PetscMin(maxOrient, orient[f]);
+        maxOrient = PetscMax(maxOrient, orient[f]);
       }
       for (; s < 2; s++) {
         co[p][s][0] = -1;
@@ -850,7 +854,7 @@ static PetscErrorCode DMFieldComputeFaceData_DS(DMField field, IS pointIS, Petsc
     ierr = DMPlexGetCone(K,0,&coneK);CHKERRQ(ierr);
     /* count all (face,orientation) doubles that appear */
     ierr = PetscCalloc2(numOrient,&orients,numOrient,&orientPoints);CHKERRQ(ierr);
-    for (f = 0; f < coneSize; f++) {ierr = PetscCalloc1(numOrient, &counts[f]);CHKERRQ(ierr);}
+    for (f = 0; f < coneSize; f++) {ierr = PetscCalloc1(numOrient+1, &counts[f]);CHKERRQ(ierr);}
     for (p = 0; p < numFaces; p++) {
       for (s = 0; s < 2; s++) {
         if (co[p][s][0] >= 0) {
@@ -913,10 +917,6 @@ static PetscErrorCode DMFieldComputeFaceData_DS(DMField field, IS pointIS, Petsc
               xi[0] = geom->xi[2 * q];
               xi[1] = geom->xi[2 * q + 1];
               switch (oabs) {
-              case 0:
-                xio[0] = xi[0];
-                xio[1] = xi[1];
-                break;
               case 1:
                 xio[0] = xi[1];
                 xio[1] = -xi[0];
@@ -927,6 +927,11 @@ static PetscErrorCode DMFieldComputeFaceData_DS(DMField field, IS pointIS, Petsc
               case 3:
                 xio[0] = -xi[1];
                 xio[1] = xi[0];
+              case 0:
+              default:
+                xio[0] = xi[0];
+                xio[1] = xi[1];
+                break;
               }
               if (orient < 0) {
                 xio[0] = -xio[0];
@@ -946,12 +951,12 @@ static PetscErrorCode DMFieldComputeFaceData_DS(DMField field, IS pointIS, Petsc
     for (f = 0; f < coneSize; f++) {
       PetscInt face = coneK[f];
       PetscReal v0[3];
-      PetscReal J[9];
+      PetscReal J[9], detJ;
       PetscInt numCells, offset;
       PetscInt *cells;
       IS suppIS;
 
-      ierr = DMPlexComputeCellGeometryFEM(K, face, NULL, v0, J, NULL, NULL);CHKERRQ(ierr);
+      ierr = DMPlexComputeCellGeometryFEM(K, face, NULL, v0, J, NULL, &detJ);CHKERRQ(ierr);
       for (o = 0; o <= numOrient; o++) {
         PetscFEGeom *cellGeom;
 
@@ -1000,7 +1005,7 @@ static PetscErrorCode DMFieldComputeFaceData_DS(DMField field, IS pointIS, Petsc
     }
     ierr = PetscFree2(orients,orientPoints);CHKERRQ(ierr);
     ierr = PetscQuadratureDestroy(&cellQuad);CHKERRQ(ierr);
-    ierr = PetscFree4(co,cellPoints,counts,dummyWeights);CHKERRQ(ierr);
+    ierr = PetscFree2(co,counts);CHKERRQ(ierr);
   }
   ierr = ISRestoreIndices(pointIS, &points);CHKERRQ(ierr);
   ierr = ISDestroy(&cellIS);CHKERRQ(ierr);
@@ -1055,7 +1060,7 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
   }
   if (!disc || isContainer) {
     MPI_Comm        comm = PetscObjectComm((PetscObject) dm);
-    PetscInt        cStart, cEnd, dim;
+    PetscInt        cStart, cEnd, dim, cellHeight;
     PetscInt        localConeSize = 0, coneSize;
     PetscFE         fe;
     PetscDualSpace  Q;
@@ -1064,7 +1069,8 @@ PetscErrorCode DMFieldCreateDS(DM dm, PetscInt fieldNum, Vec vec,DMField *field)
     PetscQuadrature quad, fquad;
     PetscBool       isSimplex;
 
-    ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetVTKCellHeight(dm, &cellHeight);CHKERRQ(ierr);
+    ierr = DMPlexGetHeightStratum(dm, cellHeight, &cStart, &cEnd);CHKERRQ(ierr);
     ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
     if (cEnd > cStart) {
       ierr = DMPlexGetConeSize(dm, cStart, &localConeSize);CHKERRQ(ierr);
