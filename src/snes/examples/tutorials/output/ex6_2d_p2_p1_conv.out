@@ -19,5 +19,5 @@ Discrete System with 2 fields
         Space in 2 variables of order 1 with 1 components
         Polynomial space of degree 1
       Continuous Lagrange dual space of order 1      
-L_2 convergence rate: -0.86351, 2.19984
+L_2 convergence rate: -0.915354, 2.
 L_2 Error: 0.00403436 [2.00957e-10, 0.00403436]

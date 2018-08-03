@@ -306,7 +306,7 @@ PetscErrorCode PetscConvEstGetConvRate(PetscConvEst ce, PetscReal *alpha)
   ierr = DMGetApplicationContext(ce->idm, &ctx);CHKERRQ(ierr);
   ierr = DMGetDS(ce->idm, &prob);CHKERRQ(ierr);
   ierr = DMPlexSetRefinementUniform(ce->idm, PETSC_TRUE);CHKERRQ(ierr);
-  ierr = PetscMalloc2((Nr+1), &dm, (Nr+1)*ce->Nf, &dof);CHKERRQ(ierr);
+  ierr = PetscMalloc2((Nr+1), &dm, (Nr+1), &dof);CHKERRQ(ierr);
   dm[0]  = ce->idm;
   *alpha = 0.0;
   /* Loop over meshes */
@@ -324,14 +324,7 @@ PetscErrorCode PetscConvEstGetConvRate(PetscConvEst ce, PetscReal *alpha)
       }
     }
     ierr = DMViewFromOptions(dm[r], NULL, "-conv_dm_view");CHKERRQ(ierr);
-    for (f = 0; f < ce->Nf; ++f) {
-      PetscSection s, subs;
-
-      ierr = DMGetDefaultSection(dm[r], &s);CHKERRQ(ierr);
-      ierr = PetscSectionGetField(s, f, &subs);CHKERRQ(ierr);
-      ierr = PetscSectionGetConstrainedStorageSize(subs, &dof[r*ce->Nf+f]);CHKERRQ(ierr);
-      ierr = PetscSectionDestroy(&subs);CHKERRQ(ierr);
-    }
+    ierr = DMPlexGetHeightStratum(dm[r], 0, NULL, &dof[r]);CHKERRQ(ierr);
     /* Create solution */
     ierr = DMCreateGlobalVector(dm[r], &u);CHKERRQ(ierr);
     ierr = PetscDSGetDiscretization(prob, 0, &disc);CHKERRQ(ierr);
@@ -368,7 +361,7 @@ PetscErrorCode PetscConvEstGetConvRate(PetscConvEst ce, PetscReal *alpha)
   ierr = PetscMalloc2(Nr+1, &x, Nr+1, &y);CHKERRQ(ierr);
   for (f = 0; f < ce->Nf; ++f) {
     for (r = 0; r <= Nr; ++r) {
-      x[r] = PetscLog10Real(dof[r*ce->Nf+f]);
+      x[r] = PetscLog10Real(dof[r]);
       y[r] = PetscLog10Real(ce->errors[r*ce->Nf+f]);
     }
     ierr = PetscConvEstLinearRegression_Private(ce, Nr+1, x, y, &slope, &intercept);CHKERRQ(ierr);
