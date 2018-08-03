@@ -987,8 +987,7 @@ PetscErrorCode PetscSectionGetMaxDof(PetscSection s, PetscInt *maxDof)
   Not collective
 
   Input Parameters:
-+ s - the PetscSection
-- size - the allocated size
+. s - the PetscSection
 
   Output Parameter:
 . size - the size of an array which can hold all the dofs
