@@ -327,6 +327,13 @@ PetscErrorCode PetscSectionSetNumFields(PetscSection s, PetscInt numFields)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(s, PETSC_SECTION_CLASSID, 1);
   if (numFields <= 0) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "The number of fields %d must be positive", numFields);
+  ierr = PetscFree(s->numFieldComponents);CHKERRQ(ierr);
+  for (f = 0; f < s->numFields; ++f) {
+    ierr = PetscSectionDestroy(&s->field[f]);CHKERRQ(ierr);
+    ierr = PetscFree(s->fieldNames[f]);CHKERRQ(ierr);
+  }
+  ierr = PetscFree(s->fieldNames);CHKERRQ(ierr);
+  ierr = PetscFree(s->field);CHKERRQ(ierr);
   s->numFields = numFields;
   ierr = PetscMalloc1(s->numFields, &s->numFieldComponents);CHKERRQ(ierr);
   ierr = PetscMalloc1(s->numFields, &s->fieldNames);CHKERRQ(ierr);
