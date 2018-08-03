@@ -41,6 +41,14 @@ static PetscErrorCode constant_p(PetscInt dim, PetscReal time, const PetscReal x
   return 0;
 }
 
+static void pressure(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                     const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                     const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                     PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar p[])
+{
+  p[0] = u[uOff[1]];
+}
+
 /*
   In 2D we use exact solution:
 
@@ -275,7 +283,7 @@ static PetscErrorCode SetupDiscretization(DM dm, AppCtx *user)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreatePressureNullSpace(DM dm, AppCtx *user, Vec *v, MatNullSpace *nullSpace)
+static PetscErrorCode CreatePressureNullSpace(DM dm, PetscInt dummy, MatNullSpace *nullSpace)
 {
   Vec              vec;
   PetscErrorCode (*funcs[2])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void* ctx) = {zero_vector, constant_p};
@@ -286,10 +294,9 @@ PetscErrorCode CreatePressureNullSpace(DM dm, AppCtx *user, Vec *v, MatNullSpace
   ierr = DMProjectFunction(dm, 0.0, funcs, NULL, INSERT_ALL_VALUES, vec);CHKERRQ(ierr);
   ierr = VecNormalize(vec, NULL);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) vec, "Pressure Null Space");CHKERRQ(ierr);
-  ierr = VecViewFromOptions(vec, NULL, "-null_space_vec_view");CHKERRQ(ierr);
+  ierr = VecViewFromOptions(vec, NULL, "-pressure_nullspace_view");CHKERRQ(ierr);
   ierr = MatNullSpaceCreate(PetscObjectComm((PetscObject)dm), PETSC_FALSE, 1, &vec, nullSpace);CHKERRQ(ierr);
-  if (v) {*v = vec;}
-  else   {ierr = VecDestroy(&vec);CHKERRQ(ierr);}
+  ierr = VecDestroy(&vec);CHKERRQ(ierr);
   /* New style for field null spaces */
   {
     PetscObject  pressure;
@@ -303,14 +310,60 @@ PetscErrorCode CreatePressureNullSpace(DM dm, AppCtx *user, Vec *v, MatNullSpace
   PetscFunctionReturn(0);
 }
 
+/* Add a vector in the nullspace to make the continuum integral 0.
+
+   If int(u) = a and int(n) = b, then int(u - a/b n) = a - a/b b = 0
+*/
+static PetscErrorCode CorrectDiscretePressure(DM dm, MatNullSpace nullspace, Vec u, AppCtx *user)
+{
+  PetscDS        prob;
+  const Vec     *nullvecs;
+  PetscScalar    pintd, intc[2], intn[2];
+  MPI_Comm       comm;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = PetscObjectGetComm((PetscObject) dm, &comm);CHKERRQ(ierr);
+  ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
+  ierr = PetscDSSetObjective(prob, 1, pressure);CHKERRQ(ierr);
+  ierr = MatNullSpaceGetVecs(nullspace, NULL, NULL, &nullvecs);CHKERRQ(ierr);
+  ierr = VecDot(nullvecs[0], u, &pintd);CHKERRQ(ierr);
+  if (PetscAbsScalar(pintd) > 1.0e-10) SETERRQ1(comm, PETSC_ERR_ARG_WRONG, "Discrete integral of pressure: %g\n", (double) PetscRealPart(pintd));
+  ierr = DMPlexComputeIntegralFEM(dm, nullvecs[0], intn, user);CHKERRQ(ierr);
+  ierr = DMPlexComputeIntegralFEM(dm, u, intc, user);CHKERRQ(ierr);
+  ierr = VecAXPY(u, -intc[1]/intn[1], nullvecs[0]);CHKERRQ(ierr);
+  ierr = DMPlexComputeIntegralFEM(dm, u, intc, user);CHKERRQ(ierr);
+  if (PetscAbsScalar(intc[1]) > 1.0e-10) SETERRQ1(comm, PETSC_ERR_ARG_WRONG, "Continuum integral of pressure after correction: %g\n", (double) PetscRealPart(intc[1]));
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode SNESConvergenceCorrectPressure(SNES snes, PetscInt it, PetscReal xnorm, PetscReal gnorm, PetscReal f, SNESConvergedReason *reason, void *user)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  ierr = SNESConvergedDefault(snes, it, xnorm, gnorm, f, reason, user);CHKERRQ(ierr);
+  if (*reason > 0) {
+    DM           dm;
+    Mat          J;
+    Vec          u;
+    MatNullSpace nullspace;
+
+    ierr = SNESGetDM(snes, &dm);CHKERRQ(ierr);
+    ierr = SNESGetSolution(snes, &u);CHKERRQ(ierr);
+    ierr = SNESGetJacobian(snes, &J, NULL, NULL, NULL);CHKERRQ(ierr);
+    ierr = MatGetNullSpace(J, &nullspace);CHKERRQ(ierr);
+    ierr = CorrectDiscretePressure(dm, nullspace, u, user);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
 int main(int argc, char **argv)
 {
-  SNES           snes;                 /* nonlinear solver */
-  DM             dm;                   /* problem definition */
-  Vec            u;                  /* solution, residual vectors */
-  Mat            J, M;                 /* Jacobian and preconditioner matrix */
-  MatNullSpace   nullSpace;            /* May be necessary for pressure */
-  AppCtx         user;                 /* user-defined work context */
+  SNES           snes;
+  DM             dm;
+  Vec            u;
+  AppCtx         user;
   PetscErrorCode ierr;
 
   ierr = PetscInitialize(&argc, &argv, NULL, help);if (ierr) return ierr;
@@ -324,13 +377,11 @@ int main(int argc, char **argv)
   ierr = DMPlexCreateClosureIndex(dm, NULL);CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(dm, &u);CHKERRQ(ierr);
 
+  ierr = DMSetNullSpaceConstructor(dm, 2, CreatePressureNullSpace);CHKERRQ(ierr);
+  ierr = SNESSetConvergenceTest(snes, SNESConvergenceCorrectPressure, &user, NULL);CHKERRQ(ierr);
   ierr = DMPlexSetSNESLocalFEM(dm,&user,&user,&user);CHKERRQ(ierr);
-  ierr = CreatePressureNullSpace(dm, &user, NULL, &nullSpace);CHKERRQ(ierr);
-  ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
-  ierr = SNESSetUp(snes);CHKERRQ(ierr);
-  ierr = SNESGetJacobian(snes, &J, &M, NULL, NULL);CHKERRQ(ierr);
-  ierr = MatSetNullSpace(J, nullSpace);CHKERRQ(ierr);
+  ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
   ierr = DMSNESCheckFromOptions(snes, u, NULL, NULL);CHKERRQ(ierr);
 
   ierr = VecSet(u, 0.0);CHKERRQ(ierr);
@@ -350,7 +401,6 @@ int main(int argc, char **argv)
     ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: %g [%g, %g]\n", error, ferrors[0], ferrors[1]);CHKERRQ(ierr);
   }
 
-  ierr = MatNullSpaceDestroy(&nullSpace);CHKERRQ(ierr);
   ierr = VecDestroy(&u);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
@@ -367,6 +417,6 @@ int main(int argc, char **argv)
   test:
     suffix: 2d_p2_p1_conv
     requires: triangle
-    args: -cells 2,2 -vel_petscspace_order 2 -pres_petscspace_order 1 -snes_convergence_estimate -num_refine 3 -ksp_error_if_not_converged -ksp_rtol 1e-10 -pc_type jacobi -petscds_view
+    args: -cells 2,2 -dm_refine 1 -vel_petscspace_order 2 -pres_petscspace_order 1 -snes_convergence_estimate -num_refine 3 -ksp_error_if_not_converged -ksp_rtol 1e-10 -pc_type jacobi -petscds_view
 
 TEST*/
