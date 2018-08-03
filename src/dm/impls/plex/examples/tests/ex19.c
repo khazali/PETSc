@@ -276,7 +276,48 @@ int main (int argc, char * argv[]) {
     ierr = DMCreateLabel(user.dm, user.bdLabel);CHKERRQ(ierr);
     ierr = DMGetLabel(user.dm, user.bdLabel, &bdLabel);CHKERRQ(ierr);
   }
-  ierr = DMAdaptMetric(user.dm, metric, bdLabel, &dma);CHKERRQ(ierr);
+
+
+  DMLabel            rgLabel;
+  {
+    DM                 udm, cdm;
+    PetscSection       coordSection;
+    Vec                coordinates;
+    const PetscScalar *coords;
+    PetscInt           cStart, cEnd, numCells, c;
+
+    ierr = DMCreateLabel(user.dm, "regions");CHKERRQ(ierr);
+    ierr = DMGetLabel(user.dm, "regions", &rgLabel);CHKERRQ(ierr);
+    ierr = DMPlexGetHeightStratum(user.dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    numCells = cEnd - cStart;
+    ierr = DMPlexUninterpolate(user.dm, &udm);CHKERRQ(ierr);
+    ierr = DMGetCoordinateDM(user.dm, &cdm);CHKERRQ(ierr);
+    ierr = DMGetSection(cdm, &coordSection);CHKERRQ(ierr);
+    ierr = DMGetCoordinatesLocal(user.dm, &coordinates);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
+    for (c = 0; c < numCells; ++c) {
+      const PetscInt *cone;
+      PetscInt        coneSize, cl, v, tag = -1;
+      PetscReal       xG = 0., yG = 0.;
+
+      ierr = DMPlexGetConeSize(udm, c, &coneSize);CHKERRQ(ierr);
+      ierr = DMPlexGetCone(udm, c, &cone);CHKERRQ(ierr);
+      for (cl = 0; cl < coneSize; ++cl) {
+        PetscInt           off;
+
+        v = cone[cl];
+        ierr = PetscSectionGetOffset(coordSection, v, &off);CHKERRQ(ierr);
+        xG += PetscRealPart(coords[off+0]);
+        yG += PetscRealPart(coords[off+1]);
+      }
+      if (xG > 0.5 * 3) { tag = 2;}
+      else              { tag = 1;}
+      ierr = DMLabelSetValue(rgLabel, c+cStart, tag);CHKERRQ(ierr);
+    }
+  }
+
+
+  ierr = DMAdaptMetric(user.dm, metric, bdLabel, rgLabel, &dma);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dma, "DMadapt");CHKERRQ(ierr);
   ierr = PetscObjectSetOptionsPrefix((PetscObject) dma, "adapt_");CHKERRQ(ierr);
   ierr = DMViewFromOptions(dma, NULL, "-dm_view");CHKERRQ(ierr);
