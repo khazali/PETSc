@@ -96,7 +96,7 @@ PETSC_EXTERN PetscErrorCode DMSetFromOptions(DM);
 PETSC_STATIC_INLINE PetscErrorCode DMViewFromOptions(DM A,PetscObject obj,const char name[]) {return PetscObjectViewFromOptions((PetscObject)A,obj,name);}
 
 PETSC_EXTERN PetscErrorCode DMAdaptLabel(DM,DMLabel,DM*);
-PETSC_EXTERN PetscErrorCode DMAdaptMetric(DM, Vec, DMLabel, DM *);
+PETSC_EXTERN PetscErrorCode DMAdaptMetric(DM, Vec, DMLabel, DMLabel, DM *);
 
 PETSC_EXTERN PetscErrorCode DMSetUp(DM);
 PETSC_EXTERN PetscErrorCode DMCreateInterpolationScale(DM,DM,Mat,Vec*);

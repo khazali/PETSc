@@ -6745,7 +6745,7 @@ PetscErrorCode DMAdaptLabel(DM dm, DMLabel label, DM *dmAdapt)
 
 .seealso: DMAdaptLabel(), DMCoarsen(), DMRefine()
 @*/
-PetscErrorCode DMAdaptMetric(DM dm, Vec metric, DMLabel bdLabel, DM *dmAdapt)
+PetscErrorCode DMAdaptMetric(DM dm, Vec metric, DMLabel bdLabel, DMLabel rgLabel, DM *dmAdapt)
 {
   PetscErrorCode ierr;
 
@@ -6756,7 +6756,7 @@ PetscErrorCode DMAdaptMetric(DM dm, Vec metric, DMLabel bdLabel, DM *dmAdapt)
   PetscValidPointer(dmAdapt, 4);
   *dmAdapt = NULL;
   if (!dm->ops->adaptmetric) SETERRQ1(PetscObjectComm((PetscObject)dm),PETSC_ERR_SUP,"DM type %s does not implement DMAdaptMetric",((PetscObject)dm)->type_name);
-  ierr = (dm->ops->adaptmetric)(dm, metric, bdLabel, dmAdapt);CHKERRQ(ierr);
+  ierr = (dm->ops->adaptmetric)(dm, metric, bdLabel, rgLabel, dmAdapt);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 

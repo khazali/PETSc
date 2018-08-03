@@ -264,8 +264,8 @@ PetscErrorCode DMPlexCoarsen_Internal(DM dm, DMLabel adaptLabel, DM *dmCoarsened
 {
   Vec            metricVec;
   PetscInt       cStart, cEnd, vStart, vEnd;
-  DMLabel        bdLabel = NULL;
-  char           bdLabelName[PETSC_MAX_PATH_LEN];
+  DMLabel        bdLabel = NULL, rgLabel = NULL;
+  char           bdLabelName[PETSC_MAX_PATH_LEN], rgLabelName[PETSC_MAX_PATH_LEN];
   PetscBool      localized, flg;
   PetscErrorCode ierr;
 
@@ -276,7 +276,9 @@ PetscErrorCode DMPlexCoarsen_Internal(DM dm, DMLabel adaptLabel, DM *dmCoarsened
   ierr = DMPlexLabelToMetricConstraint(dm, adaptLabel, cStart, cEnd, vStart, vEnd, PETSC_DEFAULT, &metricVec);CHKERRQ(ierr);
   ierr = PetscOptionsGetString(NULL, dm->hdr.prefix, "-dm_plex_coarsen_bd_label", bdLabelName, PETSC_MAX_PATH_LEN-1, &flg);CHKERRQ(ierr);
   if (flg) {ierr = DMGetLabel(dm, bdLabelName, &bdLabel);CHKERRQ(ierr);}
-  ierr = DMAdaptMetric_Plex(dm, metricVec, bdLabel, dmCoarsened);CHKERRQ(ierr);
+  ierr = PetscOptionsGetString(NULL, dm->hdr.prefix, "-dm_plex_coarsen_regions_label", rgLabelName, PETSC_MAX_PATH_LEN-1, &flg);CHKERRQ(ierr);
+  if (flg) {ierr = DMGetLabel(dm, rgLabelName, &rgLabel);CHKERRQ(ierr);}
+  ierr = DMAdaptMetric_Plex(dm, metricVec, bdLabel, rgLabel, dmCoarsened);CHKERRQ(ierr);
   ierr = VecDestroy(&metricVec);CHKERRQ(ierr);
   if (localized) {ierr = DMLocalizeCoordinates(*dmCoarsened);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
@@ -347,31 +349,32 @@ PetscErrorCode DMAdaptLabel_Plex(DM dm, DMLabel adaptLabel, DM *dmAdapted)
 
 .seealso: DMCoarsen(), DMRefine()
 */
-PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DM *dmNew)
+PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DMLabel rgLabel, DM *dmNew)
 {
 #if defined(PETSC_HAVE_PRAGMATIC)
   MPI_Comm           comm;
   const char        *bdName = "_boundary_";
+  const char        *rgName = "_regions_";
 #if 0
   DM                 odm = dm;
 #endif
   DM                 udm, cdm;
   DMLabel            bdLabelFull;
-  const char        *bdLabelName;
+  const char        *bdLabelName, *rgLabelName;
   IS                 bdIS, globalVertexNum;
   PetscSection       coordSection;
   Vec                coordinates;
   const PetscScalar *coords, *met;
   const PetscInt    *bdFacesFull, *gV;
-  PetscInt          *bdFaces, *bdFaceIds, *l2gv;
+  PetscInt          *bdFaces, *bdFaceIds, *cellIds, *l2gv;
   PetscReal         *x, *y, *z, *metric;
   PetscInt          *cells;
   PetscInt           dim, cStart, cEnd, numCells, c, coff, vStart, vEnd, numVertices, numLocVertices, v;
   PetscInt           off, maxConeSize, numBdFaces, f, bdSize;
   PetscBool          flg;
-  DMLabel            bdLabelNew;
+  DMLabel            bdLabelNew, rgLabelNew;
   double            *coordsNew;
-  PetscInt          *bdTags;
+  PetscInt          *bdTags, *cellTags;
   PetscReal         *xNew[3] = {NULL, NULL, NULL};
   PetscInt          *cellsNew;
   PetscInt           d, numCellsNew, numVerticesNew;
@@ -387,6 +390,11 @@ PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DM *
     ierr = DMLabelGetName(bdLabel, &bdLabelName);CHKERRQ(ierr);
     ierr = PetscStrcmp(bdLabelName, bdName, &flg);CHKERRQ(ierr);
     if (flg) SETERRQ1(comm, PETSC_ERR_ARG_WRONG, "\"%s\" cannot be used as label for boundary facets", bdLabelName);
+  }
+  if (rgLabel) {
+    ierr = DMLabelGetName(rgLabel, &rgLabelName);CHKERRQ(ierr);
+    ierr = PetscStrcmp(rgLabelName, rgName, &flg);CHKERRQ(ierr);
+    if (flg) SETERRQ1(comm, PETSC_ERR_ARG_WRONG, "\"%s\" cannot be used as label for element tags", rgLabelName);
   }
   /* Add overlap for Pragmatic */
 #if 0
@@ -464,6 +472,13 @@ PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DM *
   }
   ierr = ISDestroy(&bdIS);CHKERRQ(ierr);
   ierr = DMLabelDestroy(&bdLabelFull);CHKERRQ(ierr);
+  /* Get cell tags */
+  if (rgLabel) {
+    ierr = PetscMalloc1(numCells, &cellIds);CHKERRQ(ierr);
+    for (c = 0; c < numCells; ++c) {
+      ierr = DMLabelGetValue(rgLabel, c+cStart, &cellIds[c]);CHKERRQ(ierr);
+    }
+  }
   /* Get metric */
   ierr = VecViewFromOptions(vertexMetric, NULL, "-adapt_metric_view");CHKERRQ(ierr);
   ierr = VecGetArrayRead(vertexMetric, &met);CHKERRQ(ierr);
@@ -482,6 +497,8 @@ PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DM *
   default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No Pragmatic adaptation defined for dimension %d", dim);
   }
   pragmatic_set_boundary(&numBdFaces, bdFaces, bdFaceIds);
+  pragmatic_set_regions(cellIds);
+  pragmatic_set_internal_boundaries();
   pragmatic_set_metric(metric);
   pragmatic_adapt(((DM_Plex *) dm->data)->remeshBd ? 1 : 0);
   ierr = PetscFree(l2gv);CHKERRQ(ierr);
@@ -528,6 +545,15 @@ PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DM *
       }
     }
   }
+/***************/
+  /* Read out cell tags */
+  pragmatic_get_elementTags(&cellTags);
+  ierr = DMCreateLabel(*dmNew, rgLabel ? rgLabelName : rgName);CHKERRQ(ierr);
+  ierr = DMGetLabel(*dmNew, rgLabel ? rgLabelName : rgName, &rgLabelNew);CHKERRQ(ierr);
+  for (c = cStart; c < cEnd; ++c) {
+    ierr = DMLabelSetValue(rgLabelNew, c, cellTags[c-cStart]);CHKERRQ(ierr);
+  }
+/***************/
   /* Cleanup */
   switch (dim) {
   case 2: ierr = PetscFree2(xNew[0], xNew[1]);CHKERRQ(ierr);break;
@@ -536,6 +562,7 @@ PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DM *
   ierr = PetscFree(cellsNew);CHKERRQ(ierr);
   ierr = PetscFree5(x, y, z, metric, cells);CHKERRQ(ierr);
   ierr = PetscFree2(bdFaces, bdFaceIds);CHKERRQ(ierr);
+  ierr = PetscFree(cellIds);CHKERRQ(ierr);
   ierr = PetscFree(coordsNew);CHKERRQ(ierr);
   pragmatic_finalize();
   PetscFunctionReturn(0);
