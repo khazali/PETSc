@@ -46,6 +46,8 @@ PetscErrorCode PetscSpaceSetUp_Polynomial(PetscSpace sp)
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
+  if (poly->setupCalled) PetscFunctionReturn(0);
+  poly->setupCalled = PETSC_TRUE;
   if (sp->degree < 0 && sp->maxDegree < 0) SETERRQ2(PetscObjectComm((PetscObject)sp), PETSC_ERR_ARG_WRONGSTATE, "One of degree (%D) and maxDegree (%D) must be non-negative", sp->degree, sp->maxDegree);
   if (poly->polymax) {
     if (sp->maxDegree < 0) SETERRQ(PetscObjectComm((PetscObject)sp), PETSC_ERR_ARG_WRONGSTATE, "Maximum degree must be set for polymax space");

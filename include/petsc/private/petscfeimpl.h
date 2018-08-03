@@ -45,6 +45,7 @@ typedef struct {
   PetscBool   polymax;      /* Flag for maximal degree polynomials */
   PetscInt   *degrees;      /* Degrees of single variable which we need to compute */
   PetscSpace *subspaces;    /* Subspaces for each dimension */
+  PetscBool   setupCalled;
 } PetscSpace_Poly;
 
 typedef struct {
