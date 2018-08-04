@@ -13,6 +13,8 @@ PETSC_EXTERN PetscErrorCode PetscSpaceRegisterAll(void);
 PETSC_EXTERN PetscErrorCode PetscDualSpaceRegisterAll(void);
 PETSC_EXTERN PetscErrorCode PetscFERegisterAll(void);
 
+PETSC_EXTERN PetscErrorCode PetscFECreate_Internal(MPI_Comm, PetscInt, PetscInt, PetscBool, PetscInt, PetscInt, PetscFE *);
+
 typedef struct _PetscSpaceOps *PetscSpaceOps;
 struct _PetscSpaceOps {
   PetscErrorCode (*setfromoptions)(PetscOptionItems*,PetscSpace);

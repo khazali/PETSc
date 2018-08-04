@@ -7330,6 +7330,62 @@ PetscErrorCode PetscFERefine(PetscFE fe, PetscFE *feRef)
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode PetscFECreate_Internal(MPI_Comm comm, PetscInt dim, PetscInt Nc, PetscBool isSimplex, PetscInt order, PetscInt qorder, PetscFE *fem)
+{
+  PetscQuadrature q, fq;
+  DM              K;
+  PetscSpace      P;
+  PetscDualSpace  Q;
+  PetscInt        quadPointsPerEdge;
+  PetscBool       tensor = isSimplex ? PETSC_FALSE : PETSC_TRUE;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  /* Create space */
+  ierr = PetscSpaceCreate(comm, &P);CHKERRQ(ierr);
+  ierr = PetscSpacePolynomialSetTensor(P, tensor);CHKERRQ(ierr);
+  ierr = PetscSpaceSetNumComponents(P, Nc);CHKERRQ(ierr);
+  ierr = PetscSpaceSetNumVariables(P, dim);CHKERRQ(ierr);
+  ierr = PetscSpaceSetOrder(P, order);CHKERRQ(ierr);
+  ierr = PetscSpaceSetType(P, PETSCSPACEPOLYNOMIAL);CHKERRQ(ierr);
+  ierr = PetscSpaceSetUp(P);CHKERRQ(ierr);
+  /* Create dual space */
+  ierr = PetscDualSpaceCreate(comm, &Q);CHKERRQ(ierr);
+  ierr = PetscDualSpaceSetType(Q,PETSCDUALSPACELAGRANGE);CHKERRQ(ierr);
+  ierr = PetscDualSpaceCreateReferenceCell(Q, dim, isSimplex, &K);CHKERRQ(ierr);
+  ierr = PetscDualSpaceSetDM(Q, K);CHKERRQ(ierr);
+  ierr = DMDestroy(&K);CHKERRQ(ierr);
+  ierr = PetscDualSpaceSetNumComponents(Q, Nc);CHKERRQ(ierr);
+  ierr = PetscDualSpaceSetOrder(Q, order);CHKERRQ(ierr);
+  ierr = PetscDualSpaceLagrangeSetTensor(Q, tensor);CHKERRQ(ierr);
+  ierr = PetscDualSpaceSetType(Q, PETSCDUALSPACELAGRANGE);CHKERRQ(ierr);
+  ierr = PetscDualSpaceSetUp(Q);CHKERRQ(ierr);
+  /* Create element */
+  ierr = PetscFECreate(comm, fem);CHKERRQ(ierr);
+  ierr = PetscFESetBasisSpace(*fem, P);CHKERRQ(ierr);
+  ierr = PetscFESetDualSpace(*fem, Q);CHKERRQ(ierr);
+  ierr = PetscFESetNumComponents(*fem, Nc);CHKERRQ(ierr);
+  ierr = PetscFESetType(*fem, PETSCFEBASIC);CHKERRQ(ierr);
+  ierr = PetscFESetUp(*fem);CHKERRQ(ierr);
+  ierr = PetscSpaceDestroy(&P);CHKERRQ(ierr);
+  ierr = PetscDualSpaceDestroy(&Q);CHKERRQ(ierr);
+  /* Create quadrature (with specified order if given) */
+  qorder = qorder >= 0 ? qorder : order;
+  quadPointsPerEdge = PetscMax(qorder + 1,1);
+  if (isSimplex) {
+    ierr = PetscDTGaussJacobiQuadrature(dim,   1, quadPointsPerEdge, -1.0, 1.0, &q);CHKERRQ(ierr);
+    ierr = PetscDTGaussJacobiQuadrature(dim-1, 1, quadPointsPerEdge, -1.0, 1.0, &fq);CHKERRQ(ierr);
+  } else {
+    ierr = PetscDTGaussTensorQuadrature(dim,   1, quadPointsPerEdge, -1.0, 1.0, &q);CHKERRQ(ierr);
+    ierr = PetscDTGaussTensorQuadrature(dim-1, 1, quadPointsPerEdge, -1.0, 1.0, &fq);CHKERRQ(ierr);
+  }
+  ierr = PetscFESetQuadrature(*fem, q);CHKERRQ(ierr);
+  ierr = PetscFESetFaceQuadrature(*fem, fq);CHKERRQ(ierr);
+  ierr = PetscQuadratureDestroy(&q);CHKERRQ(ierr);
+  ierr = PetscQuadratureDestroy(&fq);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /*@C
   PetscFECreateDefault - Create a PetscFE for basic FEM computation
 
