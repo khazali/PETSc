@@ -4295,13 +4295,15 @@ PetscErrorCode DMSetCoordinates(DM dm, Vec c)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  PetscValidHeaderSpecific(c,VEC_CLASSID,2);
-  ierr            = PetscObjectReference((PetscObject) c);CHKERRQ(ierr);
-  ierr            = VecDestroy(&dm->coordinates);CHKERRQ(ierr);
+  if (c) PetscValidHeaderSpecific(c,VEC_CLASSID,2);
+  ierr = PetscObjectReference((PetscObject) c);CHKERRQ(ierr);
+  ierr = VecDestroy(&dm->coordinates);CHKERRQ(ierr);
+  ierr = VecDestroy(&dm->coordinatesLocal);CHKERRQ(ierr);
   dm->coordinates = c;
-  ierr            = VecDestroy(&dm->coordinatesLocal);CHKERRQ(ierr);
-  ierr            = DMCoarsenHookAdd(dm,DMRestrictHook_Coordinates,NULL,NULL);CHKERRQ(ierr);
-  ierr            = DMSubDomainHookAdd(dm,DMSubDomainHook_Coordinates,NULL,NULL);CHKERRQ(ierr);
+  if (c) {
+    ierr = DMCoarsenHookAdd(dm,DMRestrictHook_Coordinates,NULL,NULL);CHKERRQ(ierr);
+    ierr = DMSubDomainHookAdd(dm,DMSubDomainHook_Coordinates,NULL,NULL);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -4319,8 +4321,6 @@ PetscErrorCode DMSetCoordinates(DM dm, Vec c)
   followed by DMGetCoordinatesLocal(). This is intended to enable the
   setting of ghost coordinates outside of the domain.
 
-  The vector c should be destroyed by the caller.
-
   Level: intermediate
 
 .keywords: distributed array, get, corners, nodes, local indices, coordinates
@@ -4332,13 +4332,15 @@ PetscErrorCode DMSetCoordinatesLocal(DM dm, Vec c)
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
-  PetscValidHeaderSpecific(c,VEC_CLASSID,2);
+  if (c) PetscValidHeaderSpecific(c,VEC_CLASSID,2);
   ierr = PetscObjectReference((PetscObject) c);CHKERRQ(ierr);
   ierr = VecDestroy(&dm->coordinatesLocal);CHKERRQ(ierr);
-
-  dm->coordinatesLocal = c;
-
   ierr = VecDestroy(&dm->coordinates);CHKERRQ(ierr);
+  dm->coordinatesLocal = c;
+  if (c) {
+    ierr = DMCoarsenHookAdd(dm,DMRestrictHook_Coordinates,NULL,NULL);CHKERRQ(ierr);
+    ierr = DMSubDomainHookAdd(dm,DMSubDomainHook_Coordinates,NULL,NULL);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
