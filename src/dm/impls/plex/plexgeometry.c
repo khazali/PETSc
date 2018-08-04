@@ -1601,7 +1601,7 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
   PetscScalar     *coords = NULL;
   const PetscReal *quadPoints;
   PetscReal       *basisDer, *basis, detJt;
-  PetscInt         dim, cdim, pdim, qdim, Nq, numCoords, q;
+  PetscInt         dim, cdim, pdim, qdim, d, Nq, q, numCoords;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
@@ -1630,33 +1630,17 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
   }
   if (qdim != dim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Point dimension %d != quadrature dimension %d", dim, qdim);
   if (v) {
-    ierr = PetscMemzero(v, Nq*cdim*sizeof(PetscReal));CHKERRQ(ierr);
-    for (q = 0; q < Nq; ++q) {
-      PetscInt i, k;
-
-      for (k = 0; k < pdim; ++k)
-        for (i = 0; i < cdim; ++i)
-          v[q*cdim + i] += basis[q*pdim + k] * PetscRealPart(coords[k*cdim + i]);
-      ierr = PetscLogFlops(2.0*pdim*cdim);CHKERRQ(ierr);
-    }
+    for (q = 0; q < Nq; ++q) {ierr = PetscFEInterpolate_Static(fe, coords, q, &v[q*cdim]);CHKERRQ(ierr);}
   }
   if (J) {
-    ierr = PetscMemzero(J, Nq*cdim*cdim*sizeof(PetscReal));CHKERRQ(ierr);
-    for (q = 0; q < Nq; ++q) {
-      PetscInt i, j, k, c, r;
+    PetscReal invJc[9] = {0.,0.,0.,0.,0.,0.,0.,0.,0.};
 
+    for (d = 0; d < dim; ++d) invJc[d*dim+d] = 1.0;
+    for (q = 0; q < Nq; ++q) {
       /* J = dx_i/d\xi_j = sum[k=0,n-1] dN_k/d\xi_j * x_i(k) */
-      for (k = 0; k < pdim; ++k)
-        for (j = 0; j < dim; ++j)
-          for (i = 0; i < cdim; ++i)
-            J[(q*cdim + i)*cdim + j] += basisDer[(q*pdim + k)*dim + j] * PetscRealPart(coords[k*cdim + i]);
-      ierr = PetscLogFlops(2.0*pdim*dim*cdim);CHKERRQ(ierr);
-      if (cdim > dim) {
-        for (c = dim; c < cdim; ++c)
-          for (r = 0; r < cdim; ++r)
-            J[r*cdim+c] = r == c ? 1.0 : 0.0;
-      }
+      ierr = PetscFEInterpolateGradient_Static(fe, coords, dim, invJc, NULL, q, &J[q*cdim*dim]);CHKERRQ(ierr);
       if (!detJ && !invJ) continue;
+      if (cdim != dim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_INCOMP, "Number of coordinate components %D does not match mesh dimension %D, so we cannot compute the Jacobian determinant or inverse", cdim , dim);
       detJt = 0.;
       switch (cdim) {
       case 3:
@@ -1673,8 +1657,7 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
       }
       if (detJ) detJ[q] = detJt;
     }
-  }
-  else if (detJ || invJ) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Need J to compute invJ or detJ");
+  } else if (detJ || invJ) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Need J to compute invJ or detJ");
   if (feQuad != quad) {
     ierr = PetscFERestoreTabulation(fe, Nq, quadPoints, &basis, J ? &basisDer : NULL, NULL);CHKERRQ(ierr);
   }
