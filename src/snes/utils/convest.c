@@ -92,6 +92,7 @@ PetscErrorCode PetscConvEstSetFromOptions(PetscConvEst ce)
   PetscFunctionBegin;
   ierr = PetscOptionsBegin(PetscObjectComm((PetscObject) ce), "", "Convergence Estimator Options", "PetscConvEst");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-num_refine", "The number of refinements for the convergence check", "PetscConvEst", ce->Nr, &ce->Nr, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-conv_est_monitor", "Monitor convergence", "PetscConvEst", ce->monitor, &ce->monitor, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
   PetscFunctionReturn(0);
 }
