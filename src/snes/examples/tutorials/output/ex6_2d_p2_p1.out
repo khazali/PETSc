@@ -1,0 +1,26 @@
+Discrete System with 2 fields
+  Field velocity   FEM  2 components   (implicit)   (adj FEM)   (Nq 9 Nqc 1)  
+    Basic Finite Element:
+      dimension:       2
+      components:      2
+      num quad points: 9
+      PetscSpace Object: (vel_) 1 MPI processes
+        type: poly
+        Space in 2 variables of order 2 with 2 components
+        Polynomial space of degree 2
+      Continuous Lagrange dual space of order 2       with 2 components      
+  Field pressure   FEM  1 component    (implicit)   (adj FEM)   (Nq 9 Nqc 1)  
+    Basic Finite Element:
+      dimension:       2
+      components:      1
+      num quad points: 9
+      PetscSpace Object: (pres_) 1 MPI processes
+        type: poly
+        Space in 2 variables of order 1 with 1 components
+        Polynomial space of degree 1
+      Continuous Lagrange dual space of order 1      
+L_2 Error: [< 1.0e-11, 0.0645497]
+L_2 Residual: 2.21382e-16
+Linear L_2 Residual: 3.22199e-16
+Nonlinear solve converged due to CONVERGED_FNORM_RELATIVE iterations 1
+L_2 Error: 0.105409 [5.79382e-14, 0.105409]

@@ -635,9 +635,12 @@ PetscErrorCode SNESSetUpMatrices(SNES snes)
     ierr = MatDestroy(&J);CHKERRQ(ierr);
     ierr = MatDestroy(&B);CHKERRQ(ierr);
   } else if (!snes->jacobian_pre) {
-    PetscDS   prob;
-    Mat       J, B;
-    PetscBool hasPrec = PETSC_FALSE;
+    PetscErrorCode (*nspconstr)(DM, PetscInt, MatNullSpace *);
+    PetscDS          prob;
+    Mat              J, B;
+    MatNullSpace     nullspace = NULL;
+    PetscBool        hasPrec   = PETSC_FALSE;
+    PetscInt         Nf;
 
     J    = snes->jacobian;
     ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
@@ -645,6 +648,11 @@ PetscErrorCode SNESSetUpMatrices(SNES snes)
     if (J)            {ierr = PetscObjectReference((PetscObject) J);CHKERRQ(ierr);}
     else if (hasPrec) {ierr = DMCreateMatrix(snes->dm, &J);CHKERRQ(ierr);}
     ierr = DMCreateMatrix(snes->dm, &B);CHKERRQ(ierr);
+    ierr = PetscDSGetNumFields(prob, &Nf);CHKERRQ(ierr);
+    ierr = DMGetNullSpaceConstructor(snes->dm, Nf, &nspconstr);CHKERRQ(ierr);
+    if (nspconstr) (*nspconstr)(snes->dm, -1, &nullspace);
+    ierr = MatSetNullSpace(B, nullspace);CHKERRQ(ierr);
+    ierr = MatNullSpaceDestroy(&nullspace);CHKERRQ(ierr);
     ierr = SNESSetJacobian(snes, J ? J : B, B, NULL, NULL);CHKERRQ(ierr);
     ierr = MatDestroy(&J);CHKERRQ(ierr);
     ierr = MatDestroy(&B);CHKERRQ(ierr);
@@ -4263,19 +4271,25 @@ PetscErrorCode  SNESSolve(SNES snes,Vec b,Vec x)
       ierr = PetscOptionsGetViewer(PetscObjectComm((PetscObject) snes), ((PetscObject) snes)->prefix, "-snes_convergence_estimate", &viewer, &format, &flg);CHKERRQ(ierr);
       if (flg) {
         PetscConvEst conv;
-        PetscReal    alpha; /* Convergence rate of the solution error in the L_2 norm */
+        PetscReal   *alpha; /* Convergence rate of the solution error for each field in the L_2 norm */
+        DM           dm;
+        PetscInt     Nf;
 
         incall = PETSC_TRUE;
+        ierr = SNESGetDM(snes, &dm);CHKERRQ(ierr);
+        ierr = DMGetNumFields(dm, &Nf);CHKERRQ(ierr);
+        ierr = PetscMalloc1(Nf, &alpha);CHKERRQ(ierr);
         ierr = PetscConvEstCreate(PetscObjectComm((PetscObject) snes), &conv);CHKERRQ(ierr);
         ierr = PetscConvEstSetSolver(conv, snes);CHKERRQ(ierr);
         ierr = PetscConvEstSetFromOptions(conv);CHKERRQ(ierr);
         ierr = PetscConvEstSetUp(conv);CHKERRQ(ierr);
-        ierr = PetscConvEstGetConvRate(conv, &alpha);CHKERRQ(ierr);
+        ierr = PetscConvEstGetConvRate(conv, alpha);CHKERRQ(ierr);
         ierr = PetscViewerPushFormat(viewer, format);CHKERRQ(ierr);
         ierr = PetscConvEstRateView(conv, alpha, viewer);CHKERRQ(ierr);
         ierr = PetscViewerPopFormat(viewer);CHKERRQ(ierr);
         ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
         ierr = PetscConvEstDestroy(&conv);CHKERRQ(ierr);
+        ierr = PetscFree(alpha);CHKERRQ(ierr);
         incall = PETSC_FALSE;
       }
       /* Adaptively refine the initial grid */
