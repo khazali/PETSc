@@ -77,11 +77,11 @@ static PetscErrorCode DMProjectPoint_Field_Private(DM dm, PetscDS prob, DM dmAux
   PetscScalar       *coefficients   = NULL, *coefficientsAux   = NULL;
   PetscScalar       *coefficients_t = NULL, *coefficientsAux_t = NULL;
   const PetscScalar *constants;
-  PetscReal         *x;
+  PetscReal         *x, invJdefault[9];
   PetscInt          *uOff, *uOff_x, *aOff = NULL, *aOff_x = NULL, *Nb, *Nc, *NbAux = NULL, *NcAux = NULL;
-  const PetscInt     dE = fegeom->dimEmbed;
+  PetscInt           dE = fegeom ? fegeom->dimEmbed : 0;
+  PetscBool          isAffine = fegeom ? fegeom->isAffine : PETSC_TRUE;
   PetscInt           dimAux = 0, numConstants, Nf, NfAux = 0, f, spDim, d, v, tp = 0;
-  PetscBool          isAffine;
   PetscErrorCode     ierr;
 
   PetscFunctionBeginHot;
@@ -110,8 +110,12 @@ static PetscErrorCode DMProjectPoint_Field_Private(DM dm, PetscDS prob, DM dmAux
     ierr = PetscDSGetRefCoordArrays(probAux, NULL, &refSpaceDerAux);CHKERRQ(ierr);
     ierr = DMPlexVecGetClosure(dmAux, sectionAux, localA, subp, NULL, &coefficientsAux);CHKERRQ(ierr);
   }
+  if (!fegeom) {
+    ierr = PetscDSGetSpatialDimension(prob, &dE);CHKERRQ(ierr);
+    for (d = 0; d < dE*dE; ++d) invJdefault[d]   = 0.0;
+    for (d = 0; d < dE; ++d) invJdefault[d*dE+d] = 1.0;
+  }
   /* Get values for closure */
-  isAffine = fegeom->isAffine;
   for (f = 0, v = 0; f < Nf; ++f) {
     PetscQuadrature   allPoints;
     PetscInt          q, dim, numPoints;
@@ -130,17 +134,19 @@ static PetscErrorCode DMProjectPoint_Field_Private(DM dm, PetscDS prob, DM dmAux
     ierr = PetscQuadratureGetData(allPoints,&dim,NULL,&numPoints,&points,NULL);CHKERRQ(ierr);
     ierr = DMGetWorkArray(dm,numPoints*Nc[f],MPIU_SCALAR,&pointEval);CHKERRQ(ierr);
     for (q = 0; q < numPoints; ++q, ++tp) {
-      const PetscReal *v0;
-      const PetscReal *invJ;
+      const PetscReal *v0 = NULL;
+      const PetscReal *invJ = NULL;
 
-      if (isAffine) {
-        CoordinatesRefToReal(dE, dim, fegeom->xi, fegeom->v, fegeom->J, &points[q*dim], x);
-        v0 = x;
-        invJ = fegeom->invJ;
-      } else {
-        v0 = &fegeom->v[tp*dE];
-        invJ = &fegeom->invJ[tp*dE*dE];
-      }
+      if (fegeom) {
+        if (isAffine) {
+          CoordinatesRefToReal(dE, dim, fegeom->xi, fegeom->v, fegeom->J, &points[q*dim], x);
+          v0 = x;
+          invJ = fegeom->invJ;
+        } else {
+          v0 = &fegeom->v[tp*dE];
+          invJ = &fegeom->invJ[tp*dE*dE];
+        }
+      } else {invJ = invJdefault;}
       EvaluateFieldJets(dim, Nf, Nb, Nc, tp, basisTab, basisDerTab, refSpaceDer, invJ, coefficients, coefficients_t, u, u_x, u_t);
       if (probAux) {EvaluateFieldJets(dimAux, NfAux, NbAux, NcAux, tp, basisTabAux, basisDerTabAux, refSpaceDerAux, invJ, coefficientsAux, coefficientsAux_t, a, a_x, a_t);}
       (*funcs[f])(dE, Nf, NfAux, uOff, uOff_x, u, u_t, u_x, aOff, aOff_x, a, a_t, a_x, time, v0, numConstants, constants, &pointEval[Nc[f]*q]);
@@ -363,7 +369,7 @@ static PetscErrorCode DMProjectLocal_Generic_Plex(DM dm, PetscReal time, Vec loc
     PetscInt     effectiveHeight = h - (auxBd ? 0 : minHeight);
     PetscDS      probEff         = prob;
     PetscScalar *values;
-    PetscBool   *fieldActive, isAffine;
+    PetscBool   *fieldActive, isAffine = PETSC_TRUE;
     PetscInt     pStart, pEnd, p, spDim, totDim, numValues;
     IS           heightIS;
 
@@ -419,19 +425,19 @@ static PetscErrorCode DMProjectLocal_Generic_Plex(DM dm, PetscReal time, Vec loc
         if (!isectIS) continue;
         ierr = ISGetLocalSize(isectIS, &n);CHKERRQ(ierr);
         ierr = ISGetIndices(isectIS, &points);CHKERRQ(ierr);
-        ierr = DMFieldGetFEInvariance(coordField,isectIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
-        if (isAffine) {
-          ierr = DMFieldCreateDefaultQuadrature(coordField,isectIS,&quad);CHKERRQ(ierr);
-        }
-        if (!quad) {
-          if (!h && allPoints) {
-            quad = allPoints;
-            allPoints = NULL;
-          } else {
-            ierr = PetscDualSpaceGetAllPointsUnion(Nf,sp,dim-h,funcs,&quad);CHKERRQ(ierr);
+        if (coordField) {
+          ierr = DMFieldGetFEInvariance(coordField,isectIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
+          if (isAffine) {ierr = DMFieldCreateDefaultQuadrature(coordField,isectIS,&quad);CHKERRQ(ierr);}
+          if (!quad) {
+            if (!h && allPoints) {
+              quad = allPoints;
+              allPoints = NULL;
+            } else {
+              ierr = PetscDualSpaceGetAllPointsUnion(Nf,sp,dim-h,funcs,&quad);CHKERRQ(ierr);
+            }
           }
+          ierr = DMFieldCreateFEGeom(coordField,isectIS,quad,PETSC_FALSE,&fegeom);CHKERRQ(ierr);
         }
-        ierr = DMFieldCreateFEGeom(coordField,isectIS,quad,PETSC_FALSE,&fegeom);CHKERRQ(ierr);
         for (p = 0; p < n; ++p) {
           const PetscInt  point = points[p];
 
@@ -458,19 +464,19 @@ static PetscErrorCode DMProjectLocal_Generic_Plex(DM dm, PetscReal time, Vec loc
       IS              pointIS;
 
       ierr = ISCreateStride(PETSC_COMM_SELF,pEnd-pStart,pStart,1,&pointIS);CHKERRQ(ierr);
-      ierr = DMFieldGetFEInvariance(coordField,pointIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
-      if (isAffine) {
-        ierr = DMFieldCreateDefaultQuadrature(coordField,pointIS,&quad);CHKERRQ(ierr);
-      }
-      if (!quad) {
-        if (!h && allPoints) {
-          quad = allPoints;
-          allPoints = NULL;
-        } else {
-          ierr = PetscDualSpaceGetAllPointsUnion(Nf,sp,dim-h,funcs,&quad);CHKERRQ(ierr);
+      if (coordField) {
+        ierr = DMFieldGetFEInvariance(coordField,pointIS,NULL,&isAffine,NULL);CHKERRQ(ierr);
+        if (isAffine) {ierr = DMFieldCreateDefaultQuadrature(coordField,pointIS,&quad);CHKERRQ(ierr);}
+        if (!quad) {
+          if (!h && allPoints) {
+            quad = allPoints;
+            allPoints = NULL;
+          } else {
+            ierr = PetscDualSpaceGetAllPointsUnion(Nf,sp,dim-h,funcs,&quad);CHKERRQ(ierr);
+          }
         }
+        ierr = DMFieldCreateFEGeom(coordField,pointIS,quad,PETSC_FALSE,&fegeom);CHKERRQ(ierr);
       }
-      ierr = DMFieldCreateFEGeom(coordField,pointIS,quad,PETSC_FALSE,&fegeom);CHKERRQ(ierr);
       for (p = pStart; p < pEnd; ++p) {
         ierr = PetscMemzero(values, numValues * sizeof(PetscScalar));CHKERRQ(ierr);
         ierr = PetscFEGeomGetChunk(fegeom,p-pStart,p-pStart+1,&chunkgeom);CHKERRQ(ierr);
