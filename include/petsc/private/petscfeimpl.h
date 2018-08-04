@@ -324,6 +324,7 @@ PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolate_Static(PetscFE fe, const P
       interpolant[fc] += x[f]*basis[(q*Nb + f)*Nc + fc];
     }
   }
+  ierr = PetscLogFlops(2.0*Nb*Nc);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -358,6 +359,7 @@ PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolateGradient_Static(PetscFE fe,
       for (d = 0; d < dim; ++d) interpolant[fc*dim+d] = compGradient[d];
     }
   }
+  ierr = PetscLogFlops(2.0*Nc*(Nb*(dim*dim + 1.0) + (n ? 1.0 : 0.0)));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
