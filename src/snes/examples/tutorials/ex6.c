@@ -413,10 +413,10 @@ int main(int argc, char **argv)
   test:
     suffix: 2d_p2_p1
     requires: triangle
-    args: -cells 2,2 -vel_petscspace_order 2 -pres_petscspace_order 1 -dmsnes_check -ksp_error_if_not_converged -ksp_rtol 1e-10 -pc_type jacobi -petscds_view -snes_converged_reason
+    args: -cells 2,2 -vel_petscspace_degree 2 -pres_petscspace_degree 1 -dmsnes_check -ksp_error_if_not_converged -ksp_rtol 1e-10 -pc_type jacobi -petscds_view -snes_converged_reason
   test:
     suffix: 2d_p2_p1_conv
     requires: triangle
-    args: -cells 2,2 -dm_refine 1 -vel_petscspace_order 2 -pres_petscspace_order 1 -snes_convergence_estimate -num_refine 3 -ksp_error_if_not_converged -ksp_rtol 1e-10 -pc_type jacobi -petscds_view
+    args: -cells 2,2 -dm_refine 1 -vel_petscspace_degree 2 -pres_petscspace_degree 1 -snes_convergence_estimate -num_refine 3 -ksp_error_if_not_converged -ksp_rtol 1e-10 -pc_type jacobi -petscds_view
 
 TEST*/
