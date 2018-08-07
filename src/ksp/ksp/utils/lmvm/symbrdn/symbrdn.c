@@ -814,147 +814,146 @@ PetscErrorCode MatSymBrdnComputeJ0Diag(Mat B)
   ierr = VecReciprocal(lsb->invDnew);CHKERRQ(ierr);
   ierr = VecAbs(lsb->invDnew);CHKERRQ(ierr);
   
-  if (lsb->sigma_hist == 0) {
-    
-  }
-  /*  Start with re-scaling on the newly computed diagonal */
-  if (0.5 == lsb->beta) {
-    if (1 == PetscMin(lmvm->nupdates, lsb->sigma_hist)) {
-      ierr = VecPointwiseMult(lsb->V, lmvm->Y[0], lsb->invDnew);CHKERRQ(ierr);
-      ierr = VecDot(lsb->V, lmvm->Y[0], &ytDy);CHKERRQ(ierr);
-      yy_sum = PetscRealPart(ytDy);
+  if (lsb->sigma_hist > 0) {
+    /*  Start with re-scaling on the newly computed diagonal */
+    if (0.5 == lsb->beta) {
+      if (1 == PetscMin(lmvm->nupdates, lsb->sigma_hist)) {
+        ierr = VecPointwiseMult(lsb->V, lmvm->Y[0], lsb->invDnew);CHKERRQ(ierr);
+        ierr = VecDot(lsb->V, lmvm->Y[0], &ytDy);CHKERRQ(ierr);
+        yy_sum = PetscRealPart(ytDy);
 
-      ierr = VecPointwiseDivide(lsb->W, lmvm->S[0], lsb->invDnew);CHKERRQ(ierr);
-      ierr = VecDot(lsb->W, lmvm->S[0], &stDs);CHKERRQ(ierr);
-      ss_sum = PetscRealPart(stDs);
+        ierr = VecPointwiseDivide(lsb->W, lmvm->S[0], lsb->invDnew);CHKERRQ(ierr);
+        ierr = VecDot(lsb->W, lmvm->S[0], &stDs);CHKERRQ(ierr);
+        ss_sum = PetscRealPart(stDs);
 
-      ys_sum = lsb->yts[0];
-    } else {
-      ierr = VecCopy(lsb->invDnew, lsb->U);CHKERRQ(ierr);
-      ierr = VecReciprocal(lsb->U);CHKERRQ(ierr);
+        ys_sum = lsb->yts[0];
+      } else {
+        ierr = VecCopy(lsb->invDnew, lsb->U);CHKERRQ(ierr);
+        ierr = VecReciprocal(lsb->U);CHKERRQ(ierr);
 
-      /*  Compute summations for scalar scaling */
-      yy_sum = 0;       /*  No safeguard required */
-      ys_sum = 0;       /*  No safeguard required */
-      ss_sum = 0;       /*  No safeguard required */
-      start = PetscMax(0, lmvm->k-lsb->sigma_hist+1);
-      for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
-        ierr = VecPointwiseMult(lsb->V, lmvm->Y[i], lsb->U);CHKERRQ(ierr);
-        ierr = VecDot(lsb->V, lmvm->Y[i], &ytDy);CHKERRQ(ierr);
-        yy_sum += PetscRealPart(ytDy);
+        /*  Compute summations for scalar scaling */
+        yy_sum = 0;       /*  No safeguard required */
+        ys_sum = 0;       /*  No safeguard required */
+        ss_sum = 0;       /*  No safeguard required */
+        start = PetscMax(0, lmvm->k-lsb->sigma_hist+1);
+        for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
+          ierr = VecPointwiseMult(lsb->V, lmvm->Y[i], lsb->U);CHKERRQ(ierr);
+          ierr = VecDot(lsb->V, lmvm->Y[i], &ytDy);CHKERRQ(ierr);
+          yy_sum += PetscRealPart(ytDy);
 
-        ierr = VecPointwiseMult(lsb->W, lmvm->S[i], lsb->U);CHKERRQ(ierr);
-        ierr = VecDot(lsb->W, lmvm->S[i], &stDs);CHKERRQ(ierr);
-        ss_sum += PetscRealPart(stDs);
-        ys_sum += lsb->yts[i];
+          ierr = VecPointwiseMult(lsb->W, lmvm->S[i], lsb->U);CHKERRQ(ierr);
+          ierr = VecDot(lsb->W, lmvm->S[i], &stDs);CHKERRQ(ierr);
+          ss_sum += PetscRealPart(stDs);
+          ys_sum += lsb->yts[i];
+        }
       }
-    }
-  } else if (0.0 == lsb->beta) {
-    if (1 == PetscMin(lmvm->nupdates, lsb->sigma_hist)) {
-      /*  Compute summations for scalar scaling */
-      ierr = VecPointwiseDivide(lsb->W, lmvm->S[0], lsb->invDnew);CHKERRQ(ierr);
+    } else if (0.0 == lsb->beta) {
+      if (1 == PetscMin(lmvm->nupdates, lsb->sigma_hist)) {
+        /*  Compute summations for scalar scaling */
+        ierr = VecPointwiseDivide(lsb->W, lmvm->S[0], lsb->invDnew);CHKERRQ(ierr);
 
-      ierr = VecDot(lsb->W, lmvm->Y[0], &ytDs);CHKERRQ(ierr);
-      ys_sum = PetscRealPart(ytDs);
-      ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
-      ss_sum = PetscRealPart(stDs);
-      yy_sum = lsb->yty[0];
-    } else {
-      ierr = VecCopy(lsb->invDnew, lsb->U);CHKERRQ(ierr);
-      ierr = VecReciprocal(lsb->U);CHKERRQ(ierr);
+        ierr = VecDot(lsb->W, lmvm->Y[0], &ytDs);CHKERRQ(ierr);
+        ys_sum = PetscRealPart(ytDs);
+        ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
+        ss_sum = PetscRealPart(stDs);
+        yy_sum = lsb->yty[0];
+      } else {
+        ierr = VecCopy(lsb->invDnew, lsb->U);CHKERRQ(ierr);
+        ierr = VecReciprocal(lsb->U);CHKERRQ(ierr);
 
+        /*  Compute summations for scalar scaling */
+        yy_sum = 0;       /*  No safeguard required */
+        ys_sum = 0;       /*  No safeguard required */
+        ss_sum = 0;       /*  No safeguard required */
+        start = PetscMax(0, lmvm->k-lsb->sigma_hist+1);
+        for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
+          ierr = VecPointwiseMult(lsb->W, lmvm->S[i], lsb->U);CHKERRQ(ierr);
+          ierr = VecDot(lsb->W, lmvm->Y[i], &ytDs);CHKERRQ(ierr);
+          ys_sum += PetscRealPart(ytDs);
+
+          ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
+          ss_sum += PetscRealPart(stDs);
+
+          yy_sum += lsb->yty[i];
+        }
+      }
+    } else if (1.0 == lsb->beta) {
       /*  Compute summations for scalar scaling */
-      yy_sum = 0;       /*  No safeguard required */
-      ys_sum = 0;       /*  No safeguard required */
-      ss_sum = 0;       /*  No safeguard required */
+      yy_sum = 0; /*  No safeguard required */
+      ys_sum = 0; /*  No safeguard required */
+      ss_sum = 0; /*  No safeguard required */
       start = PetscMax(0, lmvm->k-lsb->sigma_hist+1);
       for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
-        ierr = VecPointwiseMult(lsb->W, lmvm->S[i], lsb->U);CHKERRQ(ierr);
-        ierr = VecDot(lsb->W, lmvm->Y[i], &ytDs);CHKERRQ(ierr);
+        ierr = VecPointwiseMult(lsb->V, lmvm->Y[i], lsb->invDnew);CHKERRQ(ierr);
+        ierr = VecDot(lsb->V, lmvm->S[i], &ytDs);CHKERRQ(ierr);
         ys_sum += PetscRealPart(ytDs);
 
-        ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
-        ss_sum += PetscRealPart(stDs);
+        ierr = VecDot(lsb->V, lsb->V, &ytDy);CHKERRQ(ierr);
+        yy_sum += PetscRealPart(ytDy);
 
-        yy_sum += lsb->yty[i];
+        ss_sum += lsb->sts[i];
+      }
+    } else {
+      ierr = VecCopy(lsb->invDnew, lsb->U);CHKERRQ(ierr);
+      ierr = VecPow(lsb->U, lsb->beta-1);CHKERRQ(ierr);
+
+      /*  Compute summations for scalar scaling */
+      yy_sum = 0; /*  No safeguard required */
+      ys_sum = 0; /*  No safeguard required */
+      ss_sum = 0; /*  No safeguard required */
+      start = PetscMax(0, lmvm->k-lsb->sigma_hist+1);
+      for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
+        ierr = VecPointwiseMult(lsb->V, lsb->invDnew, lmvm->Y[i]);CHKERRQ(ierr);
+        ierr = VecPointwiseMult(lsb->W, lsb->U, lmvm->S[i]);CHKERRQ(ierr);
+
+        ierr = VecDot(lsb->V, lsb->V, &ytDy);CHKERRQ(ierr);
+        ierr = VecDot(lsb->V, lsb->W, &ytDs);CHKERRQ(ierr);
+        ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
+
+        yy_sum += PetscRealPart(ytDy);
+        ys_sum += PetscRealPart(ytDs);
+        ss_sum += PetscRealPart(stDs);
       }
     }
-  } else if (1.0 == lsb->beta) {
-    /*  Compute summations for scalar scaling */
-    yy_sum = 0; /*  No safeguard required */
-    ys_sum = 0; /*  No safeguard required */
-    ss_sum = 0; /*  No safeguard required */
-    start = PetscMax(0, lmvm->k-lsb->sigma_hist+1);
-    for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
-      ierr = VecPointwiseMult(lsb->V, lmvm->Y[i], lsb->invDnew);CHKERRQ(ierr);
-      ierr = VecDot(lsb->V, lmvm->S[i], &ytDs);CHKERRQ(ierr);
-      ys_sum += PetscRealPart(ytDs);
 
-      ierr = VecDot(lsb->V, lsb->V, &ytDy);CHKERRQ(ierr);
-      yy_sum += PetscRealPart(ytDy);
+    if (0.0 == lsb->alpha) {
+      /*  Safeguard ys_sum  */
+      if (0.0 == ys_sum) {
+        ys_sum = 1.e-8;
+      }
 
-      ss_sum += lsb->sts[i];
-    }
-  } else {
-    ierr = VecCopy(lsb->invDnew, lsb->U);CHKERRQ(ierr);
-    ierr = VecPow(lsb->U, lsb->beta-1);CHKERRQ(ierr);
+      sigma = ss_sum / ys_sum;
+    } else if (1.0 == lsb->alpha) {
+      /*  Safeguard yy_sum  */
+      if (0.0 == yy_sum) {
+        ys_sum = 1.e-8;
+      }
 
-    /*  Compute summations for scalar scaling */
-    yy_sum = 0; /*  No safeguard required */
-    ys_sum = 0; /*  No safeguard required */
-    ss_sum = 0; /*  No safeguard required */
-    start = PetscMax(0, lmvm->k-lsb->sigma_hist+1);
-    for (i = start; i < PetscMin(lmvm->nupdates, lsb->sigma_hist); ++i) {
-      ierr = VecPointwiseMult(lsb->V, lsb->invDnew, lmvm->Y[i]);CHKERRQ(ierr);
-      ierr = VecPointwiseMult(lsb->W, lsb->U, lmvm->S[i]);CHKERRQ(ierr);
+      sigma = ys_sum / yy_sum;
+    } else {
+      denom = 2*lsb->alpha*yy_sum;
 
-      ierr = VecDot(lsb->V, lsb->V, &ytDy);CHKERRQ(ierr);
-      ierr = VecDot(lsb->V, lsb->W, &ytDs);CHKERRQ(ierr);
-      ierr = VecDot(lsb->W, lsb->W, &stDs);CHKERRQ(ierr);
+      /*  Safeguard denom */
+      if (0.0 == denom) {
+        denom = 1.e-8;
+      }
 
-      yy_sum += PetscRealPart(ytDy);
-      ys_sum += PetscRealPart(ytDs);
-      ss_sum += PetscRealPart(stDs);
-    }
-  }
-
-  if (0.0 == lsb->alpha) {
-    /*  Safeguard ys_sum  */
-    if (0.0 == ys_sum) {
-      ys_sum = 1.e-8;
+      sigma = ((2*lsb->alpha-1)*ys_sum + PetscSqrtReal((2*lsb->alpha-1)*(2*lsb->alpha-1)*ys_sum*ys_sum - 4*lsb->alpha*(lsb->alpha-1)*yy_sum*ss_sum)) / denom;
     }
 
-    sigma = ss_sum / ys_sum;
-  } else if (1.0 == lsb->alpha) {
-    /*  Safeguard yy_sum  */
-    if (0.0 == yy_sum) {
-      ys_sum = 1.e-8;
+    /*  If Q has small values, then Q^(r_beta - 1) */
+    /*  can have very large values.  Hence, ys_sum */
+    /*  and ss_sum can be infinity.  In this case, */
+    /*  sigma can either be not-a-number or infinity. */
+
+    if (PetscIsInfOrNanReal(sigma)) {
+      /*  sigma is not-a-number; skip rescaling */
+    } else if (!sigma) {
+      /*  sigma is zero; this is a bad case; skip rescaling */
+    } else {
+      /*  sigma is positive */
+      ierr = VecScale(lsb->invDnew, sigma);CHKERRQ(ierr);
     }
-
-    sigma = ys_sum / yy_sum;
-  } else {
-    denom = 2*lsb->alpha*yy_sum;
-
-    /*  Safeguard denom */
-    if (0.0 == denom) {
-      denom = 1.e-8;
-    }
-
-    sigma = ((2*lsb->alpha-1)*ys_sum + PetscSqrtReal((2*lsb->alpha-1)*(2*lsb->alpha-1)*ys_sum*ys_sum - 4*lsb->alpha*(lsb->alpha-1)*yy_sum*ss_sum)) / denom;
-  }
-
-  /*  If Q has small values, then Q^(r_beta - 1) */
-  /*  can have very large values.  Hence, ys_sum */
-  /*  and ss_sum can be infinity.  In this case, */
-  /*  sigma can either be not-a-number or infinity. */
-
-  if (PetscIsInfOrNanReal(sigma)) {
-    /*  sigma is not-a-number; skip rescaling */
-  } else if (!sigma) {
-    /*  sigma is zero; this is a bad case; skip rescaling */
-  } else {
-    /*  sigma is positive */
-    ierr = VecScale(lsb->invDnew, sigma);CHKERRQ(ierr);
   }
   
   /* Combine the old diagonal and the new diagonal using a convex limiter */
