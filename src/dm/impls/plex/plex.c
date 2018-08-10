@@ -4176,7 +4176,7 @@ $  PetscFree(values);
 
   Level: intermediate
 
-.seealso DMPlexVecRestoreClosure(), DMPlexVecSetClosure(), DMPlexMatSetClosure()
+.seealso DMPlexVecRestoreClosure(), DMPlexVecSetClosure(), DMPlexMatSetClosure(), DMPlexVecGetFilteredClosure()
 @*/
 PetscErrorCode DMPlexVecGetClosure(DM dm, PetscSection section, Vec v, PetscInt point, PetscInt *csize, PetscScalar *values[])
 {
@@ -4203,6 +4203,134 @@ PetscErrorCode DMPlexVecGetClosure(DM dm, PetscSection section, Vec v, PetscInt 
   /* Get points */
   ierr = DMPlexGetCompressedClosure(dm,section,point,&numPoints,&points,&clSection,&clPoints,&clp);CHKERRQ(ierr);
   ierr = PetscSectionGetClosureInversePermutation_Internal(section, (PetscObject) dm, NULL, &perm);CHKERRQ(ierr);
+  /* Get array */
+  if (!values || !*values) {
+    PetscInt asize = 0, dof, p;
+
+    for (p = 0; p < numPoints*2; p += 2) {
+      ierr = PetscSectionGetDof(section, points[p], &dof);CHKERRQ(ierr);
+      asize += dof;
+    }
+    if (!values) {
+      ierr = DMPlexRestoreCompressedClosure(dm,section,point,&numPoints,&points,&clSection,&clPoints,&clp);CHKERRQ(ierr);
+      if (csize) *csize = asize;
+      PetscFunctionReturn(0);
+    }
+    ierr = DMGetWorkArray(dm, asize, MPIU_SCALAR, &array);CHKERRQ(ierr);
+  } else {
+    array = *values;
+  }
+  ierr = VecGetArrayRead(v, &vArray);CHKERRQ(ierr);
+  /* Get values */
+  if (numFields > 0) {ierr = DMPlexVecGetClosure_Fields_Static(dm, section, numPoints, points, numFields, perm, vArray, &size, array);CHKERRQ(ierr);}
+  else               {ierr = DMPlexVecGetClosure_Static(dm, section, numPoints, points, perm, vArray, &size, array);CHKERRQ(ierr);}
+  /* Cleanup points */
+  ierr = DMPlexRestoreCompressedClosure(dm,section,point,&numPoints,&points,&clSection,&clPoints,&clp);CHKERRQ(ierr);
+  /* Cleanup array */
+  ierr = VecRestoreArrayRead(v, &vArray);CHKERRQ(ierr);
+  if (!*values) {
+    if (csize) *csize = size;
+    *values = array;
+  } else {
+    if (size > *csize) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Size of input array %D < actual size %D", *csize, size);
+    *csize = size;
+  }
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  DMPlexVecGetFilteredClosure - Get an array of the values on the closure of 'point', but only on points in a certain range
+
+  Not collective
+
+  Input Parameters:
++ dm - The DM
+. section - The section describing the layout in v, or NULL to use the default section
+. v - The local vector
+. point - The point in the DM
+. pStart - The first active point
+. pEnd - The first inactive point
+. csize - The size of the input values array, or NULL
+- values - An array to use for the values, or NULL to have it allocated automatically
+
+  Output Parameters:
++ csize - The number of values in the closure
+- values - The array of values. If the user provided NULL, it is a borrowed array and should not be freed
+
+$ Note that DMPlexVecGetFilteredClosure/DMPlexVecRestoreFilteredClosure only allocates the values array if it set to NULL in the
+$ calling function. This is because DMPlexVecGetClosure() is typically called in the inner loop of a Vec or Mat
+$ assembly function, and a user may already have allocated storage for this operation.
+$
+$ A typical use could be
+$
+$  values = NULL;
+$  ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
+$  ierr = DMPlexVecGetFilteredClosure(dm, NULL, v, p, vStart, vEnd, &clSize, &values);CHKERRQ(ierr);
+$  for (cl = 0; cl < clSize; ++cl) {
+$    <Compute on closure>
+$  }
+$  ierr = DMPlexVecRestoreFilteredClosure(dm, NULL, v, p, 0, &clSize, &values);CHKERRQ(ierr);
+$
+$ or
+$
+$  ierr = DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd);CHKERRQ(ierr);
+$  PetscMalloc1(clMaxSize, &values);
+$  for (p = pStart; p < pEnd; ++p) {
+$    clSize = clMaxSize;
+$    ierr = DMPlexVecGetFilteredClosure(dm, NULL, v, p, vStart, vEnd, &clSize, &values);CHKERRQ(ierr);
+$    for (cl = 0; cl < clSize; ++cl) {
+$      <Compute on closure>
+$    }
+$  }
+$  PetscFree(values);
+
+  Fortran Notes:
+  Since it returns an array, this routine is only available in Fortran 90, and you must
+  include petsc.h90 in your code.
+
+  The csize argument is not present in the Fortran 90 binding since it is internal to the array.
+
+  Level: intermediate
+
+.seealso DMPlexVecRestoreFilteredClosure(), DMPlexVecSetClosure(), DMPlexMatSetClosure(), DMPlexVecGetClosure()
+@*/
+PetscErrorCode DMPlexVecGetFilteredClosure(DM dm, PetscSection section, Vec v, PetscInt point, PetscInt pStart, PetscInt pEnd, PetscInt *csize, PetscScalar *values[])
+{
+  PetscSection       clSection;
+  IS                 clPoints;
+  PetscScalar       *array;
+  const PetscScalar *vArray;
+  PetscInt          *points = NULL;
+  const PetscInt    *clp, *perm;
+  PetscInt           depth, numFields, numPoints, size;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBeginHot;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  if (!section) {ierr = DMGetDefaultSection(dm, &section);CHKERRQ(ierr);}
+  PetscValidHeaderSpecific(section, PETSC_SECTION_CLASSID, 2);
+  PetscValidHeaderSpecific(v, VEC_CLASSID, 3);
+  ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
+  ierr = PetscSectionGetNumFields(section, &numFields);CHKERRQ(ierr);
+  if (depth == 1 && numFields < 2) {
+    ierr = DMPlexVecGetClosure_Depth1_Static(dm, section, v, point, csize, values);CHKERRQ(ierr);
+    PetscFunctionReturn(0);
+  }
+  /* Get points */
+  ierr = DMPlexGetCompressedClosure(dm,section,point,&numPoints,&points,&clSection,&clPoints,&clp);CHKERRQ(ierr);
+  ierr = PetscSectionGetClosureInversePermutation_Internal(section, (PetscObject) dm, NULL, &perm);CHKERRQ(ierr);
+  /* Filter points */
+  {
+    PetscInt p, q = 0;
+
+    for (p = 0; p < numPoints*2; p += 2) {
+      if ((points[p] < pStart) || (points[p] >= pEnd)) continue;
+      points[q+0] = points[p+0];
+      points[q+1] = points[p+1];
+      q += 2;
+    }
+    numPoints = q/2;
+  }
   /* Get array */
   if (!values || !*values) {
     PetscInt asize = 0, dof, p;
