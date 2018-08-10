@@ -1036,20 +1036,22 @@ static PetscErrorCode DMPlexComputePointGeometry_Internal(DM dm, PetscInt e, Pet
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMPlexComputeLineGeometry_Internal(DM dm, PetscInt e, PetscReal v0[], PetscReal J[], PetscReal invJ[], PetscReal *detJ)
+static PetscErrorCode DMPlexComputeLineGeometry_Affine_Internal(DM dm, PetscInt e, PetscReal v0[], PetscReal J[], PetscReal invJ[], PetscReal *detJ)
 {
   PetscSection   coordSection;
   Vec            coordinates;
   PetscScalar   *coords = NULL;
-  PetscInt       numCoords, d, pStart, pEnd, numSelfCoords = 0;
+  PetscInt       numCoords, numSelfCoords = 0, d, pStart, pEnd, vEnd;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionGetChart(coordSection,&pStart,&pEnd);CHKERRQ(ierr);
-  if (e >= pStart && e < pEnd) {ierr = PetscSectionGetDof(coordSection,e,&numSelfCoords);CHKERRQ(ierr);}
-  ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, e, &numCoords, &coords);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthStratum(dm, 0, NULL, &vEnd);CHKERRQ(ierr);
+  ierr = DMPlexVecGetFilteredClosure(dm, coordSection, coordinates, e, pStart, vEnd, &numCoords, &coords);CHKERRQ(ierr);
+  /* Check for periodicity, since the cell e will have coordinates equal to all the vertices */
+  if (e >= pStart && e < pEnd) {ierr = PetscSectionGetDof(coordSection, e, &numSelfCoords);CHKERRQ(ierr);}
   numCoords = numSelfCoords ? numSelfCoords : numCoords;
   if (invJ && !J) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "In order to compute invJ, J must not be NULL");
   *detJ = 0.0;
@@ -1090,26 +1092,29 @@ static PetscErrorCode DMPlexComputeLineGeometry_Internal(DM dm, PetscInt e, Pets
       ierr = PetscLogFlops(2.0);CHKERRQ(ierr);
       if (invJ) {invJ[0] = 1.0/J[0]; ierr = PetscLogFlops(1.0);CHKERRQ(ierr);}
     }
-  } else SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "The number of coordinates for this segment is %D != 2", numCoords);
+  } else SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "The number of coordinates for segment %D is %D != 2", e, numCoords);
   ierr = DMPlexVecRestoreClosure(dm, coordSection, coordinates, e, &numCoords, &coords);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMPlexComputeTriangleGeometry_Internal(DM dm, PetscInt e, PetscReal v0[], PetscReal J[], PetscReal invJ[], PetscReal *detJ)
+static PetscErrorCode DMPlexComputeTriangleGeometry_Affine_Internal(DM dm, PetscInt e, PetscReal v0[], PetscReal J[], PetscReal invJ[], PetscReal *detJ)
 {
   PetscSection   coordSection;
   Vec            coordinates;
   PetscScalar   *coords = NULL;
-  PetscInt       numCoords, numSelfCoords = 0, d, f, g, pStart, pEnd;
+  PetscInt       numCoords, numSelfCoords = 0, d, f, g, pStart, pEnd, vEnd;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionGetChart(coordSection,&pStart,&pEnd);CHKERRQ(ierr);
-  if (e >= pStart && e < pEnd) {ierr = PetscSectionGetDof(coordSection,e,&numSelfCoords);CHKERRQ(ierr);}
-  ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, e, &numCoords, &coords);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthStratum(dm, 0, NULL, &vEnd);CHKERRQ(ierr);
+  ierr = DMPlexVecGetFilteredClosure(dm, coordSection, coordinates, e, pStart, vEnd, &numCoords, &coords);CHKERRQ(ierr);
+  /* Check for periodicity, since the cell e will have coordinates equal to all the vertices */
+  if (e >= pStart && e < pEnd) {ierr = PetscSectionGetDof(coordSection, e, &numSelfCoords);CHKERRQ(ierr);}
   numCoords = numSelfCoords ? numSelfCoords : numCoords;
+  if (invJ && !J) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "In order to compute invJ, J must not be NULL");
   *detJ = 0.0;
   if (numCoords == 9) {
     const PetscInt dim = 3;
@@ -1152,7 +1157,7 @@ static PetscErrorCode DMPlexComputeTriangleGeometry_Internal(DM dm, PetscInt e, 
       DMPlex_Det2D_Internal(detJ, J);
     }
     if (invJ) {DMPlex_Invert2D_Internal(invJ, J, *detJ);}
-  } else SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "The number of coordinates for this triangle is %D != 6 or 9", numCoords);
+  } else SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "The number of coordinates for triangle %D is %D != 6 or 9", e, numCoords);
   ierr = DMPlexVecRestoreClosure(dm, coordSection, coordinates, e, &numCoords, &coords);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1162,16 +1167,19 @@ static PetscErrorCode DMPlexComputeRectangleGeometry_Internal(DM dm, PetscInt e,
   PetscSection   coordSection;
   Vec            coordinates;
   PetscScalar   *coords = NULL;
-  PetscInt       numCoords, numSelfCoords = 0, d, f, g, pStart, pEnd;
+  PetscInt       numCoords, numSelfCoords = 0, d, f, g, pStart, pEnd, vEnd;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
   ierr = PetscSectionGetChart(coordSection,&pStart,&pEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthStratum(dm, 0, NULL, &vEnd);CHKERRQ(ierr);
+  ierr = DMPlexVecGetFilteredClosure(dm, coordSection, coordinates, e, pStart, vEnd, &numCoords, &coords);CHKERRQ(ierr);
+  /* Check for periodicity, since the cell e will have coordinates equal to all the vertices */
   if (e >= pStart && e < pEnd) {ierr = PetscSectionGetDof(coordSection,e,&numSelfCoords);CHKERRQ(ierr);}
-  ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, e, &numCoords, &coords);CHKERRQ(ierr);
   numCoords = numSelfCoords ? numSelfCoords : numCoords;
+  if (invJ && !J) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "In order to compute invJ, J must not be NULL");
   if (!Nq) {
     *detJ = 0.0;
     if (numCoords == 12) {
@@ -1305,32 +1313,40 @@ static PetscErrorCode DMPlexComputeRectangleGeometry_Internal(DM dm, PetscInt e,
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode DMPlexComputeTetrahedronGeometry_Internal(DM dm, PetscInt e, PetscReal v0[], PetscReal J[], PetscReal invJ[], PetscReal *detJ)
+static PetscErrorCode DMPlexComputeTetrahedronGeometry_Affine_Internal(DM dm, PetscInt e, PetscReal v0[], PetscReal J[], PetscReal invJ[], PetscReal *detJ)
 {
   PetscSection   coordSection;
   Vec            coordinates;
   PetscScalar   *coords = NULL;
   const PetscInt dim = 3;
-  PetscInt       d;
+  PetscInt       numCoords, numSelfCoords = 0, d, pStart, pEnd, vEnd;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
-  ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, e, NULL, &coords);CHKERRQ(ierr);
+  ierr = PetscSectionGetChart(coordSection,&pStart,&pEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthStratum(dm, 0, NULL, &vEnd);CHKERRQ(ierr);
+  ierr = DMPlexVecGetFilteredClosure(dm, coordSection, coordinates, e, pStart, vEnd, &numCoords, &coords);CHKERRQ(ierr);
+  /* Check for periodicity, since the cell e will have coordinates equal to all the vertices */
+  if (e >= pStart && e < pEnd) {ierr = PetscSectionGetDof(coordSection, e, &numSelfCoords);CHKERRQ(ierr);}
+  numCoords = numSelfCoords ? numSelfCoords : numCoords;
+  if (invJ && !J) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "In order to compute invJ, J must not be NULL");
   *detJ = 0.0;
-  if (v0)   {for (d = 0; d < dim; d++) v0[d] = PetscRealPart(coords[d]);}
-  if (J)    {
-    for (d = 0; d < dim; d++) {
-      /* I orient with outward face normals */
-      J[d*dim+0] = 0.5*(PetscRealPart(coords[2*dim+d]) - PetscRealPart(coords[0*dim+d]));
-      J[d*dim+1] = 0.5*(PetscRealPart(coords[1*dim+d]) - PetscRealPart(coords[0*dim+d]));
-      J[d*dim+2] = 0.5*(PetscRealPart(coords[3*dim+d]) - PetscRealPart(coords[0*dim+d]));
+  if (numCoords == 12) {
+    if (v0)   {for (d = 0; d < dim; d++) v0[d] = PetscRealPart(coords[d]);}
+    if (J)    {
+      for (d = 0; d < dim; d++) {
+        /* I orient with outward face normals */
+        J[d*dim+0] = 0.5*(PetscRealPart(coords[2*dim+d]) - PetscRealPart(coords[0*dim+d]));
+        J[d*dim+1] = 0.5*(PetscRealPart(coords[1*dim+d]) - PetscRealPart(coords[0*dim+d]));
+        J[d*dim+2] = 0.5*(PetscRealPart(coords[3*dim+d]) - PetscRealPart(coords[0*dim+d]));
+      }
+      ierr = PetscLogFlops(18.0);CHKERRQ(ierr);
+      DMPlex_Det3D_Internal(detJ, J);
     }
-    ierr = PetscLogFlops(18.0);CHKERRQ(ierr);
-    DMPlex_Det3D_Internal(detJ, J);
-  }
-  if (invJ) {DMPlex_Invert3D_Internal(invJ, J, *detJ);}
+    if (invJ) {DMPlex_Invert3D_Internal(invJ, J, *detJ);}
+  } else SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "The number of coordinates for tetrahedron %D is %D != 12", e, numCoords);
   ierr = DMPlexVecRestoreClosure(dm, coordSection, coordinates, e, NULL, &coords);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1341,13 +1357,19 @@ static PetscErrorCode DMPlexComputeHexahedronGeometry_Internal(DM dm, PetscInt e
   Vec            coordinates;
   PetscScalar   *coords = NULL;
   const PetscInt dim = 3;
-  PetscInt       d;
+  PetscInt       numCoords, numSelfCoords = 0, d, pStart, pEnd, vEnd;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
   ierr = DMGetCoordinateSection(dm, &coordSection);CHKERRQ(ierr);
-  ierr = DMPlexVecGetClosure(dm, coordSection, coordinates, e, NULL, &coords);CHKERRQ(ierr);
+  ierr = PetscSectionGetChart(coordSection,&pStart,&pEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthStratum(dm, 0, NULL, &vEnd);CHKERRQ(ierr);
+  ierr = DMPlexVecGetFilteredClosure(dm, coordSection, coordinates, e, pStart, vEnd, &numCoords, &coords);CHKERRQ(ierr);
+  /* Check for periodicity, since the cell e will have coordinates equal to all the vertices */
+  if (e >= pStart && e < pEnd) {ierr = PetscSectionGetDof(coordSection, e, &numSelfCoords);CHKERRQ(ierr);}
+  numCoords = numSelfCoords ? numSelfCoords : numCoords;
+  if (invJ && !J) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_WRONG, "In order to compute invJ, J must not be NULL");
   if (!Nq) {
     *detJ = 0.0;
     if (v)   {for (d = 0; d < dim; d++) v[d] = PetscRealPart(coords[d]);}
@@ -1469,18 +1491,18 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_Implicit(DM dm, PetscInt cell
     break;
   case 1:
     if (Nq) {
-      ierr = DMPlexComputeLineGeometry_Internal(dm, cell, v0, J0, NULL, &detJ0);CHKERRQ(ierr);
+      ierr = DMPlexComputeLineGeometry_Affine_Internal(dm, cell, v0, J0, NULL, &detJ0);CHKERRQ(ierr);
     } else {
-      ierr = DMPlexComputeLineGeometry_Internal(dm, cell, v, J, invJ, detJ);CHKERRQ(ierr);
+      ierr = DMPlexComputeLineGeometry_Affine_Internal(dm, cell, v, J, invJ, detJ);CHKERRQ(ierr);
     }
     break;
   case 2:
     switch (coneSize) {
     case 3:
       if (Nq) {
-        ierr = DMPlexComputeTriangleGeometry_Internal(dm, cell, v0, J0, NULL, &detJ0);CHKERRQ(ierr);
+        ierr = DMPlexComputeTriangleGeometry_Affine_Internal(dm, cell, v0, J0, NULL, &detJ0);CHKERRQ(ierr);
       } else {
-        ierr = DMPlexComputeTriangleGeometry_Internal(dm, cell, v, J, invJ, detJ);CHKERRQ(ierr);
+        ierr = DMPlexComputeTriangleGeometry_Affine_Internal(dm, cell, v, J, invJ, detJ);CHKERRQ(ierr);
       }
       break;
     case 4:
@@ -1495,9 +1517,9 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_Implicit(DM dm, PetscInt cell
     switch (coneSize) {
     case 4:
       if (Nq) {
-        ierr = DMPlexComputeTetrahedronGeometry_Internal(dm, cell, v0, J0, NULL, &detJ0);CHKERRQ(ierr);
+        ierr = DMPlexComputeTetrahedronGeometry_Affine_Internal(dm, cell, v0, J0, NULL, &detJ0);CHKERRQ(ierr);
       } else {
-        ierr = DMPlexComputeTetrahedronGeometry_Internal(dm, cell, v, J, invJ, detJ);CHKERRQ(ierr);
+        ierr = DMPlexComputeTetrahedronGeometry_Affine_Internal(dm, cell, v, J, invJ, detJ);CHKERRQ(ierr);
       }
       break;
     case 6: /* Faces */
@@ -1600,8 +1622,8 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
   Vec              coordinates;
   PetscScalar     *coords = NULL;
   const PetscReal *quadPoints;
-  PetscReal       *basisDer, *basis, detJt;
-  PetscInt         dim, cdim, pdim, qdim, d, Nq, q, numCoords;
+  PetscReal       *basisDer, *basis, detJt, *invJa;
+  PetscInt         dim, cdim, pdim, qdim, Nq, q, d, numCoords;
   PetscErrorCode   ierr;
 
   PetscFunctionBegin;
@@ -1633,9 +1655,12 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
     for (q = 0; q < Nq; ++q) {ierr = PetscFEInterpolate_Static(fe, coords, basis, q, &v[q*cdim]);CHKERRQ(ierr);}
   }
   if (J) {
-    PetscReal invJc[9] = {0.,0.,0.,0.,0.,0.,0.,0.,0.};
-
-    for (d = 0; d < dim; ++d) invJc[d*dim+d] = 1.0;
+    /* We always compute the affine version first, and then overwrite it */
+    if (!invJ) {ierr = DMGetWorkArray(dm, Nq*cdim*dim, MPIU_REAL, &invJa);CHKERRQ(ierr);}
+    else       {invJa = invJ;}
+    ierr = DMPlexComputeCellGeometryFEM_Implicit(dm, point, quad, NULL, J, invJa, NULL);CHKERRQ(ierr);
+    /* Scale since reference element is [-1, 1]^d */
+    for (d = 0; d < Nq*cdim*dim; ++d) invJa[d] /= 4.0;
     for (q = 0; q < Nq; ++q) {
       /* J = dx_i/d\xi_j = sum[k=0,n-1] dN_k/d\xi_j * x_i(k) */
       ierr = PetscFEInterpolateGradient_Static(fe, coords, dim, invJa, NULL, basisDer, q, &J[q*cdim*dim]);CHKERRQ(ierr);
@@ -1657,6 +1682,7 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
       }
       if (detJ) detJ[q] = detJt;
     }
+    if (!invJ) {ierr = DMRestoreWorkArray(dm, Nq*cdim*dim, MPIU_REAL, &invJa);CHKERRQ(ierr);}
   } else if (detJ || invJ) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Need J to compute invJ or detJ");
   if (feQuad != quad) {
     ierr = PetscFERestoreTabulation(fe, Nq, quadPoints, &basis, J ? &basisDer : NULL, NULL);CHKERRQ(ierr);
