@@ -674,7 +674,7 @@ PetscErrorCode DMPlexComputeL2DiffLocal(DM dm, PetscReal time, PetscErrorCode (*
           ierr2 = PetscFree5(funcVal,interpolant,coords,detJ,J);CHKERRQ(ierr2);
           CHKERRQ(ierr);
         }
-        if (id == PETSCFE_CLASSID)      {ierr = PetscFEInterpolate_Static((PetscFE) obj, &x[fieldOffset], q, interpolant);CHKERRQ(ierr);}
+        if (id == PETSCFE_CLASSID)      {ierr = PetscFEInterpolate_Static((PetscFE) obj, &x[fieldOffset], NULL, q, interpolant);CHKERRQ(ierr);}
         else if (id == PETSCFV_CLASSID) {ierr = PetscFVInterpolate_Static((PetscFV) obj, &x[fieldOffset], q, interpolant);CHKERRQ(ierr);}
         else SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", field);
         for (fc = 0; fc < Nc; ++fc) {
@@ -766,7 +766,7 @@ PetscErrorCode DMComputeL2GradientDiff_Plex(DM dm, PetscReal time, PetscErrorCod
           ierr2 = PetscFree7(funcVal,coords,realSpaceDer,J,invJ,interpolant,detJ);CHKERRQ(ierr2);
           CHKERRQ(ierr);
         }
-        ierr = PetscFEInterpolateGradient_Static(fe, &x[fieldOffset], coordDim, invJ, n, q, interpolant);CHKERRQ(ierr);
+        ierr = PetscFEInterpolateGradient_Static(fe, &x[fieldOffset], coordDim, invJ, n, NULL, q, interpolant);CHKERRQ(ierr);
         for (fc = 0; fc < Nc; ++fc) {
           const PetscReal wt = quadWeights[q*qNc+(qNc == 1 ? 0 : qc+fc)];
           if (debug) {ierr = PetscPrintf(PETSC_COMM_SELF, "    elem %d fieldDer %d diff %g\n", c, field, PetscSqr(PetscRealPart(interpolant[fc] - funcVal[fc]))*wt*detJ[q]);CHKERRQ(ierr);}
@@ -870,7 +870,7 @@ PetscErrorCode DMComputeL2FieldDiff_Plex(DM dm, PetscReal time, PetscErrorCode (
           ierr2 = PetscFree6(localDiff,funcVal,interpolant,coords,detJ,J);CHKERRQ(ierr2);
           CHKERRQ(ierr);
         }
-        if (id == PETSCFE_CLASSID)      {ierr = PetscFEInterpolate_Static((PetscFE) obj, &x[fieldOffset], q, interpolant);CHKERRQ(ierr);}
+        if (id == PETSCFE_CLASSID)      {ierr = PetscFEInterpolate_Static((PetscFE) obj, &x[fieldOffset], NULL, q, interpolant);CHKERRQ(ierr);}
         else if (id == PETSCFV_CLASSID) {ierr = PetscFVInterpolate_Static((PetscFV) obj, &x[fieldOffset], q, interpolant);CHKERRQ(ierr);}
         else SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", field);
         for (fc = 0; fc < Nc; ++fc) {
@@ -986,7 +986,7 @@ PetscErrorCode DMPlexComputeL2DiffVec(DM dm, PetscReal time, PetscErrorCode (**f
             ierr2 = DMRestoreLocalVector(dm, &localX);CHKERRQ(ierr2);
             CHKERRQ(ierr);
           }
-          if (id == PETSCFE_CLASSID)      {ierr = PetscFEInterpolate_Static((PetscFE) obj, &x[fieldOffset], q, interpolant);CHKERRQ(ierr);}
+          if (id == PETSCFE_CLASSID)      {ierr = PetscFEInterpolate_Static((PetscFE) obj, &x[fieldOffset], NULL, q, interpolant);CHKERRQ(ierr);}
           else if (id == PETSCFV_CLASSID) {ierr = PetscFVInterpolate_Static((PetscFV) obj, &x[fieldOffset], q, interpolant);CHKERRQ(ierr);}
           else SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", field);
           for (fc = 0; fc < Nc; ++fc) {
@@ -1108,7 +1108,7 @@ PetscErrorCode DMPlexComputeGradientClementInterpolant(DM dm, Vec locX, Vec locC
             ierr2 = PetscFree4(interpolant,coords,detJ,J);CHKERRQ(ierr2);
             CHKERRQ(ierr);
           }
-          if (id == PETSCFE_CLASSID)      {ierr = PetscFEInterpolateGradient_Static((PetscFE) obj, &x[fieldOffset], coordDim, invJ, NULL, q, interpolant);CHKERRQ(ierr);}
+          if (id == PETSCFE_CLASSID)      {ierr = PetscFEInterpolateGradient_Static((PetscFE) obj, &x[fieldOffset], coordDim, invJ, NULL, NULL, q, interpolant);CHKERRQ(ierr);}
           else SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_WRONG, "Unknown discretization type for field %d", field);
           for (fc = 0; fc < Nc; ++fc) {
             const PetscReal wt = quadWeights[q*qNc+qc+fc];

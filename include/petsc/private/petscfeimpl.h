@@ -310,16 +310,15 @@ PETSC_STATIC_INLINE void UpdateElementVec(PetscInt dim, PetscInt Nq, PetscInt Nb
 #endif
 }
 
-PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolate_Static(PetscFE fe, const PetscScalar x[], PetscInt q, PetscScalar interpolant[])
+PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolate_Static(PetscFE fe, const PetscScalar x[], PetscReal basis[], PetscInt q, PetscScalar interpolant[])
 {
-  PetscReal     *basis;
   PetscInt       Nb, Nc, fc, f;
   PetscErrorCode ierr;
 
   PetscFunctionBeginHot;
   ierr = PetscFEGetDimension(fe, &Nb);CHKERRQ(ierr);
   ierr = PetscFEGetNumComponents(fe, &Nc);CHKERRQ(ierr);
-  ierr = PetscFEGetDefaultTabulation(fe, &basis, NULL, NULL);CHKERRQ(ierr);
+  if (!basis) {ierr = PetscFEGetDefaultTabulation(fe, &basis, NULL, NULL);CHKERRQ(ierr);}
   for (fc = 0; fc < Nc; ++fc) {
     interpolant[fc] = 0.0;
     for (f = 0; f < Nb; ++f) {
@@ -330,9 +329,8 @@ PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolate_Static(PetscFE fe, const P
   PetscFunctionReturn(0);
 }
 
-PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolateGradient_Static(PetscFE fe, const PetscScalar x[], PetscInt dim, const PetscReal invJ[], const PetscReal n[], PetscInt q, PetscScalar interpolant[])
+PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolateGradient_Static(PetscFE fe, const PetscScalar x[], PetscInt dim, const PetscReal invJ[], const PetscReal n[], PetscReal basisDer[], PetscInt q, PetscScalar interpolant[])
 {
-  PetscReal     *basisDer;
   PetscReal      realSpaceDer[3];
   PetscScalar    compGradient[3];
   PetscInt       Nb, Nc, fc, f, d, g;
@@ -341,7 +339,7 @@ PETSC_STATIC_INLINE PetscErrorCode PetscFEInterpolateGradient_Static(PetscFE fe,
   PetscFunctionBeginHot;
   ierr = PetscFEGetDimension(fe, &Nb);CHKERRQ(ierr);
   ierr = PetscFEGetNumComponents(fe, &Nc);CHKERRQ(ierr);
-  ierr = PetscFEGetDefaultTabulation(fe, NULL, &basisDer, NULL);CHKERRQ(ierr);
+  if (!basisDer) {ierr = PetscFEGetDefaultTabulation(fe, NULL, &basisDer, NULL);CHKERRQ(ierr);}
   for (fc = 0; fc < Nc; ++fc) {
     interpolant[fc] = 0.0;
     for (d = 0; d < dim; ++d) compGradient[d] = 0.0;

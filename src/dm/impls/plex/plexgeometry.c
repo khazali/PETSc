@@ -1630,7 +1630,7 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
   }
   if (qdim != dim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Point dimension %d != quadrature dimension %d", dim, qdim);
   if (v) {
-    for (q = 0; q < Nq; ++q) {ierr = PetscFEInterpolate_Static(fe, coords, q, &v[q*cdim]);CHKERRQ(ierr);}
+    for (q = 0; q < Nq; ++q) {ierr = PetscFEInterpolate_Static(fe, coords, basis, q, &v[q*cdim]);CHKERRQ(ierr);}
   }
   if (J) {
     PetscReal invJc[9] = {0.,0.,0.,0.,0.,0.,0.,0.,0.};
@@ -1638,7 +1638,7 @@ static PetscErrorCode DMPlexComputeCellGeometryFEM_FE(DM dm, PetscFE fe, PetscIn
     for (d = 0; d < dim; ++d) invJc[d*dim+d] = 1.0;
     for (q = 0; q < Nq; ++q) {
       /* J = dx_i/d\xi_j = sum[k=0,n-1] dN_k/d\xi_j * x_i(k) */
-      ierr = PetscFEInterpolateGradient_Static(fe, coords, dim, invJc, NULL, q, &J[q*cdim*dim]);CHKERRQ(ierr);
+      ierr = PetscFEInterpolateGradient_Static(fe, coords, dim, invJa, NULL, basisDer, q, &J[q*cdim*dim]);CHKERRQ(ierr);
       if (!detJ && !invJ) continue;
       if (cdim != dim) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_INCOMP, "Number of coordinate components %D does not match mesh dimension %D, so we cannot compute the Jacobian determinant or inverse", cdim , dim);
       detJt = 0.;
