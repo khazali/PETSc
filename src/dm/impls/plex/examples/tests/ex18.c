@@ -560,4 +560,15 @@ int main(int argc, char **argv)
       suffix: 4_hex
       args: -cell_simplex 0
 
+  testset:
+    nsize: 2
+    args: -filename ${PETSC_DIR}/share/petsc/datafiles/meshes/TwoQuads.exo
+    args: -cell_simplex 0 -interpolate -dm_view ascii::ascii_info_detail
+    test:
+      suffix: 5
+      args: -distribute 0
+    test:
+      # TODO nonconforming orientation on interface for -interpolate_after_distribute 1
+      suffix: 5_dist
+      args: -distribute 1 -interpolate_after_distribute {{0 1}}
 TEST*/
