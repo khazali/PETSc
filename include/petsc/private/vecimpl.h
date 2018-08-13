@@ -326,6 +326,19 @@ typedef struct {
   MPI_Win                sharedwin;                 /* Window that owns sharedspace */
   PetscInt               notdone;                   /* used by VecScatterEndMPI3Node() */
 #endif
+  PetscBool                 use_intranodeshm; /* use MPI-3.0 process shared-memory for intra-node communication */
+#if defined(PETSC_HAVE_MPI_PROCESS_SHARED_MEMORY)
+  PetscMPIInt               shmn;          /* number of processors in shmcomm whom I communicate with */
+  PetscMPIInt               *shmprocs;     /* [shmn] (global) ranks of the processors */
+  PetscScalar               **shmspaces;   /* [shmn] pointers to shared memory buffers between two communication partners. The shared memory is allocated by MPI */
+  volatile PetscObjectState **shmstates;   /* [shmn] if this state matches the state in the vecscatter object, then it is safe to access the shared memory buffer. See more in VecScatterBegin/End */
+  PetscInt                  *shmstarts;    /* [shmn+1] for each shared memory partner this maps to the part of shmindices of that partner */
+  PetscInt                  *shmindices;   /* [] for each shared memory partner contains indices where values are to be copied to/from */
+  MPI_Comm                  shmcomm;       /* MPI shared memory communicator */
+  MPI_Win                   shmwin;        /* MPI window returned in shared memory allocation. Freeing the window also frees the memory so no need of another field to log the returned memory */
+  VecScatterMemcpyPlan      shm_memcpy_plan;
+#endif
+
 } VecScatter_MPI_General;
 
 /* Routines to create, copy, destroy or execute a memcpy plan */

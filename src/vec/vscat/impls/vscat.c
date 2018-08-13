@@ -2185,6 +2185,10 @@ PetscErrorCode  VecScatterRemap(VecScatter scat,PetscInt *tomap,PetscInt *fromma
       /* handle local part */
       for (i=0; i<to->local.n; i++) to->local.vslots[i] = tomap[to->local.vslots[i]];
 
+      /* handle shared memory part if enabled */
+#if defined(PETSC_HAVE_MPI_PROCESS_SHARED_MEMORY)
+      if (to->use_intranodeshm) { for (i=0; i<to->shmstarts[to->shmn]; i++) to->shmindices[i] = tomap[to->shmindices[i]]; }
+#endif
       /* the memcpy optimizations in vecscatter was based on index patterns it has.
          They need to be recalculated when indices are changed (remapped).
        */

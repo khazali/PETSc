@@ -106,6 +106,79 @@ PetscErrorCode PETSCMAP1(VecScatterBeginMPI1)(VecScatter ctx,Vec xin,Vec yin,Ins
       }
     }
 
+#if defined(PETSC_HAVE_MPI_PROCESS_SHARED_MEMORY)
+    /* intranode shared memory communication is orthogonal to the above communication approaches,
+       whatever they are, alltoallv, alltoallw or one-sided. They just handle internode communications
+       if intranode shared memory communication is enabled.
+
+       Vecscatter is logically collective since all processors have to call VecScatterBegin/End even though
+       some of them may not actually send/recv any messages. Think VecScatterBegin/End as transcations. In
+       VecScatterBegin we pack and sent data; whereas in VecScatterEnd we receive and unpack data. We increase
+       the state of a VecScatter object as we leave VecScatterBegin/End so that different calls of VecScatter do
+       not mix. Then we add another state in the shared memory buffer. Only when this state matches the object
+       state, we can read/write the shared memory.
+
+       Shared memory sender-receiver sync protocal:
+
+       Sender (to)                        Receiver (from)
+       ---------------------              ---------------
+       while (shmstate!=state);           while (shmstate!=state);
+       write buffer;                      read buffer;
+       write_memory_barrier;
+       shmstate=state+1;                  shmstate=state+1;
+       state++;                           state++;
+
+       On the sender side, wirte_memory_barrier ensures if the new shmstate is perceived by the receiver,
+       then memory writes before the barrier, i.e., data written to the buffer could also be perceived by the
+       receiver. Therefore, the receiver can get up-to-date data from the buffer.
+
+       On the reciever side, if shmstate=state+1 is perceived by sender (as a result, sender can begin the next
+       vecscatter transaction, and overwrite the buffer), that means the instruction shmstate=state+1 has been
+       committed. Since 'shmstate=state+1' comes after 'read buffer', 'read buffer' must also have been committed.
+       Therefore, sender can safely overwrite the buffer. shmstate is declared as volatile, so that compilers will not
+       reorder 'read buffer and 'shmstate=state+1', and also will not put shmstate in registers, which otherwise makes
+       the while(shmstate!=state) loop run forever.
+
+       One may wonder why we used an integer state instead of a simpler boolean flag to do the synchronization.
+       With flag, a possible design would be:
+
+       Sender (to)                        Receiver (from)
+       ---------------------              ---------------
+       while (shmflag);                   while (!shmflag);
+       write buffer;                      read buffer;
+       write_memory_barrier;
+       shmflag=1;                         shmflag=0;
+
+       The design is wrong because PETSc supports both SCATTER_FORWARD and SCATTER_REVERSE. In SCATTER_REVERSE, receiver
+       sends data to sender. Suppose one does a SCATTER_FORWARD immediately after a SCATTER_REVERSE on the same vecscatter
+       context (it does happen in real codes). In SCATTER_REVERSE, receiver writes the data and sets flag=1, and enters
+       SCATTER_FORWARD immediately. Suppose at this moment the data has not yet been read and the flag has not yet been
+       reset by sender. Receiver finds the flag is 1 and gladly reads the (wrong) data and resets the flag to 0, making
+       sender wait for its data forever. An integer state separates different vescatter transcations and avoids this bug.
+
+       On x86, wirte_memory_barrier
+       is a store fence instruction (sfence). One could also use MPI_Win_sync(shmcomm) as the barrier. But MPI_Win_sync
+       has additional requirements. To avoid the complexity and be efficient, we do the barrier on our own.
+     */
+
+    if (to->use_intranodeshm) {
+      /* Pack the send data into shared memory buffers (potentially in other NUMA domains) */
+      PetscObjectState state;
+      ierr = PetscObjectStateGet((PetscObject)ctx,&state);CHKERRQ(ierr);
+      for (i=0; i<to->shmn; i++) {
+        while(*to->shmstates[i] != state); /* wait shmsate matches object state before write */
+        if (to->shm_memcpy_plan.optimized[i]) {
+          ierr = VecScatterMemcpyPlanExecute_Pack(i,xv,&to->shm_memcpy_plan,to->shmspaces[i],INSERT_VALUES,bs);CHKERRQ(ierr);
+        } else {
+          PETSCMAP1(Pack_MPI1)(to->shmstarts[i+1]-to->shmstarts[i],to->shmindices+to->shmstarts[i],xv,to->shmspaces[i],bs);
+        }
+        PETSC_WRITE_MEMORY_BARRIER();
+        *to->shmstates[i] = state+1; /* update shmstate after write */
+      }
+      ierr = PetscObjectStateIncrease((PetscObject)ctx);CHKERRQ(ierr); /* finish a VecScatterBegin transcation */
+    }
+#endif
+
     if (!from->use_readyreceiver && to->sendfirst && !to->use_alltoallv && !to->use_window) {
       /* post receives since they were not previously posted   */
       if (nrecvs) {ierr = MPI_Startall_irecv(from->starts[nrecvs]*bs,nrecvs,rwaits);CHKERRQ(ierr);}
@@ -168,6 +241,23 @@ PetscErrorCode PETSCMAP1(VecScatterEndMPI1)(VecScatter ctx,Vec xin,Vec yin,Inser
   indices = from->indices;
   rstarts = from->starts;
 
+#if defined(PETSC_HAVE_MPI_PROCESS_SHARED_MEMORY)
+  if (from->use_intranodeshm) {
+    PetscInt         i;
+    PetscObjectState state;
+    ierr = PetscObjectStateGet((PetscObject)ctx,&state);CHKERRQ(ierr);
+    /* unpack the recv data from shared memory buffers */
+    for (i=0; i<from->shmn; i++) {
+      while(*from->shmstates[i] != state); /* wait shmsate matches object state before read */
+      if (from->shm_memcpy_plan.optimized[i]) { ierr = VecScatterMemcpyPlanExecute_Unpack(i,from->shmspaces[i],yv,&from->shm_memcpy_plan,addv,bs);CHKERRQ(ierr); }
+      else { ierr = PETSCMAP1(UnPack_MPI1)(from->shmstarts[i+1]-from->shmstarts[i],from->shmspaces[i],from->shmindices+from->shmstarts[i],yv,addv,bs);CHKERRQ(ierr);  }
+      *from->shmstates[i] = state+1; /* update shmstate after read */
+    }
+    ierr = PetscObjectStateIncrease((PetscObject)ctx);CHKERRQ(ierr); /* finish a VecScatterEnd transcation */
+  }
+#endif
+
+  /* if use shared memory for intranode is enabled, then the following is just for inter-node */
   if (ctx->packtogether || (to->use_alltoallw && (addv != INSERT_VALUES)) || (to->use_alltoallv && !to->use_alltoallw) || to->use_window) {
 #if defined(PETSC_HAVE_MPI_WIN_CREATE_FEATURE)
     if (to->use_window) {ierr = MPI_Win_fence(0,from->window);CHKERRQ(ierr);}
