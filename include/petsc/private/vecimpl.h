@@ -292,7 +292,7 @@ typedef struct {
   PetscInt               n;        /* number of processors to send/receive */
   PetscInt               *starts;  /* starting point in indices and values for each proc*/
   PetscInt               *indices; /* list of all components sent or received */
-  PetscMPIInt            *procs;   /* processors we are communicating with in scatter */
+  PetscMPIInt            *procs;   /* processors we are communicating with in scatter. Assumed to be sorted, see VecScatterGetOffProcCommunicationPlanWithSortProcs_Private */
   VecScatterMemcpyPlan   memcpy_plan; /* a plan to optimize pack/unpack/scatter */
   MPI_Request            *requests,*rev_requests;
   PetscScalar            *values;  /* buffer for all sends or receives */
@@ -329,7 +329,7 @@ typedef struct {
   PetscBool                 use_intranodeshm; /* use MPI-3.0 process shared-memory for intra-node communication */
 #if defined(PETSC_HAVE_MPI_PROCESS_SHARED_MEMORY)
   PetscMPIInt               shmn;          /* number of processors in shmcomm whom I communicate with */
-  PetscMPIInt               *shmprocs;     /* [shmn] (global) ranks of the processors */
+  PetscMPIInt               *shmprocs;     /* [shmn] (global) ranks of the processors. Assumed to be sorted, see VecScatterGetOffProcCommunicationPlanWithSortProcs_Private */
   PetscScalar               **shmspaces;   /* [shmn] pointers to shared memory buffers between two communication partners. The shared memory is allocated by MPI */
   volatile PetscObjectState **shmstates;   /* [shmn] if this state matches the state in the vecscatter object, then it is safe to access the shared memory buffer. See more in VecScatterBegin/End */
   PetscInt                  *shmstarts;    /* [shmn+1] for each shared memory partner this maps to the part of shmindices of that partner */
@@ -338,7 +338,10 @@ typedef struct {
   MPI_Win                   shmwin;        /* MPI window returned in shared memory allocation. Freeing the window also frees the memory so no need of another field to log the returned memory */
   VecScatterMemcpyPlan      shm_memcpy_plan;
 #endif
-
+  PetscInt                *work_starts;    /* work arrays, used when we want to concat procs and shmprocs, etc.*/
+  PetscInt                *work_indices;
+  PetscMPIInt             *work_procs;
+  MPI_Request             *work_requests;
 } VecScatter_MPI_General;
 
 /* Routines to create, copy, destroy or execute a memcpy plan */
@@ -512,6 +515,12 @@ PETSC_STATIC_INLINE PetscErrorCode VecScatterMemcpyPlanExecute_Scatter(PetscInt 
   }
   PetscFunctionReturn(0);
 }
+
+PETSC_EXTERN PetscErrorCode VecScatterGetNumberOfOffProcsAndEntries_Private(const VecScatter,PetscBool,PetscInt*,PetscInt*);
+PETSC_EXTERN PetscErrorCode VecScatterGetOffProcCommunicationPlan_Private(VecScatter,PetscBool,PetscInt*,PetscInt**,PetscInt**,PetscMPIInt**,MPI_Request**,PetscInt*);
+PETSC_EXTERN PetscErrorCode VecScatterGetOffProcCommunicationPlanWithSortedProcs_Private(VecScatter,PetscBool,PetscInt*,PetscInt**,PetscInt**,PetscMPIInt**,MPI_Request**,PetscInt*);
+PETSC_EXTERN PetscErrorCode VecScatterRestoreOffProcCommunicationPlan_Private(VecScatter,PetscBool,PetscInt*,PetscInt**,PetscInt**,PetscMPIInt**,MPI_Request**,PetscInt*);
+PETSC_EXTERN PetscErrorCode VecScatterRestoreOffProcCommunicationPlanWithSortedProcs_Private(VecScatter,PetscBool,PetscInt*,PetscInt**,PetscInt**,PetscMPIInt**,MPI_Request**,PetscInt*);
 
 PETSC_INTERN PetscErrorCode VecScatterGetTypes_Private(VecScatter,VecScatterFormat*,VecScatterFormat*);
 PETSC_INTERN PetscErrorCode VecScatterIsSequential_Private(VecScatter_Common*,PetscBool*);

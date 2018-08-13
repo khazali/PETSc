@@ -543,6 +543,220 @@ PetscErrorCode VecScatterMemcpyPlanDestroy_PtoP(VecScatter_MPI_General *to,VecSc
   PetscFunctionReturn(0);
 }
 
+/* Given a PtoP VecScatter context, return number of procs and vector entries as if the communication can be done solely in send/recv
+
+  Input Parameters:
++ ctx - the context
+- to  - true to select the todata, otherwise to select the fromdata
+
+  Output parameters:
++ num_procs   - number of remote processors
+- num_entries - number of vector entries to send/recv
+
+ */
+PetscErrorCode VecScatterGetNumberOfOffProcsAndEntries_Private(const VecScatter ctx,PetscBool to,PetscInt *num_procs,PetscInt *num_entries)
+{
+  VecScatter_MPI_General *vs = (VecScatter_MPI_General*)(to ? ctx->todata : ctx->fromdata);
+
+  PetscFunctionBegin;
+  if (vs->format != VEC_SCATTER_MPI_GENERAL) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"ctx must be a VecScatter_MPI_General");
+  *num_procs   = vs->n;
+  *num_entries = vs->starts[vs->n];
+#if defined(PETSC_HAVE_MPI_PROCESS_SHARED_MEMORY)
+  if (vs->use_intranodeshm) {
+    *num_procs   += vs->shmn;
+    *num_entries += vs->shmstarts[vs->shmn];
+  }
+#endif
+  PetscFunctionReturn(0);
+}
+
+/* Given a VecScatter_MPI_General, return a communication plan that is good for use with MPI send/recv.
+   Any output parameter can be NULL.
+
+  Input Parameters:
++ ctx - the context
+- to  - true to select the todata, otherwise to select the fromdata
+
+  Output parameters:
++ n        - number of remote processors
+. starts   - starting point in indices for each proc
+. indices  - indices of entries to send/recv
+. procs    - remote processors
+. requests - MPI_requets
+- bs       - block size
+
+  Notes:
+   Sometimes PETSc needs to use the matrix-vector-multiply vecscatter context for other purposes. The client code
+   usually only uses MPI_Send/Recv. This subroutine returns a communication plan suitable for such uses.
+
+   I do not output the MPI_Status field (sstatus) of VecScatter_MPI_General, because 1) PETSc has weird design
+   for this field for reason I dont know (e.g., only todata sets this field, and fromdata does not); 2) the field
+   is not important since PETSc does not check return values in it, and one can use MPI_STATUSES_IGNORE instead.
+ */
+PetscErrorCode VecScatterGetOffProcCommunicationPlan_Private(VecScatter ctx,PetscBool to,PetscInt *n,PetscInt **starts,PetscInt **indices,PetscMPIInt **procs,MPI_Request **requests,PetscInt *bs)
+{
+  PetscErrorCode  ierr;
+  VecScatter_MPI_General *vs = (VecScatter_MPI_General*)(to ? ctx->todata : ctx->fromdata);
+
+  PetscFunctionBegin;
+  if (vs->format != VEC_SCATTER_MPI_GENERAL) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"ctx must be a VecScatter_MPI_General");
+  vs->work_starts   = NULL;
+  vs->work_indices  = NULL;
+  vs->work_procs    = NULL;
+  vs->work_requests = NULL;
+
+#ifdef PETSC_HAVE_MPI_PROCESS_SHARED_MEMORY
+  if (vs->use_intranodeshm && vs->shmn) {
+    PetscInt i;
+    if (n) *n  = vs->n + vs->shmn;
+
+    if (starts) { /* concat starts */
+      ierr     = PetscMalloc1(vs->n+vs->shmn+1,&vs->work_starts);CHKERRQ(ierr);
+      ierr     = PetscMemcpy(vs->work_starts,vs->starts,sizeof(PetscInt)*(vs->n+1));CHKERRQ(ierr);
+      for (i=0; i<vs->shmn; i++) vs->work_starts[vs->n+i+1] = vs->work_starts[vs->n] + vs->shmstarts[i+1];
+      *starts  = vs->work_starts;
+    }
+
+    if (indices) { /* concat indices */
+      ierr     = PetscMalloc1(vs->starts[vs->n]+vs->shmstarts[vs->shmn],&vs->work_indices);CHKERRQ(ierr);
+      ierr     = PetscMemcpy(vs->work_indices,vs->indices,sizeof(PetscInt)*vs->starts[vs->n]);CHKERRQ(ierr);
+      ierr     = PetscMemcpy(vs->work_indices+vs->starts[vs->n],vs->shmindices,sizeof(PetscInt)*vs->shmstarts[vs->shmn]);CHKERRQ(ierr);
+      *indices = vs->work_indices;
+    }
+
+    if (procs) { /* concat procs */
+      ierr   = PetscMalloc1(vs->n+vs->shmn,&vs->work_procs);CHKERRQ(ierr);
+      ierr   = PetscMemcpy(vs->work_procs,vs->procs,sizeof(PetscMPIInt)*vs->n);CHKERRQ(ierr);
+      ierr   = PetscMemcpy(vs->work_procs+vs->n,vs->shmprocs,sizeof(PetscMPIInt)*vs->shmn);CHKERRQ(ierr);
+      *procs = vs->work_procs;
+    }
+
+    if (requests) {
+      ierr      = PetscMalloc1(vs->n+vs->shmn,&vs->work_requests);CHKERRQ(ierr);
+      *requests = vs->work_requests;
+    }
+  } else
+#endif
+  {
+    if (n)        *n        = vs->n;
+    if (indices)  *indices  = vs->indices;
+    if (starts)   *starts   = vs->starts;
+    if (procs)    *procs    = vs->procs;
+    if (requests) *requests = vs->requests;
+  }
+  if (bs) *bs = vs->bs;
+  PetscFunctionReturn(0);
+}
+
+/* Like VecScatterGetOffProcCommunicationPlan_Private, except procs returned by this routine is sorted. starts, indices are also adapted for the sorted procs.
+ */
+PetscErrorCode VecScatterGetOffProcCommunicationPlanWithSortedProcs_Private(VecScatter ctx,PetscBool to,PetscInt *n,PetscInt **starts,PetscInt **indices,PetscMPIInt **procs,MPI_Request **requests,PetscInt *bs)
+{
+  PetscErrorCode  ierr;
+  VecScatter_MPI_General *vs = (VecScatter_MPI_General*)(to ? ctx->todata : ctx->fromdata);
+
+  PetscFunctionBegin;
+  if (vs->format != VEC_SCATTER_MPI_GENERAL) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"ctx must be a VecScatter_MPI_General");
+  vs->work_starts   = NULL;
+  vs->work_indices  = NULL;
+  vs->work_procs    = NULL;
+  vs->work_requests = NULL;
+
+#ifdef PETSC_HAVE_MPI_PROCESS_SHARED_MEMORY
+  if (vs->use_intranodeshm && vs->shmn) {
+    PetscInt i,j,k;
+    if (n) *n  = vs->n + vs->shmn;
+
+    /* merge sort procs with starts. Always allocate work_starts/procs (which are much smaller than work_indices) to ease the sorting */
+    ierr   = PetscMalloc1(vs->n+vs->shmn+1,&vs->work_starts);CHKERRQ(ierr);
+    ierr   = PetscMalloc1(vs->n+vs->shmn,&vs->work_procs);CHKERRQ(ierr);
+
+    vs->work_starts[0] = 0;
+    for (i=0,j=0,k=0; i<vs->n && j <vs->shmn; k++) {
+      if (vs->procs[i] < vs->shmprocs[j]) {
+        vs->work_procs[k]    = vs->procs[i];
+        vs->work_starts[k+1] = vs->work_starts[k] + vs->starts[i+1] - vs->starts[i];
+        i++;
+      } else {
+        vs->work_procs[k]    = vs->shmprocs[j];
+        vs->work_starts[k+1] = vs->work_starts[k] + vs->shmstarts[j+1] - vs->shmstarts[j];
+        j++;
+      }
+    }
+
+    for (; i<vs->n; i++,k++) {
+      vs->work_procs[k]    = vs->procs[i];
+      vs->work_starts[k+1] = vs->work_starts[k] + vs->starts[i+1] - vs->starts[i];
+    }
+
+    for (; j<vs->shmn; j++,k++) {
+      vs->work_procs[k]    = vs->shmprocs[j];
+      vs->work_starts[k+1] = vs->work_starts[k] + vs->shmstarts[j+1] - vs->shmstarts[j];
+    }
+
+    if (starts) *starts = vs->work_starts;
+    if (procs)  *procs  = vs->work_procs;
+
+    /* conditionally fill in indices[] */
+    if (indices) {
+      ierr = PetscMalloc1(vs->work_starts[vs->n+vs->shmn],&vs->work_indices);CHKERRQ(ierr);
+      for (i=0; i<vs->n; i++) {
+        ierr = PetscFindInt(vs->procs[i],vs->n+vs->shmn,vs->work_procs,&j);CHKERRQ(ierr);
+        ierr = PetscMemcpy(vs->work_indices+vs->work_starts[j],vs->indices+vs->starts[i],sizeof(PetscInt)*(vs->starts[i+1]-vs->starts[i]));CHKERRQ(ierr);
+      }
+      for (i=0; i<vs->shmn; i++) {
+        ierr = PetscFindInt(vs->shmprocs[i],vs->n+vs->shmn,vs->work_procs,&j);CHKERRQ(ierr);
+        ierr = PetscMemcpy(vs->work_indices+vs->work_starts[j],vs->shmindices+vs->shmstarts[i],sizeof(PetscInt)*(vs->shmstarts[i+1]-vs->shmstarts[i]));CHKERRQ(ierr);
+      }
+      *indices = vs->work_indices;
+    }
+
+    if (requests) {
+      ierr      = PetscMalloc1(vs->n+vs->shmn,&vs->work_requests);CHKERRQ(ierr);
+      *requests = vs->work_requests;
+    }
+  } else
+#endif
+  {
+    if (n)        *n        = vs->n;
+    if (indices)  *indices  = vs->indices;
+    if (starts)   *starts   = vs->starts;
+    if (procs)    *procs    = vs->procs;
+    if (requests) *requests = vs->requests;
+  }
+  if (bs) *bs = vs->bs;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode VecScatterRestoreOffProcCommunicationPlan_Private(VecScatter ctx,PetscBool to,PetscInt *n,PetscInt **starts,PetscInt **indices,PetscMPIInt **procs,MPI_Request **requests,PetscInt *bs)
+{
+  PetscErrorCode  ierr;
+  VecScatter_MPI_General *vs = (VecScatter_MPI_General*)(to ? ctx->todata : ctx->fromdata);
+
+  PetscFunctionBegin;
+  if (vs->format != VEC_SCATTER_MPI_GENERAL) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"ctx must be a VecScatter_MPI_General");
+  ierr = PetscFree(vs->work_starts);CHKERRQ(ierr);
+  ierr = PetscFree(vs->work_indices);CHKERRQ(ierr);
+  ierr = PetscFree(vs->work_procs);CHKERRQ(ierr);
+  ierr = PetscFree(vs->work_requests);CHKERRQ(ierr);
+
+  if (starts)   *starts   = NULL;
+  if (indices)  *indices  = NULL;
+  if (procs)    *procs    = NULL;
+  if (requests) *requests = NULL;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode VecScatterRestoreOffProcCommunicationPlanWithSortedProcs_Private(VecScatter ctx,PetscBool to,PetscInt *n,PetscInt **starts,PetscInt **indices,PetscMPIInt **procs,MPI_Request **requests,PetscInt *bs)
+{
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  ierr = VecScatterRestoreOffProcCommunicationPlan_Private(ctx,to,n,starts,indices,procs,requests,bs);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* --------------------------------------------------------------------------------------------------
     Packs and unpacks the message data into send or from receive buffers.
 
