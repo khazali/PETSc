@@ -360,7 +360,6 @@ PETSC_INTERN PetscErrorCode MatMatMult_MPIAIJ_MPIDense(Mat A,Mat B,MatReuse scal
 typedef struct {
   Mat         workB;
   PetscScalar *rvalues,*svalues;
-  MPI_Request *rwaits,*swaits;
 } MPIAIJ_MPIDense;
 
 PetscErrorCode MatMPIAIJ_MPIDenseDestroy(void *ctx)
@@ -370,7 +369,7 @@ PetscErrorCode MatMPIAIJ_MPIDenseDestroy(void *ctx)
 
   PetscFunctionBegin;
   ierr = MatDestroy(&contents->workB);CHKERRQ(ierr);
-  ierr = PetscFree4(contents->rvalues,contents->svalues,contents->rwaits,contents->swaits);CHKERRQ(ierr);
+  ierr = PetscFree2(contents->rvalues,contents->svalues);CHKERRQ(ierr);
   ierr = PetscFree(contents);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -386,12 +385,10 @@ PetscErrorCode MatMatMultNumeric_MPIDense(Mat A,Mat B,Mat C)
   PetscErrorCode         ierr;
   PetscBool              flg;
   Mat_MPIAIJ             *aij = (Mat_MPIAIJ*) A->data;
-  PetscInt               nz   = aij->B->cmap->n;
+  PetscInt               nz   = aij->B->cmap->n,to_n,to_entries,from_n,from_entries;
   PetscContainer         container;
   MPIAIJ_MPIDense        *contents;
   VecScatter             ctx   = aij->Mvctx;
-  VecScatter_MPI_General *from = (VecScatter_MPI_General*) ctx->fromdata;
-  VecScatter_MPI_General *to   = (VecScatter_MPI_General*) ctx->todata;
 
   PetscFunctionBegin;
   ierr = PetscObjectTypeCompare((PetscObject)B,MATMPIDENSE,&flg);CHKERRQ(ierr);
@@ -407,10 +404,9 @@ PetscErrorCode MatMatMultNumeric_MPIDense(Mat A,Mat B,Mat C)
   /* Create work matrix used to store off processor rows of B needed for local product */
   ierr = MatCreateSeqDense(PETSC_COMM_SELF,nz,B->cmap->N,NULL,&contents->workB);CHKERRQ(ierr);
   /* Create work arrays needed */
-  ierr = PetscMalloc4(B->cmap->N*from->starts[from->n],&contents->rvalues,
-                      B->cmap->N*to->starts[to->n],&contents->svalues,
-                      from->n,&contents->rwaits,
-                      to->n,&contents->swaits);CHKERRQ(ierr);
+  ierr = VecScatterGetNumberOfOffProcsAndEntries_Private(ctx,PETSC_TRUE/*to*/,&to_n,&to_entries);CHKERRQ(ierr);
+  ierr = VecScatterGetNumberOfOffProcsAndEntries_Private(ctx,PETSC_FALSE/*from*/,&from_n,&from_entries);CHKERRQ(ierr);
+  ierr = PetscMalloc2(B->cmap->N*from_entries,&contents->rvalues,B->cmap->N*to_entries,&contents->svalues);CHKERRQ(ierr);
 
   ierr = PetscContainerCreate(PetscObjectComm((PetscObject)A),&container);CHKERRQ(ierr);
   ierr = PetscContainerSetPointer(container,contents);CHKERRQ(ierr);
@@ -426,12 +422,10 @@ PetscErrorCode MatMatMultSymbolic_MPIAIJ_MPIDense(Mat A,Mat B,PetscReal fill,Mat
 {
   PetscErrorCode         ierr;
   Mat_MPIAIJ             *aij = (Mat_MPIAIJ*) A->data;
-  PetscInt               nz   = aij->B->cmap->n;
+  PetscInt               nz   = aij->B->cmap->n,to_n,to_entries,from_n,from_entries;
   PetscContainer         container;
   MPIAIJ_MPIDense        *contents;
   VecScatter             ctx   = aij->Mvctx;
-  VecScatter_MPI_General *from = (VecScatter_MPI_General*) ctx->fromdata;
-  VecScatter_MPI_General *to   = (VecScatter_MPI_General*) ctx->todata;
   PetscInt               m     = A->rmap->n,n=B->cmap->n;
 
   PetscFunctionBegin;
@@ -449,10 +443,9 @@ PetscErrorCode MatMatMultSymbolic_MPIAIJ_MPIDense(Mat A,Mat B,PetscReal fill,Mat
   /* Create work matrix used to store off processor rows of B needed for local product */
   ierr = MatCreateSeqDense(PETSC_COMM_SELF,nz,B->cmap->N,NULL,&contents->workB);CHKERRQ(ierr);
   /* Create work arrays needed */
-  ierr = PetscMalloc4(B->cmap->N*from->starts[from->n],&contents->rvalues,
-                      B->cmap->N*to->starts[to->n],&contents->svalues,
-                      from->n,&contents->rwaits,
-                      to->n,&contents->swaits);CHKERRQ(ierr);
+  ierr = VecScatterGetNumberOfOffProcsAndEntries_Private(ctx,PETSC_TRUE/*to*/,&to_n,&to_entries);CHKERRQ(ierr);
+  ierr = VecScatterGetNumberOfOffProcsAndEntries_Private(ctx,PETSC_FALSE/*from*/,&from_n,&from_entries);CHKERRQ(ierr);
+  ierr = PetscMalloc2(B->cmap->N*from_entries,&contents->rvalues,B->cmap->N*to_entries,&contents->svalues);CHKERRQ(ierr);
 
   ierr = PetscContainerCreate(PetscObjectComm((PetscObject)A),&container);CHKERRQ(ierr);
   ierr = PetscContainerSetPointer(container,contents);CHKERRQ(ierr);
@@ -472,11 +465,9 @@ PetscErrorCode MatMPIDenseScatter(Mat A,Mat B,Mat C,Mat *outworkB)
   PetscErrorCode         ierr;
   PetscScalar            *b,*w,*svalues,*rvalues;
   VecScatter             ctx   = aij->Mvctx;
-  VecScatter_MPI_General *from = (VecScatter_MPI_General*) ctx->fromdata;
-  VecScatter_MPI_General *to   = (VecScatter_MPI_General*) ctx->todata;
   PetscInt               i,j,k;
   PetscInt               *sindices,*sstarts,*rindices,*rstarts;
-  PetscMPIInt            *sprocs,*rprocs,nrecvs;
+  PetscMPIInt            *sprocs,*rprocs,nsends,nrecvs,nrecvs2;
   MPI_Request            *swaits,*rwaits;
   MPI_Comm               comm;
   PetscMPIInt            tag  = ((PetscObject)ctx)->tag,ncols = B->cmap->N, nrows = aij->B->cmap->n,imdex,nrowsB = B->rmap->n;
@@ -493,26 +484,19 @@ PetscErrorCode MatMPIDenseScatter(Mat A,Mat B,Mat C,Mat *outworkB)
 
   workB = *outworkB = contents->workB;
   if (nrows != workB->rmap->n) SETERRQ2(comm,PETSC_ERR_PLIB,"Number of rows of workB %D not equal to columns of aij->B %D",nrows,workB->cmap->n);
-  sindices = to->indices;
-  sstarts  = to->starts;
-  sprocs   = to->procs;
-  swaits   = contents->swaits;
+  ierr = VecScatterGetOffProcCommunicationPlan_Private(ctx,PETSC_TRUE/*to*/,  &nsends,&sstarts,&sindices,&sprocs,&swaits,NULL/*bs*/);CHKERRQ(ierr);
+  ierr = VecScatterGetOffProcCommunicationPlanWithSortedProcs_Private(ctx,PETSC_FALSE/*from*/,&nrecvs,&rstarts,&rindices,&rprocs,&rwaits,NULL/*bs*/);CHKERRQ(ierr);
   svalues  = contents->svalues;
-
-  rindices = from->indices;
-  rstarts  = from->starts;
-  rprocs   = from->procs;
-  rwaits   = contents->rwaits;
   rvalues  = contents->rvalues;
 
   ierr = MatDenseGetArray(B,&b);CHKERRQ(ierr);
   ierr = MatDenseGetArray(workB,&w);CHKERRQ(ierr);
 
-  for (i=0; i<from->n; i++) {
+  for (i=0; i<nrecvs; i++) {
     ierr = MPI_Irecv(rvalues+ncols*rstarts[i],ncols*(rstarts[i+1]-rstarts[i]),MPIU_SCALAR,rprocs[i],tag,comm,rwaits+i);CHKERRQ(ierr);
   }
 
-  for (i=0; i<to->n; i++) {
+  for (i=0; i<nsends; i++) {
     /* pack a message at a time */
     for (j=0; j<sstarts[i+1]-sstarts[i]; j++) {
       for (k=0; k<ncols; k++) {
@@ -522,10 +506,10 @@ PetscErrorCode MatMPIDenseScatter(Mat A,Mat B,Mat C,Mat *outworkB)
     ierr = MPI_Isend(svalues+ncols*sstarts[i],ncols*(sstarts[i+1]-sstarts[i]),MPIU_SCALAR,sprocs[i],tag,comm,swaits+i);CHKERRQ(ierr);
   }
 
-  nrecvs = from->n;
-  while (nrecvs) {
-    ierr = MPI_Waitany(from->n,rwaits,&imdex,&status);CHKERRQ(ierr);
-    nrecvs--;
+  nrecvs2 = nrecvs;
+  while (nrecvs2) {
+    ierr = MPI_Waitany(nrecvs,rwaits,&imdex,&status);CHKERRQ(ierr);
+    nrecvs2--;
     /* unpack a message at a time */
     for (j=0; j<rstarts[imdex+1]-rstarts[imdex]; j++) {
       for (k=0; k<ncols; k++) {
@@ -533,7 +517,10 @@ PetscErrorCode MatMPIDenseScatter(Mat A,Mat B,Mat C,Mat *outworkB)
       }
     }
   }
-  if (to->n) {ierr = MPI_Waitall(to->n,swaits,to->sstatus);CHKERRQ(ierr);}
+  if (nsends) {ierr = MPI_Waitall(nsends,swaits,MPI_STATUSES_IGNORE);CHKERRQ(ierr);}
+
+  ierr = VecScatterRestoreOffProcCommunicationPlan_Private(ctx,PETSC_TRUE/*to*/,  &nsends,&sstarts,&sindices,&sprocs,&swaits,NULL/*bs*/);CHKERRQ(ierr);
+  ierr = VecScatterRestoreOffProcCommunicationPlanWithSortedProcs_Private(ctx,PETSC_FALSE/*from*/,&nrecvs,&rstarts,&rindices,&rprocs,&rwaits,NULL/*bs*/);CHKERRQ(ierr);
 
   ierr = MatDenseRestoreArray(B,&b);CHKERRQ(ierr);
   ierr = MatDenseRestoreArray(workB,&w);CHKERRQ(ierr);

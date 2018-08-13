@@ -5187,7 +5187,6 @@ PetscErrorCode MatGetBrowsOfAcols(Mat A,Mat B,MatReuse scall,IS *rowb,IS *colb,M
 */
 PetscErrorCode MatGetBrowsOfAoCols_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscInt **startsj_s,PetscInt **startsj_r,MatScalar **bufa_ptr,Mat *B_oth)
 {
-  VecScatter_MPI_General *gen_to,*gen_from;
   PetscErrorCode         ierr;
   Mat_MPIAIJ             *a=(Mat_MPIAIJ*)A->data;
   Mat_SeqAIJ             *b_oth;
@@ -5199,7 +5198,7 @@ PetscErrorCode MatGetBrowsOfAoCols_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscInt **
   PetscScalar              *b_otha,*bufa,*bufA,*vals;
   PetscInt               i,j,k,l,ll,nrecvs,nsends,nrows,*srow,*rstarts,*rstartsj = 0,*sstarts,*sstartsj,len;
   MPI_Request            *rwaits = NULL,*swaits = NULL;
-  MPI_Status             *sstatus,rstatus;
+  MPI_Status             rstatus;
   PetscMPIInt            jj,size;
   VecScatterType         type;
   PetscBool              mpi1;
@@ -5235,20 +5234,9 @@ PetscErrorCode MatGetBrowsOfAoCols_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscInt **
   }
   tag = ((PetscObject)ctx)->tag;
 
-  gen_to   = (VecScatter_MPI_General*)ctx->todata;
-  gen_from = (VecScatter_MPI_General*)ctx->fromdata;
-  nrecvs   = gen_from->n;
-  nsends   = gen_to->n;
-
-  ierr    = PetscMalloc2(nrecvs,&rwaits,nsends,&swaits);CHKERRQ(ierr);
-  srow    = gen_to->indices;    /* local row index to be sent */
-  sstarts = gen_to->starts;
-  sprocs  = gen_to->procs;
-  sstatus = gen_to->sstatus;
-  sbs     = gen_to->bs;
-  rstarts = gen_from->starts;
-  rprocs  = gen_from->procs;
-  rbs     = gen_from->bs;
+  if (ctx->inuse) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE," Scatter ctx already in use");
+  ierr = VecScatterGetOffProcCommunicationPlan_Private(ctx,PETSC_TRUE/*to*/,&nsends,&sstarts,&srow,&sprocs,&swaits,&sbs);CHKERRQ(ierr);
+  ierr = VecScatterGetOffProcCommunicationPlanWithSortedProcs_Private(ctx,PETSC_FALSE/*to*/,&nrecvs,&rstarts,NULL/*indices not needed*/,&rprocs,&rwaits,&rbs);CHKERRQ(ierr);
 
   if (!startsj_s || !bufa_ptr) scall = MAT_INITIAL_MATRIX;
   if (scall == MAT_INITIAL_MATRIX) {
@@ -5294,7 +5282,7 @@ PetscErrorCode MatGetBrowsOfAoCols_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscInt **
     while (i--) {
       ierr = MPI_Waitany(nrecvs,rwaits,&jj,&rstatus);CHKERRQ(ierr);
     }
-    if (nsends) {ierr = MPI_Waitall(nsends,swaits,sstatus);CHKERRQ(ierr);}
+    if (nsends) {ierr = MPI_Waitall(nsends,swaits,MPI_STATUSES_IGNORE);CHKERRQ(ierr);}
     ierr = PetscFree(svalues);CHKERRQ(ierr);
 
     /* allocate buffers for sending j and a arrays */
@@ -5354,7 +5342,7 @@ PetscErrorCode MatGetBrowsOfAoCols_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscInt **
     while (i--) {
       ierr = MPI_Waitany(nrecvs,rwaits,&jj,&rstatus);CHKERRQ(ierr);
     }
-    if (nsends) {ierr = MPI_Waitall(nsends,swaits,sstatus);CHKERRQ(ierr);}
+    if (nsends) {ierr = MPI_Waitall(nsends,swaits,MPI_STATUSES_IGNORE);CHKERRQ(ierr);}
   } else if (scall == MAT_REUSE_MATRIX) {
     sstartsj = *startsj_s;
     rstartsj = *startsj_r;
@@ -5393,8 +5381,7 @@ PetscErrorCode MatGetBrowsOfAoCols_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscInt **
   while (i--) {
     ierr = MPI_Waitany(nrecvs,rwaits,&jj,&rstatus);CHKERRQ(ierr);
   }
-  if (nsends) {ierr = MPI_Waitall(nsends,swaits,sstatus);CHKERRQ(ierr);}
-  ierr = PetscFree2(rwaits,swaits);CHKERRQ(ierr);
+  if (nsends) {ierr = MPI_Waitall(nsends,swaits,MPI_STATUSES_IGNORE);CHKERRQ(ierr);}
 
   if (scall == MAT_INITIAL_MATRIX) {
     /* put together the new matrix */
@@ -5417,6 +5404,10 @@ PetscErrorCode MatGetBrowsOfAoCols_MPIAIJ(Mat A,Mat B,MatReuse scall,PetscInt **
       *bufa_ptr  = bufa;
     }
   }
+
+  ierr = VecScatterRestoreOffProcCommunicationPlan_Private(ctx,PETSC_TRUE,&nsends,&sstarts,&srow,&sprocs,&swaits,&sbs);CHKERRQ(ierr);
+  ierr = VecScatterRestoreOffProcCommunicationPlanWithSortedProcs_Private(ctx,PETSC_FALSE,&nrecvs,&rstarts,NULL,&rprocs,&rwaits,&rbs);CHKERRQ(ierr);
+
   ierr = PetscLogEventEnd(MAT_GetBrowsOfAocols,A,B,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
