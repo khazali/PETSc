@@ -144,7 +144,7 @@ class Configure(config.base.Configure):
                                             'sys/socket','sys/wait','netinet/in','netdb','Direct','time','Ws2tcpip','sys/types',
                                             'WindowsX', 'cxxabi','float','ieeefp','stdint','sched','pthread','inttypes','immintrin','zmmintrin'])
     functions = ['access', '_access', 'clock', 'drand48', 'getcwd', '_getcwd', 'getdomainname', 'gethostname',
-                 'gettimeofday', 'getwd', 'memalign', 'memmove', 'mkstemp', 'popen', 'PXFGETARG', 'rand', 'getpagesize',
+                 'gettimeofday', 'getwd', 'memalign', 'mkstemp', 'popen', 'PXFGETARG', 'rand', 'getpagesize',
                  'readlink', 'realpath',  'sigaction', 'signal', 'sigset', 'usleep', 'sleep', '_sleep', 'socket',
                  'times', 'gethostbyname', 'uname','snprintf','_snprintf','lseek','_lseek','time','fork','stricmp',
                  'strcasecmp', 'bzero', 'dlopen', 'dlsym', 'dlclose', 'dlerror','get_nprocs','sysctlbyname',
@@ -827,7 +827,7 @@ fprintf(f, "%lu\\n", (unsigned long)sizeof(struct mystruct));
     def getFunctionName(lang):
       name = '"unknown"'
       self.pushLanguage(lang)
-      for fname in ['__func__','__FUNCTION__']:
+      for fname in ['__func__','__FUNCTION__','__extension__ __func__']:
         code = "if ("+fname+"[0] != 'm') return 1;"
         if self.checkCompile('',code) and self.checkLink('',code):
           name = fname
