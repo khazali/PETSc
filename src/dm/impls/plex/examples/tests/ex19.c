@@ -11,6 +11,7 @@ typedef struct {
   char      mshNam[PETSC_MAX_PATH_LEN];  /* Name of the mesh filename if any */
   PetscInt  nbrVerEdge;                  /* Number of vertices per edge if unit square/cube generated */
   char      bdLabel[PETSC_MAX_PATH_LEN]; /* Name of the label marking boundary facets */
+  PetscBool splitDomain;                 /* Split the domain into two subregions*/
   PetscInt  metOpt;                      /* Different choices of metric */
   PetscReal hmax, hmin;                  /* Max and min sizes prescribed by the metric */
   PetscBool doL2;                        /* Test L2 projection */
@@ -21,20 +22,22 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  options->dim        = 2;
+  options->dim         = 2;
   ierr = PetscStrcpy(options->mshNam, "");CHKERRQ(ierr);
-  options->nbrVerEdge = 5;
+  options->nbrVerEdge  = 5;
   ierr = PetscStrcpy(options->bdLabel, "");CHKERRQ(ierr);
-  options->metOpt     = 1;
-  options->hmin       = 0.05;
-  options->hmax       = 0.5;
-  options->doL2       = PETSC_FALSE;
+  options->splitDomain = PETSC_FALSE;
+  options->metOpt      = 1;
+  options->hmin        = 0.05;
+  options->hmax        = 0.5;
+  options->doL2        = PETSC_FALSE;
 
   ierr = PetscOptionsBegin(comm, "", "Meshing Adaptation Options", "DMPLEX");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex19.c", options->dim, &options->dim, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-msh", "Name of the mesh filename if any", "ex19.c", options->mshNam, options->mshNam, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-nbrVerEdge", "Number of vertices per edge if unit square/cube generated", "ex19.c", options->nbrVerEdge, &options->nbrVerEdge, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-bdLabel", "Name of the label marking boundary facets", "ex19.c", options->bdLabel, options->bdLabel, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-splitdomain", "Create two internal regions", "ex19.c", options->splitDomain, &options->splitDomain, NULL);CHKERRQ(ierr); 
   ierr = PetscOptionsInt("-met", "Different choices of metric", "ex19.c", options->metOpt, &options->metOpt, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-hmax", "Max size prescribed by the metric", "ex19.c", options->hmax, &options->hmax, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-hmin", "Min size prescribed by the metric", "ex19.c", options->hmin, &options->hmin, NULL);CHKERRQ(ierr);
@@ -73,6 +76,46 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user)
     }
   }
   ierr = DMSetFromOptions(user->dm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode SplitDomain(DM dm, DMLabel * rgLabel){
+  DM                 udm, cdm;
+  PetscSection       coordSection;
+  Vec                coordinates;
+  const PetscScalar *coords;
+  PetscInt           cStart, cEnd, numCells, c;
+  PetscErrorCode     ierr;
+
+
+  ierr = DMCreateLabel(dm, "regions");CHKERRQ(ierr);
+  ierr = DMGetLabel(dm, "regions", rgLabel);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  numCells = cEnd - cStart;
+  ierr = DMPlexUninterpolate(dm, &udm);CHKERRQ(ierr);
+  ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
+  ierr = DMGetSection(cdm, &coordSection);CHKERRQ(ierr);
+  ierr = DMGetCoordinatesLocal(dm, &coordinates);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
+  for (c = 0; c < numCells; ++c) {
+    const PetscInt *cone;
+    PetscInt        coneSize, cl, v, tag = -1;
+    PetscReal       xG = 0., yG = 0.;
+
+    ierr = DMPlexGetConeSize(udm, c, &coneSize);CHKERRQ(ierr);
+    ierr = DMPlexGetCone(udm, c, &cone);CHKERRQ(ierr);
+    for (cl = 0; cl < coneSize; ++cl) {
+      PetscInt           off;
+
+      v = cone[cl];
+      ierr = PetscSectionGetOffset(coordSection, v, &off);CHKERRQ(ierr);
+      xG += PetscRealPart(coords[off+0]);
+      yG += PetscRealPart(coords[off+1]);
+    }
+    if (xG > 0.5 * 3) { tag = 2;}
+    else              { tag = 1;}
+    ierr = DMLabelSetValue(*rgLabel, c+cStart, tag);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -251,7 +294,7 @@ static PetscErrorCode TestL2Projection(DM dm, DM dma, AppCtx *user)
 
 int main (int argc, char * argv[]) {
   AppCtx         user;                 /* user-defined work context */
-  DMLabel        bdLabel = NULL;
+  DMLabel        bdLabel = NULL, rgLabel = NULL;
   MPI_Comm       comm;
   DM             dma, odm;
   Vec            metric;
@@ -276,46 +319,7 @@ int main (int argc, char * argv[]) {
     ierr = DMCreateLabel(user.dm, user.bdLabel);CHKERRQ(ierr);
     ierr = DMGetLabel(user.dm, user.bdLabel, &bdLabel);CHKERRQ(ierr);
   }
-
-
-  DMLabel            rgLabel;
-  {
-    DM                 udm, cdm;
-    PetscSection       coordSection;
-    Vec                coordinates;
-    const PetscScalar *coords;
-    PetscInt           cStart, cEnd, numCells, c;
-
-    ierr = DMCreateLabel(user.dm, "regions");CHKERRQ(ierr);
-    ierr = DMGetLabel(user.dm, "regions", &rgLabel);CHKERRQ(ierr);
-    ierr = DMPlexGetHeightStratum(user.dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
-    numCells = cEnd - cStart;
-    ierr = DMPlexUninterpolate(user.dm, &udm);CHKERRQ(ierr);
-    ierr = DMGetCoordinateDM(user.dm, &cdm);CHKERRQ(ierr);
-    ierr = DMGetSection(cdm, &coordSection);CHKERRQ(ierr);
-    ierr = DMGetCoordinatesLocal(user.dm, &coordinates);CHKERRQ(ierr);
-    ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
-    for (c = 0; c < numCells; ++c) {
-      const PetscInt *cone;
-      PetscInt        coneSize, cl, v, tag = -1;
-      PetscReal       xG = 0., yG = 0.;
-
-      ierr = DMPlexGetConeSize(udm, c, &coneSize);CHKERRQ(ierr);
-      ierr = DMPlexGetCone(udm, c, &cone);CHKERRQ(ierr);
-      for (cl = 0; cl < coneSize; ++cl) {
-        PetscInt           off;
-
-        v = cone[cl];
-        ierr = PetscSectionGetOffset(coordSection, v, &off);CHKERRQ(ierr);
-        xG += PetscRealPart(coords[off+0]);
-        yG += PetscRealPart(coords[off+1]);
-      }
-      if (xG > 0.5 * 3) { tag = 2;}
-      else              { tag = 1;}
-      ierr = DMLabelSetValue(rgLabel, c+cStart, tag);CHKERRQ(ierr);
-    }
-  }
-
+  ierr = SplitDomain(user.dm, &rgLabel);CHKERRQ(ierr);
 
   ierr = DMAdaptMetric(user.dm, metric, bdLabel, rgLabel, &dma);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dma, "DMadapt");CHKERRQ(ierr);
