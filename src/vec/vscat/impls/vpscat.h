@@ -340,14 +340,14 @@ PetscErrorCode PETSCMAP1(VecScatterEndMPI3Node)(VecScatter ctx,Vec xin,Vec yin,I
   Vec_Node               *vnode;
   PetscInt               cnt,*idx,*idy;
   MPI_Comm               comm,mscomm,veccomm;
-  PetscCommShared        scomm;
+  PetscShmComm           scomm;
 
   PetscFunctionBegin;
   if (mode & SCATTER_LOCAL) PetscFunctionReturn(0);
 
   ierr = PetscObjectGetComm((PetscObject)ctx,&comm);CHKERRQ(ierr);
-  ierr = PetscCommSharedGet(comm,&scomm);CHKERRQ(ierr);
-  ierr = PetscCommSharedGetComm(scomm,&mscomm);CHKERRQ(ierr);
+  ierr = PetscShmCommGet(comm,&scomm);CHKERRQ(ierr);
+  ierr = PetscShmCommGetMpiShmComm(scomm,&mscomm);CHKERRQ(ierr);
 
   ierr = VecGetArray(yin,&yv);CHKERRQ(ierr);
 
