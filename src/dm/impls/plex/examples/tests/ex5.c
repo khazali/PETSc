@@ -654,7 +654,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
     ierr = DMGetLabel(*dm, "fault", &faultLabel);CHKERRQ(ierr);
     ierr = DMGetLabel(*dm, "faultBd", &faultBdLabel);CHKERRQ(ierr);
-    ierr = DMPlexCreateHybridMesh(*dm, faultLabel, faultBdLabel, &hybridLabel, NULL, &dmHybrid);CHKERRQ(ierr);
+    ierr = DMPlexCreateHybridMesh(*dm, faultLabel, faultBdLabel, &hybridLabel, NULL, NULL, &dmHybrid);CHKERRQ(ierr);
     ierr = DMLabelView(hybridLabel, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     ierr = DMLabelDestroy(&hybridLabel);CHKERRQ(ierr);
     ierr = DMDestroy(dm);CHKERRQ(ierr);
@@ -671,7 +671,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
     ierr = DMPlexCheckFaces(*dm, user->cellSimplex, 0);CHKERRQ(ierr);
     ierr = DMGetLabel(*dm, "fault2", &faultLabel);CHKERRQ(ierr);
     ierr = DMGetLabel(*dm, "fault2Bd", &faultBdLabel);CHKERRQ(ierr);
-    ierr = DMPlexCreateHybridMesh(*dm, faultLabel, faultBdLabel, &hybridLabel, NULL, &dmHybrid);CHKERRQ(ierr);
+    ierr = DMPlexCreateHybridMesh(*dm, faultLabel, faultBdLabel, &hybridLabel, NULL, NULL, &dmHybrid);CHKERRQ(ierr);
     ierr = DMLabelView(hybridLabel, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     ierr = DMLabelDestroy(&hybridLabel);CHKERRQ(ierr);
     ierr = DMDestroy(dm);CHKERRQ(ierr);
@@ -765,7 +765,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
     ierr = DMGetLabel(*dm, "pfault", &faultLabel);CHKERRQ(ierr);
     ierr = DMGetLabel(*dm, "pfaultBd", &faultBdLabel);CHKERRQ(ierr);
-    ierr = DMPlexCreateHybridMesh(*dm, faultLabel, faultBdLabel, &hybridLabel, NULL, &dmHybrid);CHKERRQ(ierr);
+    ierr = DMPlexCreateHybridMesh(*dm, faultLabel, faultBdLabel, &hybridLabel, NULL, NULL, &dmHybrid);CHKERRQ(ierr);
     ierr = DMLabelView(hybridLabel, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     ierr = DMLabelDestroy(&hybridLabel);CHKERRQ(ierr);
     ierr = DMDestroy(dm);CHKERRQ(ierr);
