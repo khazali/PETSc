@@ -4879,7 +4879,7 @@ PetscErrorCode (*fjac)(TS,PetscReal,Vec,Mat,Mat,void*),void *jacP);
   $B$, and the (optional) user-provided context \lstinline{jacP}.
 \end{itemize}
 
-Providing appropriate $F()$ and $G()$ for your problem allows for the easy runtime switching between explicit, semi-implicit (IMEX), and fully implicit method.
+Providing appropriate $F()$ and $G()$ for your problem allows for the easy runtime switching between explicit, semi-implicit (IMEX), and fully implicit methods.
 
 \section{Basic TS Options}
 
@@ -5583,8 +5583,8 @@ For sensitivity analysis, we need to provide a routine to compute $\mathrm{f}_p=
 and three routines corresponding to the integrand $r=c \left( \max(0, \phi - \phi_S ) \right)^2$, $r_p = [0 \; 0]^T$ and $r_y= [ 2 c \left( \max(0, \phi - \phi_S ) \right) \; 0]^T$ using \lstinline{TSSetCostIntegrand()}.
 
 In the adjoint run, $\lambda$ and $\mu$ are initialized as $[ 0 \;  0 ]^T$ and $[-1]$ at the final time $t_F$.
-After \lstinline{TSAdjointSolve()}, the sensitivity of the cost function w.r.t. to initial conditions is given by the sensitivity variable $\lambda$ (at time $t_0$) directly.
-And the sensitivity of the cost function w.r.t. to the parameter $p_m$ can be computed (by users) as
+After \lstinline{TSAdjointSolve()}, the sensitivity of the cost function w.r.t. initial conditions is given by the sensitivity variable $\lambda$ (at time $t_0$) directly.
+And the sensitivity of the cost function w.r.t. the parameter $p_m$ can be computed (by users) as
 %
 \[
 \frac{\mathrm{d} \Psi}{\mathrm{d} p_m} = \mu(t_0) + \lambda(t_0)  \frac{\mathrm{d} \left[ \phi(t_0) \; \omega(t_0) \right]^T}{\mathrm{d} p_m}  .
@@ -7976,9 +7976,9 @@ blocks can be controlled via the options \trl{-sub_ksp_type} and \trl{
 \subsection{Keeping Track of Options}
 
 One useful means of keeping track of user-specified runtime options is
-use of \trl{-options_table}, which prints to \lstinline{stdout} during \lstinline{PetscFinalize()}
+use of \trl{-options_view}, which prints to \lstinline{stdout} during \lstinline{PetscFinalize()}
  a table of all runtime options that the user has
-specified.  \findex{-options_table} A related option is \trl{-options_left},
+specified.  \findex{-options_view} A related option is \trl{-options_left},
 \findex{-options_left} which prints the options table and indicates
 any options that have {\em not} been requested upon a call to \lstinline{PetscFinalize()}.  This feature is useful to check whether an option
 has been activated for a particular PETSc object (such as a solver or
