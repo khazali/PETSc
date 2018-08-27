@@ -5742,3 +5742,34 @@ PetscErrorCode  SNESMonitorSetMatlab(SNES snes,const char *f,mxArray *ctx)
 }
 
 #endif
+
+/*@C
+   SNESSetKSPSetUpCallback - Provides a function that is called by SNES AFTER the first Jacobian is computed
+          but before KSPSetUp() is called to allow the user to set specific KSP/PC solver options.
+
+   Collective on SNES
+
+   Input Parameters:
++  snes - the SNES context
+.  callback - the callback function which gets called by SNES exactly once
+-  ctx - pointer to user data needed by the callback function
+
+   Notes: The callback function might call  PCBJacobiSetTotalBlocks(pc,n,lens); to control exactly the size of
+          of each block used by the block Jacobi preconditioner.
+
+          Currently only supported by the SNESNEWTONLS solver.
+
+   Level: advanced
+
+.keywords: SNES, nonlinear, setup
+
+.seealso: SNESCreate(), SNESSolve(), SNESDestroy()
+@*/
+PetscErrorCode SNESSetKSPSetupCallback(SNES snes,PetscErrorCode (*callback)(KSP,void*),void *ctx)
+{
+  PetscFunctionBegin;
+  snes->kspsetupcallback    = callback;
+  snes->kspsetupcallbackctx = ctx;
+  PetscFunctionReturn(0);
+}
+

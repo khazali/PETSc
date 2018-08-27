@@ -221,6 +221,10 @@ PetscErrorCode SNESSolve_NEWTONLS(SNES snes)
     /* Solve J Y = F, where J is Jacobian matrix */
     ierr = SNESComputeJacobian(snes,X,snes->jacobian,snes->jacobian_pre);CHKERRQ(ierr);
     ierr = KSPSetOperators(snes->ksp,snes->jacobian,snes->jacobian_pre);CHKERRQ(ierr);
+    if (snes->kspsetupcallback) { /* see src/snes/examples/tests/ex3.c */
+      ierr = (*snes->kspsetupcallback)(snes->ksp,snes->kspsetupcallbackctx);CHKERRQ(ierr);
+      snes->kspsetupcallback = NULL;
+    }
     ierr = KSPSolve(snes->ksp,F,Y);CHKERRQ(ierr);
     SNESCheckKSPSolve(snes);
     ierr              = KSPGetIterationNumber(snes->ksp,&lits);CHKERRQ(ierr);

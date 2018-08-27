@@ -1,0 +1,129 @@
+atol=1e-50, rtol=1e-08, stol=1e-08, maxit=50, maxf=10000
+  0 SNES Function norm 5.41468 
+  1 SNES Function norm 0.295258 
+  2 SNES Function norm 0.000450229 
+  3 SNES Function norm 1.38967e-09 
+SNES Object: 1 MPI processes
+  type: newtonls
+  maximum iterations=50, maximum function evaluations=10000
+  tolerances: relative=1e-08, absolute=1e-50, solution=1e-08
+  total number of linear solver iterations=10
+  total number of function evaluations=4
+  norm schedule ALWAYS
+  SNESLineSearch Object: 1 MPI processes
+    type: bt
+      interpolation: cubic
+      alpha=1.000000e-04
+    maxstep=1.000000e+08, minlambda=1.000000e-12
+    tolerances: relative=1.000000e-08, absolute=1.000000e-15, lambda=1.000000e-08
+    maximum iterations=40
+  KSP Object: 1 MPI processes
+    type: gmres
+      restart=30, using Classical (unmodified) Gram-Schmidt Orthogonalization with no iterative refinement
+      happy breakdown tolerance 1e-30
+    maximum iterations=10000, initial guess is zero
+    tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
+    left preconditioning
+    using PRECONDITIONED norm type for convergence test
+  PC Object: 1 MPI processes
+    type: bjacobi
+      number of blocks = 3
+      Local solve info for each block is in the following KSP and PC objects:
+    [0] number of local blocks = 3, first local block number = 0
+      [0] local block number 0
+      KSP Object: (sub_) 1 MPI processes
+        type: preonly
+        maximum iterations=10000, initial guess is zero
+        tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
+        left preconditioning
+        using NONE norm type for convergence test
+      PC Object: (sub_) 1 MPI processes
+        type: lu
+          out-of-place factorization
+          tolerance for zero pivot 2.22045e-14
+          matrix ordering: nd
+          factor fill ratio given 5., needed 1.
+            Factored matrix follows:
+              Mat Object: 1 MPI processes
+                type: seqaij
+                rows=1, cols=1
+                package used to perform factorization: petsc
+                total: nonzeros=1, allocated nonzeros=1
+                total number of mallocs used during MatSetValues calls =0
+                  not using I-node routines
+        linear system matrix = precond matrix:
+        Mat Object: 1 MPI processes
+          type: seqaij
+          rows=1, cols=1
+          total: nonzeros=1, allocated nonzeros=1
+          total number of mallocs used during MatSetValues calls =0
+            not using I-node routines
+      - - - - - - - - - - - - - - - - - -
+      [0] local block number 1
+      KSP Object: (sub_) 1 MPI processes
+        type: preonly
+        maximum iterations=10000, initial guess is zero
+        tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
+        left preconditioning
+        using NONE norm type for convergence test
+      PC Object: (sub_) 1 MPI processes
+        type: lu
+          out-of-place factorization
+          tolerance for zero pivot 2.22045e-14
+          matrix ordering: nd
+          factor fill ratio given 5., needed 1.
+            Factored matrix follows:
+              Mat Object: 1 MPI processes
+                type: seqaij
+                rows=2, cols=2
+                package used to perform factorization: petsc
+                total: nonzeros=4, allocated nonzeros=4
+                total number of mallocs used during MatSetValues calls =0
+                  using I-node routines: found 1 nodes, limit used is 5
+        linear system matrix = precond matrix:
+        Mat Object: 1 MPI processes
+          type: seqaij
+          rows=2, cols=2
+          total: nonzeros=4, allocated nonzeros=4
+          total number of mallocs used during MatSetValues calls =0
+            using I-node routines: found 1 nodes, limit used is 5
+      - - - - - - - - - - - - - - - - - -
+      [0] local block number 2
+      KSP Object: (sub_) 1 MPI processes
+        type: preonly
+        maximum iterations=10000, initial guess is zero
+        tolerances:  relative=1e-05, absolute=1e-50, divergence=10000.
+        left preconditioning
+        using NONE norm type for convergence test
+      PC Object: (sub_) 1 MPI processes
+        type: lu
+          out-of-place factorization
+          tolerance for zero pivot 2.22045e-14
+          matrix ordering: nd
+          factor fill ratio given 5., needed 1.
+            Factored matrix follows:
+              Mat Object: 1 MPI processes
+                type: seqaij
+                rows=2, cols=2
+                package used to perform factorization: petsc
+                total: nonzeros=3, allocated nonzeros=3
+                total number of mallocs used during MatSetValues calls =0
+                  not using I-node routines
+        linear system matrix = precond matrix:
+        Mat Object: 1 MPI processes
+          type: seqaij
+          rows=2, cols=2
+          total: nonzeros=3, allocated nonzeros=3
+          total number of mallocs used during MatSetValues calls =0
+            not using I-node routines
+      - - - - - - - - - - - - - - - - - -
+    linear system matrix = precond matrix:
+    Mat Object: 1 MPI processes
+      type: seqaij
+      rows=5, cols=5
+      total: nonzeros=11, allocated nonzeros=15
+      total number of mallocs used during MatSetValues calls =0
+        not using I-node routines
+number of SNES iterations = 3
+
+Norm of error 1.49752e-10, Iterations 3

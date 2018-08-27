@@ -77,6 +77,10 @@ struct _p_SNES {
   SNESConvergedReason reason;
   PetscBool           errorifnotconverged;
 
+  /*  see src/snes/examples/tutorials/ex3.c */
+  PetscErrorCode      (*kspsetupcallback)(KSP,void*);
+  void                *kspsetupcallbackctx;
+
   /* --- Routines and data that are unique to each particular solver --- */
 
   PetscBool      setupcalled;                /* true if setup has been called */
