@@ -79,7 +79,7 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode SplitDomain(DM dm, DMLabel * rgLabel){
+static PetscErrorCode SplitDomain(DM dm, DMLabel * rgLabel, AppCtx *user){
   DM                 udm, cdm;
   PetscSection       coordSection;
   Vec                coordinates;
@@ -100,7 +100,7 @@ static PetscErrorCode SplitDomain(DM dm, DMLabel * rgLabel){
   for (c = 0; c < numCells; ++c) {
     const PetscInt *cone;
     PetscInt        coneSize, cl, v, tag = -1;
-    PetscReal       xG = 0., yG = 0.;
+    PetscReal       xG = 0.;
 
     ierr = DMPlexGetConeSize(udm, c, &coneSize);CHKERRQ(ierr);
     ierr = DMPlexGetCone(udm, c, &cone);CHKERRQ(ierr);
@@ -110,10 +110,9 @@ static PetscErrorCode SplitDomain(DM dm, DMLabel * rgLabel){
       v = cone[cl];
       ierr = PetscSectionGetOffset(coordSection, v, &off);CHKERRQ(ierr);
       xG += PetscRealPart(coords[off+0]);
-      yG += PetscRealPart(coords[off+1]);
     }
-    if (xG > 0.5 * 3) { tag = 2;}
-    else              { tag = 1;}
+    if (xG > 0.5*(user->dim+1)) {tag = 2;}
+    else                        {tag = 1;}
     ierr = DMLabelSetValue(*rgLabel, c+cStart, tag);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
