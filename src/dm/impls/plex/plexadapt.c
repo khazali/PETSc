@@ -500,7 +500,7 @@ PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DMLa
   pragmatic_set_regions(cellIds);
   pragmatic_set_internal_boundaries();
   pragmatic_set_metric(metric);
-  pragmatic_adapt(((DM_Plex *) dm->data)->remeshBd ? 1 : 0);
+  pragmatic_adapt(((DM_Plex *) dm->data)->remeshBd ? 1 : 0, 0);
   ierr = PetscFree(l2gv);CHKERRQ(ierr);
   /* Read out mesh */
   pragmatic_get_info_mpi(&numVerticesNew, &numCellsNew);
