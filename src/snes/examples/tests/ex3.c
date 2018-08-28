@@ -32,14 +32,12 @@ extern PetscErrorCode FormInitialGuess(Vec);
 PetscErrorCode KSPSetUpCallback(KSP ksp,void *ctx)
 {
   PetscErrorCode ierr;
-  PetscInt       nLocal,Firstly,lens[3] = {1,2,2},i;
+  PetscInt       nLocal,Firstly,i;
   KSP            *subKSP;
   PC             pc,subPC;
 
   PetscFunctionBegin;
   ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
-  ierr = PCSetType(pc,PCBJACOBI);CHKERRQ(ierr);
-  ierr = PCBJacobiSetTotalBlocks(pc,3,lens);CHKERRQ(ierr);
   ierr = KSPSetUp(ksp);CHKERRQ(ierr);
   ierr = PCBJacobiGetSubKSP(pc, &nLocal, &Firstly, &subKSP);CHKERRQ(ierr);
   for (i = 0; i < nLocal; i++) {
@@ -56,10 +54,12 @@ int main(int argc,char **argv)
   Vec            x,r,F,U;                /* vectors */
   Mat            J;                      /* Jacobian matrix */
   PetscErrorCode ierr;
-  PetscInt       its,n = 5,i,maxit,maxf;
+  PetscInt       its,n = 5,i,maxit,maxf,lens[3] = {1,2,2};
   PetscMPIInt    size;
   PetscScalar    h,xp,v,none = -1.0;
   PetscReal      abstol,rtol,stol,norm;
+  KSP            ksp;
+  PC             pc;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
@@ -72,6 +72,10 @@ int main(int argc,char **argv)
      - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
   ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
+  ierr = SNESGetKSP(snes,&ksp);CHKERRQ(ierr);
+  ierr = KSPGetPC(ksp,&pc);CHKERRQ(ierr);
+  ierr = PCSetType(pc,PCBJACOBI);CHKERRQ(ierr);
+  ierr = PCBJacobiSetTotalBlocks(pc,3,lens);CHKERRQ(ierr);
   ierr = SNESSetKSPSetupCallback(snes,KSPSetUpCallback,NULL);CHKERRQ(ierr);
   /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
      Create vector data structures; set function evaluation routine
