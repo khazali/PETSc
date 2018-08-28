@@ -816,6 +816,7 @@ int main(int argc, char **argv)
   test:
     suffix: quad_t1_0
     args: -dim 2 -cell_simplex 0 -test_num 1 -dm_view ascii::ascii_info_detail
+    requires: TODO
   # 3D Simplex
   test:
     suffix: tet_0
