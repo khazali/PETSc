@@ -2163,7 +2163,7 @@ PetscErrorCode DMPlexComputeBdJacobian_Single_Internal(DM dm, PetscReal t, DMLab
       IS isectIS;
 
       /* TODO: Special cases of ISIntersect where it is quick to check a prior if one is a superset of the other */
-      ierr = ISIntersect_Caching(facetIS,pointIS,&isectIS);CHKERRQ(ierr);
+      ierr = ISIntersect_Caching_Internal(facetIS,pointIS,&isectIS);CHKERRQ(ierr);
       ierr = ISDestroy(&pointIS);CHKERRQ(ierr);
       pointIS = isectIS;
     }
