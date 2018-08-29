@@ -35,34 +35,6 @@ PetscErrorCode TSTrajectoryRegister(const char sname[],PetscErrorCode (*function
 }
 
 /*@
-  TSTrajectoryReset - Resets a trajectory to its initial state
-
-  Collective on TSTrajectory
-
-  Input Parameters:
-. tj      - the trajectory object
-
-  Level: developer
-
-  Notes:
-
-.keywords: TS, trajectory, create
-
-.seealso: TSTrajectorySetUp(), TSTrajectoryDestroy(), TSTrajectorySetType(), TSTrajectorySet()
-@*/
-PetscErrorCode TSTrajectoryReset(TSTrajectory tj)
-{
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
-  ierr = TSHistoryDestroy(&tj->tsh);CHKERRQ(ierr);
-  ierr = TSHistoryCreate(PetscObjectComm((PetscObject)tj),&tj->tsh);CHKERRQ(ierr);
-  tj->setupcalled = PETSC_FALSE;
-  PetscFunctionReturn(0);
-}
-
-/*@
   TSTrajectorySet - Sets a vector of state in the trajectory object
 
   Collective on TSTrajectory
@@ -554,6 +526,37 @@ PetscErrorCode  TSTrajectoryRegisterAll(void)
 }
 
 /*@
+   TSTrajectoryReset - Resets a trajectory context
+
+   Collective on TSTrajectory
+
+   Input Parameter:
+.  tj - the TSTrajectory context obtained from TSTrajectoryCreate()
+
+   Level: developer
+
+.keywords: TS, trajectory, timestep, reset
+
+.seealso: TSTrajectoryCreate(), TSTrajectorySetUp()
+@*/
+PetscErrorCode TSTrajectoryReset(TSTrajectory tj)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (!tj) PetscFunctionReturn(0);
+  PetscValidHeaderSpecific(tj,TSTRAJECTORY_CLASSID,1);
+  if (tj->ops->reset) {
+    ierr = (*tj->ops->reset)(tj);CHKERRQ(ierr);
+  }
+  ierr = PetscFree(tj->dirfiletemplate);CHKERRQ(ierr);
+  ierr = TSHistoryDestroy(&tj->tsh);CHKERRQ(ierr);
+  ierr = TSHistoryCreate(PetscObjectComm((PetscObject)tj),&tj->tsh);CHKERRQ(ierr);
+  tj->setupcalled = PETSC_FALSE;
+  PetscFunctionReturn(0);
+}
+
+/*@
    TSTrajectoryDestroy - Destroys a trajectory context
 
    Collective on TSTrajectory
@@ -567,7 +570,7 @@ PetscErrorCode  TSTrajectoryRegisterAll(void)
 
 .seealso: TSTrajectoryCreate(), TSTrajectorySetUp()
 @*/
-PetscErrorCode  TSTrajectoryDestroy(TSTrajectory *tj)
+PetscErrorCode TSTrajectoryDestroy(TSTrajectory *tj)
 {
   PetscErrorCode ierr;
 
@@ -576,17 +579,18 @@ PetscErrorCode  TSTrajectoryDestroy(TSTrajectory *tj)
   PetscValidHeaderSpecific((*tj),TSTRAJECTORY_CLASSID,1);
   if (--((PetscObject)(*tj))->refct > 0) {*tj = 0; PetscFunctionReturn(0);}
 
+  ierr = TSTrajectoryReset(*tj);CHKERRQ(ierr);
   ierr = TSHistoryDestroy(&(*tj)->tsh);CHKERRQ(ierr);
   ierr = VecDestroyVecs((*tj)->lag.order+1,&(*tj)->lag.W);CHKERRQ(ierr);
   ierr = PetscFree5((*tj)->lag.L,(*tj)->lag.T,(*tj)->lag.WW,(*tj)->lag.TT,(*tj)->lag.TW);CHKERRQ(ierr);
   ierr = VecDestroy(&(*tj)->U);CHKERRQ(ierr);
   ierr = VecDestroy(&(*tj)->Udot);CHKERRQ(ierr);
+
   if ((*tj)->transformdestroy) {ierr = (*(*tj)->transformdestroy)((*tj)->transformctx);CHKERRQ(ierr);}
   if ((*tj)->ops->destroy) {ierr = (*(*tj)->ops->destroy)((*tj));CHKERRQ(ierr);}
   ierr = PetscStrArrayDestroy(&(*tj)->names);CHKERRQ(ierr);
   ierr = PetscFree((*tj)->dirname);CHKERRQ(ierr);
   ierr = PetscFree((*tj)->filetemplate);CHKERRQ(ierr);
-  ierr = PetscFree((*tj)->dirfiletemplate);CHKERRQ(ierr);
   ierr = PetscHeaderDestroy(tj);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -806,7 +810,7 @@ PetscErrorCode  TSTrajectorySetFromOptions(TSTrajectory tj,TS ts)
   ierr = PetscOptionsInt("-ts_trajectory_reconstruction_order","Interpolation order for reconstruction",NULL,tj->lag.order,&tj->lag.order,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-ts_trajectory_reconstruction_caching","Turn on/off caching of TSTrajectoryGetVecs input",NULL,tj->lag.caching,&tj->lag.caching,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-ts_trajectory_adjointmode","Instruct the trajectory that will be used in a TSAdjointSolve()",NULL,tj->adjoint_solve_mode,&tj->adjoint_solve_mode,NULL);CHKERRQ(ierr);
-    ierr = PetscOptionsBool("-ts_trajectory_solution_only","Checkpoint solution only","TSTrajectorySetSolutionOnly",tj->solution_only,&tj->solution_only,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-ts_trajectory_solution_only","Checkpoint solution only","TSTrajectorySetSolutionOnly",tj->solution_only,&tj->solution_only,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-ts_trajectory_keep_files","Keep any trajectory files generated during the run","TSTrajectorySetKeepFiles",tj->keepfiles,&flg,&set);CHKERRQ(ierr);
   if (set) {ierr = TSTrajectorySetKeepFiles(tj,flg);CHKERRQ(ierr);}
 

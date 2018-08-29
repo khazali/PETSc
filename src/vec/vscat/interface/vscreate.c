@@ -1,22 +1,12 @@
-
 /*
     The VECSCATTER (vec scatter) interface routines, callable by users.
 */
 
 #include <petsc/private/vecimpl.h>    /*I   "petscvec.h"    I*/
-#include <../src/vec/vec/impls/mpi/pvecimpl.h>
 
 /* Logging support */
 PetscClassId VEC_SCATTER_CLASSID;
 
-#define VEC_SEQ_ID 0
-#define VEC_MPI_ID 1
-
-#if defined(PETSC_HAVE_MPI_WIN_CREATE_FEATURE)
-extern PetscErrorCode VecScatterCreateCommon_PtoS_MPI3(VecScatter_MPI_General*,VecScatter_MPI_General*,VecScatter);
-#endif
-
-/* -------------------------------- */
 PetscFunctionList VecScatterList              = NULL;
 PetscBool         VecScatterRegisterAllCalled = PETSC_FALSE;
 
@@ -126,19 +116,19 @@ PetscErrorCode VecScatterSetFromOptions(VecScatter vscat)
   PetscValidHeaderSpecific(vscat,VEC_SCATTER_CLASSID,1);
 
   ierr = PetscObjectOptionsBegin((PetscObject)vscat);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(PetscObjectComm((PetscObject)vscat), &size);CHKERRQ(ierr);
 
   /* Handle vector type options */
   if (((PetscObject)vscat)->type_name) {
     defaultType = ((PetscObject)vscat)->type_name;
   } else {
-    ierr = MPI_Comm_size(PetscObjectComm((PetscObject)vscat), &size);CHKERRQ(ierr);
     if (size > 1) defaultType = VECSCATTERMPI1;
     else defaultType = VECSCATTERSEQ;
   }
 
   ierr = VecScatterRegisterAll();CHKERRQ(ierr);
   ierr = PetscOptionsFList("-vecscatter_type","Vector Scatter type","VecScatterSetType",VecScatterList,defaultType,typeName,256,&opt);CHKERRQ(ierr);
-  if (opt) {
+  if (size > 1 && opt) {
     ierr = VecScatterSetType(vscat,typeName);CHKERRQ(ierr);
   } else {
     ierr = VecScatterSetType(vscat,defaultType);CHKERRQ(ierr);
