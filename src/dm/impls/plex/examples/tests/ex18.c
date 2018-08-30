@@ -550,13 +550,14 @@ int main(int argc, char **argv)
     suffix: 3
     nsize: 2
     args: -dim 3 -dm_view ascii::ascii_info_detail
-  test:
-    suffix: 4
+
+  testset:
     nsize: 2
     args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail
-  test:
-    suffix: quad_1
-    nsize: 2
-    args: -cell_simplex 0 -dim 3 -interpolate -dm_view ascii::ascii_info_detail
+    test:
+      suffix: 4
+    test:
+      suffix: 4_hex
+      args: -cell_simplex 0
 
 TEST*/
