@@ -519,10 +519,20 @@ int main(int argc, char **argv)
     suffix: 0
     nsize: 2
     args: -dm_view ascii::ascii_info_detail
-  test:
-    suffix: 1
+
+  testset:
     nsize: 2
     args: -interpolate -dm_view ascii::ascii_info_detail
+    test:
+      suffix: 1
+      args: -distribute 0
+    test:
+      # TODO DMPlexCheckFaces() fails for -interpolate_after_distribute 0
+      # TODO nonconforming orientation on interface for -interpolate_after_distribute 1
+      # TODO It would be nice to have the same output here.
+      suffix: 1_dist
+      args: -distribute 1 -interpolate_after_distribute {{0 1}separate output}
+
   test:
     suffix: 2
     nsize: 3
