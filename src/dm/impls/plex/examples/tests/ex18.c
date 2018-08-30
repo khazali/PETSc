@@ -532,6 +532,15 @@ int main(int argc, char **argv)
       # TODO It would be nice to have the same output here.
       suffix: 1_dist
       args: -distribute 1 -interpolate_after_distribute {{0 1}separate output}
+    test:
+      suffix: 1_quad
+      args: -cell_simplex 0 -distribute 0
+    test:
+      # TODO DMPlexCheckFaces() fails for -interpolate_after_distribute 0
+      # TODO nonconforming orientation on interface for -interpolate_after_distribute 1
+      # TODO It would be nice to have the same output here.
+      suffix: 1_quad_dist
+      args: -cell_simplex 0 -distribute 1 -interpolate_after_distribute {{0 1}separate output}
 
   test:
     suffix: 2
@@ -545,10 +554,6 @@ int main(int argc, char **argv)
     suffix: 4
     nsize: 2
     args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail
-  test:
-    suffix: quad_0
-    nsize: 2
-    args: -cell_simplex 0 -interpolate -dm_view ascii::ascii_info_detail
   test:
     suffix: quad_1
     nsize: 2
