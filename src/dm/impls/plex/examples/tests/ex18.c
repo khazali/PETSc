@@ -555,8 +555,10 @@ int main(int argc, char **argv)
     nsize: 2
     args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail
     test:
+      # TODO point SF wrong - missing face
       suffix: 4
     test:
+      # TODO point SF wrong - shouldn't contain the cell
       suffix: 4_hex
       args: -cell_simplex 0
 

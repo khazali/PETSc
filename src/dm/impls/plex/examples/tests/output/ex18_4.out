@@ -143,19 +143,21 @@ Label 'marker':
 PetscSF Object: 2 MPI processes
   type: basic
     sort=rank-order
-  [0] Number of roots=15, leaves=6, remote ranks=1
+  [0] Number of roots=15, leaves=7, remote ranks=1
   [0] 2 <- (1,1)
   [0] 3 <- (1,2)
   [0] 4 <- (1,3)
+  [0] 8 <- (1,6)
   [0] 10 <- (1,9)
   [0] 13 <- (1,13)
   [0] 14 <- (1,12)
   [1] Number of roots=15, leaves=0, remote ranks=0
   [0] Roots referenced by my leaves, by rank
-  [0] 1: 6 edges
+  [0] 1: 7 edges
   [0]    2 <- 1
   [0]    3 <- 2
   [0]    4 <- 3
+  [0]    8 <- 6
   [0]    10 <- 9
   [0]    13 <- 13
   [0]    14 <- 12
