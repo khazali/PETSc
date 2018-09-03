@@ -2060,7 +2060,7 @@ PetscErrorCode MatTranspose_MPIAIJ(Mat A,MatReuse reuse,Mat *matout)
     ierr = MatSetOption(B,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_TRUE);CHKERRQ(ierr);
   }
 
-  b = B->data;
+  b = (Mat_MPIAIJ*)B->data;
   A_diag = a->A;
   B_diag = &b->A;
   sub_B_diag = (Mat_SeqAIJ*)(*B_diag)->data;
