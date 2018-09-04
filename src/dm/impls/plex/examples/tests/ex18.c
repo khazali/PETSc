@@ -303,6 +303,27 @@ PetscErrorCode CreateSimplex_3D(MPI_Comm comm, PetscBool interpolate, AppCtx *us
       break;
       default: SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh for rank %d", rank);
     }
+    if (user->hotfix && interpolate && !rank) {
+      PetscSF sf;
+      PetscInt nroots,nleaves;
+      const PetscInt *ilocal;
+      const PetscSFNode *iremote;
+      PetscInt *ilocal1;
+      PetscSFNode *iremote1;
+
+      ierr = DMGetPointSF(*dm, &sf);CHKERRQ(ierr);
+      ierr = PetscSFGetGraph(sf, &nroots, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nleaves+1, &ilocal1);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nleaves+1, &iremote1);CHKERRQ(ierr);
+      ierr = PetscMemcpy(ilocal1, ilocal, 3*sizeof(PetscInt));CHKERRQ(ierr);
+      ierr = PetscMemcpy(iremote1, iremote, 3*sizeof(PetscSFNode));CHKERRQ(ierr);
+      ilocal1[3] = 8;
+      iremote1[3].rank = 1;
+      iremote1[3].index = 6;
+      ierr = PetscMemcpy(ilocal1+4, ilocal+3, 3*sizeof(PetscInt));CHKERRQ(ierr);
+      ierr = PetscMemcpy(iremote1+4, iremote+3, 3*sizeof(PetscSFNode));CHKERRQ(ierr);
+      ierr = PetscSFSetGraph(sf, nroots, nleaves+1, ilocal1, PETSC_OWN_POINTER, iremote1, PETSC_OWN_POINTER);CHKERRQ(ierr);
+    }
     break;
   default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh %D", testNum);
   }
@@ -388,6 +409,24 @@ PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, 
     }
     break;
     default: SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh for rank %d", rank);
+    }
+    if (user->hotfix && interpolate && !rank) {
+      PetscSF sf;
+      PetscInt nroots,nleaves;
+      const PetscInt *ilocal;
+      const PetscSFNode *iremote;
+      PetscInt *ilocal1;
+      PetscSFNode *iremote1;
+
+      ierr = DMGetPointSF(*dm, &sf);CHKERRQ(ierr);
+      ierr = PetscSFGetGraph(sf, &nroots, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nleaves-1, &ilocal1);CHKERRQ(ierr);
+      ierr = PetscMalloc1(nleaves-1, &iremote1);CHKERRQ(ierr);
+      ierr = PetscMemcpy(ilocal1, ilocal, 5*sizeof(PetscInt));CHKERRQ(ierr);
+      ierr = PetscMemcpy(iremote1, iremote, 5*sizeof(PetscSFNode));CHKERRQ(ierr);
+      ierr = PetscMemcpy(ilocal1+5, ilocal+6, 4*sizeof(PetscInt));CHKERRQ(ierr);
+      ierr = PetscMemcpy(iremote1+5, iremote+6, 4*sizeof(PetscSFNode));CHKERRQ(ierr);
+      ierr = PetscSFSetGraph(sf, nroots, nleaves-1, ilocal1, PETSC_OWN_POINTER, iremote1, PETSC_OWN_POINTER);CHKERRQ(ierr);
     }
   break;
   default: SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "No test mesh %D", testNum);
@@ -629,7 +668,8 @@ int main(int argc, char **argv)
 
   testset:
     nsize: 2
-    args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail -dm_plex_fix_cone_orientation 0
+    # TODO get rid of -hotfix
+    args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail -dm_plex_fix_cone_orientation 0 -hotfix
     test:
       # TODO point SF wrong - missing face
       suffix: 4
