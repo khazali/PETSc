@@ -604,8 +604,6 @@ int main(int argc, char **argv)
       suffix: 1
       args: -distribute 0
     test:
-      # TODO DMPlexCheckFaces() fails for -interpolate_after_distribute 0
-      # TODO nonconforming orientation on interface for -interpolate_after_distribute 1
       # TODO It would be nice to have the same output here.
       suffix: 1_dist
       args: -distribute 1 -interpolate_after_distribute {{0 1}separate output}
@@ -613,8 +611,6 @@ int main(int argc, char **argv)
       suffix: 1_quad
       args: -cell_simplex 0 -distribute 0
     test:
-      # TODO DMPlexCheckFaces() fails for -interpolate_after_distribute 0
-      # TODO nonconforming orientation on interface for -interpolate_after_distribute 1
       # TODO It would be nice to have the same output here.
       suffix: 1_quad_dist
       args: -cell_simplex 0 -distribute 1 -interpolate_after_distribute {{0 1}separate output}
@@ -647,7 +643,6 @@ int main(int argc, char **argv)
       suffix: 5
       args: -distribute 0
     test:
-      # TODO nonconforming orientation on interface for -interpolate_after_distribute 1
       suffix: 5_dist
       args: -distribute 1 -interpolate_after_distribute {{0 1}}
 TEST*/

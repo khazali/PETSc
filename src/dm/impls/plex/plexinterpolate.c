@@ -1263,7 +1263,7 @@ PetscErrorCode DMPlexInterpolate(DM dm, DM *dmInt)
       odm = idm;
     }
     if (depth > 0) {
-      PetscBool flg = PETSC_FALSE;
+      PetscBool flg = PETSC_TRUE;
       ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_fix_cone_orientation", &flg, NULL);CHKERRQ(ierr);
       if (flg) {ierr = DMPlexFixConeOrientationOnInterfaces_Private(idm);CHKERRQ(ierr);}
     }
