@@ -141,6 +141,7 @@ typedef struct {
   PetscBool iad;                          /* Interpolate the mesh after DMPlexDistribute() */
   PetscBool ibd;                          /* Interpolate the mesh before DMPlexDistribute() */
   PetscBool useGenerator;                 /* Construct mesh with a mesh generator */
+  PetscBool hotfix;                       /* Use hotfix for bad edge orientation */
   char      filename[PETSC_MAX_PATH_LEN]; /* Import mesh from file */
 } AppCtx;
 
@@ -158,6 +159,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->distribute   = PETSC_FALSE;
   options->iad          = PETSC_FALSE;
   options->useGenerator = PETSC_FALSE;
+  options->hotfix       = PETSC_FALSE;
   options->filename[0]  = '\0';
 
   ierr = PetscOptionsBegin(comm, "", "Meshing Interpolation Test Options", "DMPLEX");CHKERRQ(ierr);
@@ -169,6 +171,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsBool("-interpolate", "Interpolate the mesh", "ex18.c", interpolate, &interpolate, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-interpolate_after_distribute", "Interpolate the mesh only after DMPlexDistribute()", "ex18.c", options->iad, &options->iad, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_generator", "Use a mesh generator to build the mesh", "ex18.c", options->useGenerator, &options->useGenerator, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-hotfix", "", "ex18.c", options->hotfix, &options->hotfix, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-filename", "The mesh file", "ex18.c", options->filename, options->filename, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
   if (interpolate) {
     options->iad = options->iad && options->distribute;
