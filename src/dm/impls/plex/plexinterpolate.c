@@ -869,7 +869,7 @@ PetscErrorCode PetscSectionExpandPoints(PetscSection origSection, MPI_Datatype d
 {
   PetscSection        s;
   const PetscInt      *points_;
-  PetscInt            i, n, npoints, size;
+  PetscInt            i, n, npoints, pStart, pEnd, size;
   PetscMPIInt         unitsize;
   PetscErrorCode      ierr;
 
@@ -877,9 +877,11 @@ PetscErrorCode PetscSectionExpandPoints(PetscSection origSection, MPI_Datatype d
   ierr = MPI_Type_size(dataType, &unitsize);CHKERRQ(ierr);
   ierr = ISGetLocalSize(points, &npoints);CHKERRQ(ierr);
   ierr = ISGetIndices(points, &points_);CHKERRQ(ierr);
+  ierr = PetscSectionGetChart(origSection, &pStart, &pEnd);CHKERRQ(ierr);
   ierr = PetscSectionCreate(PETSC_COMM_SELF, &s);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(s, 0, npoints);CHKERRQ(ierr);
   for (i=0; i<npoints; i++) {
+    if (PetscUnlikely(points_[i] < pStart || points_[i] >= pEnd)) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "point %d (index %d) in input IS out of input section's chart", points_[i], i);
     ierr = PetscSectionGetDof(origSection, points_[i], &n);CHKERRQ(ierr);
     if (!n && keepZeroDofs) n=1;
     ierr = PetscSectionSetDof(s, i, n);CHKERRQ(ierr);
