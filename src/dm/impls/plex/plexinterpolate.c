@@ -847,20 +847,25 @@ static PetscErrorCode DMPlexInterpolatePointSF(DM dm, PetscSF pointSF, PetscInt 
 
 #define PetscSectionExpandPoints_Loop(TYPE) \
 { \
-  PetscInt i, n, o0, o1; \
+  PetscInt i, n0, n1, o0, o1; \
   TYPE *a0 = (TYPE*)origArray, *a1; \
   ierr = PetscMalloc1(size, &a1);CHKERRQ(ierr); \
   for (i=0; i<npoints; i++) { \
     ierr = PetscSectionGetOffset(origSection, points_[i], &o0);CHKERRQ(ierr); \
     ierr = PetscSectionGetOffset(s, i, &o1);CHKERRQ(ierr); \
-    ierr = PetscSectionGetDof(s, i, &n);CHKERRQ(ierr); \
-    ierr = PetscMemcpy(&a1[o1], &a0[o0], n*unitsize);CHKERRQ(ierr); \
+    ierr = PetscSectionGetDof(origSection, points_[i], &n0);CHKERRQ(ierr); \
+    ierr = PetscSectionGetDof(s, i, &n1);CHKERRQ(ierr); \
+    if (keepZeroDofs && !n0) { \
+      a1[o1] = points_[i]; \
+    } else { \
+      ierr = PetscMemcpy(&a1[o1], &a0[o0], n1*unitsize);CHKERRQ(ierr); \
+    } \
   } \
   *newArray = (void*)a1; \
 }
 
 /* TODO add to PetscSection API */
-PetscErrorCode PetscSectionExpandPoints(PetscSection origSection, MPI_Datatype dataType, const void *origArray, IS points, PetscInt *newSize, PetscSection *newSection, void *newArray[])
+PetscErrorCode PetscSectionExpandPoints(PetscSection origSection, MPI_Datatype dataType, const void *origArray, IS points, PetscBool keepZeroDofs, PetscInt *newSize, PetscSection *newSection, void *newArray[])
 {
   PetscSection        s;
   const PetscInt      *points_;
@@ -876,6 +881,7 @@ PetscErrorCode PetscSectionExpandPoints(PetscSection origSection, MPI_Datatype d
   ierr = PetscSectionSetChart(s, 0, npoints);CHKERRQ(ierr);
   for (i=0; i<npoints; i++) {
     ierr = PetscSectionGetDof(origSection, points_[i], &n);CHKERRQ(ierr);
+    if (!n && keepZeroDofs) n=1;
     ierr = PetscSectionSetDof(s, i, n);CHKERRQ(ierr);
   }
   ierr = PetscSectionSetUp(s);CHKERRQ(ierr);
@@ -914,7 +920,7 @@ PetscErrorCode DMPlexGetCoordinatesTuple(DM dm, IS points, PetscSection *pCoordS
   ierr = DMGetCoordinateSection(dm, &cs);CHKERRQ(ierr);
   ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
   ierr = VecGetArrayRead(coords, &arr);CHKERRQ(ierr);
-  ierr = PetscSectionExpandPoints(cs, MPIU_SCALAR, arr, points, &n, pCoordSection, pCoord ? ((void**)&newarr) : NULL);CHKERRQ(ierr);
+  ierr = PetscSectionExpandPoints(cs, MPIU_SCALAR, arr, points, PETSC_FALSE, &n, pCoordSection, pCoord ? ((void**)&newarr) : NULL);CHKERRQ(ierr);
   ierr = VecRestoreArrayRead(coords, &arr);CHKERRQ(ierr);
   if (pCoord) {
     /* set array in two steps to mimic PETSC_OWN_POINTER */
@@ -936,7 +942,7 @@ PetscErrorCode DMPlexGetConesTuple(DM dm, IS points, PetscSection *pConesSection
   PetscFunctionBegin;
   ierr = DMPlexGetCones(dm, &cones);CHKERRQ(ierr);
   ierr = DMPlexGetConeSection(dm, &cs);CHKERRQ(ierr);
-  ierr = PetscSectionExpandPoints(cs, MPIU_INT, cones, points, &n, pConesSection, pCones ? ((void**)&newarr) : NULL);CHKERRQ(ierr);
+  ierr = PetscSectionExpandPoints(cs, MPIU_INT, cones, points, PETSC_FALSE, &n, pConesSection, pCones ? ((void**)&newarr) : NULL);CHKERRQ(ierr);
   if (pCones) {
     ierr = ISCreateGeneral(PetscObjectComm((PetscObject)points), n, newarr, PETSC_OWN_POINTER, pCones);CHKERRQ(ierr);
   }
