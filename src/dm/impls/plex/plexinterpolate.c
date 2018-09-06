@@ -1018,13 +1018,11 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode ExchangeISByRank_Private(PetscObject obj, PetscInt nsranks, const PetscMPIInt sranks[], IS sis[], PetscInt nrranks, const PetscMPIInt rranks[], IS *ris[])
+static PetscErrorCode ExchangeArrayByRank_Private(PetscObject obj, PetscInt nsranks, const PetscMPIInt sranks[], PetscInt ssize[], const PetscInt *sarr[], PetscInt nrranks, const PetscMPIInt rranks[], PetscInt *rsize_out[], PetscInt **rarr_out[])
 {
-  PetscInt n, r;
+  PetscInt r;
   PetscInt *rsize;
   PetscInt **rarr;
-  const PetscInt **sarr;
-  IS *ris_;
   MPI_Request *sreq, *rreq;
   PetscMPIInt tag;
   MPI_Comm comm;
@@ -1032,38 +1030,60 @@ static PetscErrorCode ExchangeISByRank_Private(PetscObject obj, PetscInt nsranks
 
   PetscFunctionBegin;
   ierr = PetscObjectGetComm(obj, &comm);CHKERRQ(ierr);
-  ierr = PetscMalloc5(nrranks, &rsize, nrranks, &rarr, nrranks, &rreq, nsranks, &sarr, nsranks, &sreq);CHKERRQ(ierr);
-  /* exchange IS size */
+  ierr = PetscMalloc2(nrranks, &rsize, nrranks, &rarr);CHKERRQ(ierr);
+  ierr = PetscMalloc2(nrranks, &rreq, nsranks, &sreq);CHKERRQ(ierr);
+  /* exchange array size */
   ierr = PetscObjectGetNewTag(obj,&tag);CHKERRQ(ierr);
   for (r=0; r<nrranks; r++) {
     ierr = MPI_Irecv(&rsize[r], 1, MPIU_INT, rranks[r], tag, comm, &rreq[r]);CHKERRQ(ierr);
   }
   for (r=0; r<nsranks; r++) {
-    ierr = ISGetLocalSize(sis[r], &n);CHKERRQ(ierr);
-    ierr = MPI_Isend(&n, 1, MPIU_INT, sranks[r], tag, comm, &sreq[r]);CHKERRQ(ierr);
+    ierr = MPI_Isend(&ssize[r], 1, MPIU_INT, sranks[r], tag, comm, &sreq[r]);CHKERRQ(ierr);
   }
   ierr = MPI_Waitall(nrranks, rreq, MPI_STATUSES_IGNORE);CHKERRQ(ierr);
-  /* exchange IS array */
+  /* exchange array */
   ierr = PetscObjectGetNewTag(obj,&tag);CHKERRQ(ierr);
-  ierr = PetscMalloc1(nrranks, &ris_);CHKERRQ(ierr);
   for (r=0; r<nrranks; r++) {
     ierr = PetscMalloc1(rsize[r], &rarr[r]);CHKERRQ(ierr);
     ierr = MPI_Irecv(rarr[r], rsize[r], MPIU_INT, rranks[r], tag, comm, &rreq[r]);CHKERRQ(ierr);
   }
   for (r=0; r<nsranks; r++) {
-    ierr = ISGetLocalSize(sis[r], &n);CHKERRQ(ierr);
-    ierr = ISGetIndices(sis[r], &sarr[r]);CHKERRQ(ierr);
-    ierr = MPI_Isend(sarr[r], n, MPIU_INT, sranks[r], tag, comm, &sreq[r]);CHKERRQ(ierr);
+    ierr = MPI_Isend(sarr[r], ssize[r], MPIU_INT, sranks[r], tag, comm, &sreq[r]);CHKERRQ(ierr);
   }
   ierr = MPI_Waitall(nrranks, rreq, MPI_STATUSES_IGNORE);CHKERRQ(ierr);
   ierr = MPI_Waitall(nsranks, sreq, MPI_STATUSES_IGNORE);CHKERRQ(ierr);
+  ierr = PetscFree2(rreq, sreq);CHKERRQ(ierr);
+  *rsize_out = rsize;
+  *rarr_out = rarr;
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode ExchangeISByRank_Private(PetscObject obj, PetscInt nsranks, const PetscMPIInt sranks[], IS sis[], PetscInt nrranks, const PetscMPIInt rranks[], IS *ris[])
+{
+  PetscInt r;
+  PetscInt *ssize, *rsize;
+  PetscInt **rarr;
+  const PetscInt **sarr;
+  IS *ris_;
+  MPI_Request *sreq, *rreq;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscMalloc4(nsranks, &ssize, nsranks, &sarr, nrranks, &rreq, nsranks, &sreq);CHKERRQ(ierr);
+  for (r=0; r<nsranks; r++) {
+    ierr = ISGetLocalSize(sis[r], &ssize[r]);CHKERRQ(ierr);
+    ierr = ISGetIndices(sis[r], &sarr[r]);CHKERRQ(ierr);
+  }
+  ierr = ExchangeArrayByRank_Private(obj, nsranks, sranks, ssize, sarr, nrranks, rranks, &rsize, &rarr);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nrranks, &ris_);CHKERRQ(ierr);
   for (r=0; r<nrranks; r++) {
     ierr = ISCreateGeneral(PETSC_COMM_SELF, rsize[r], rarr[r], PETSC_OWN_POINTER, &ris_[r]);CHKERRQ(ierr);
   }
   for (r=0; r<nsranks; r++) {
     ierr = ISRestoreIndices(sis[r], &sarr[r]);CHKERRQ(ierr);
   }
-  ierr = PetscFree5(rsize, rarr, rreq, sarr, sreq);CHKERRQ(ierr);
+  ierr = PetscFree2(rsize, rarr);CHKERRQ(ierr);
+  ierr = PetscFree4(ssize, sarr, rreq, sreq);CHKERRQ(ierr);
   *ris = ris_;
   PetscFunctionReturn(0);
 }
