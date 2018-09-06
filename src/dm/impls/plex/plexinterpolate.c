@@ -845,47 +845,73 @@ static PetscErrorCode DMPlexInterpolatePointSF(DM dm, PetscSF pointSF, PetscInt 
   PetscFunctionReturn(0);
 }
 
+#define PetscSectionExpandPoints_Loop(TYPE) \
+{ \
+  PetscInt i, n, o0, o1; \
+  TYPE *a0 = (TYPE*)origArray, *a1; \
+  ierr = PetscMalloc1(size, &a1);CHKERRQ(ierr); \
+  for (i=0; i<npoints; i++) { \
+    ierr = PetscSectionGetOffset(origSection, points_[i], &o0);CHKERRQ(ierr); \
+    ierr = PetscSectionGetOffset(s, i, &o1);CHKERRQ(ierr); \
+    ierr = PetscSectionGetDof(s, i, &n);CHKERRQ(ierr); \
+    ierr = PetscMemcpy(&a1[o1], &a0[o0], n*unitsize);CHKERRQ(ierr); \
+  } \
+  *newArray = (void*)a1; \
+}
+
+/* TODO add to PetscSection API */
+PetscErrorCode PetscSectionExpandPoints(PetscSection origSection, MPI_Datatype dataType, const void *origArray, IS points, PetscInt *newSize, PetscSection *newSection, void *newArray[])
+{
+  PetscSection        s;
+  const PetscInt      *points_;
+  PetscInt            i, n, npoints, size;
+  PetscMPIInt         unitsize;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  ierr = MPI_Type_size(dataType, &unitsize);CHKERRQ(ierr);
+  ierr = ISGetLocalSize(points, &npoints);CHKERRQ(ierr);
+  ierr = ISGetIndices(points, &points_);CHKERRQ(ierr);
+  ierr = PetscSectionCreate(PETSC_COMM_SELF, &s);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(s, 0, npoints);CHKERRQ(ierr);
+  for (i=0; i<npoints; i++) {
+    ierr = PetscSectionGetDof(origSection, points_[i], &n);CHKERRQ(ierr);
+    ierr = PetscSectionSetDof(s, i, n);CHKERRQ(ierr);
+  }
+  ierr = PetscSectionSetUp(s);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(s, &size);CHKERRQ(ierr);
+  if (newArray) {
+    switch (dataType) {
+      case MPIU_INT:      PetscSectionExpandPoints_Loop(PetscInt); break;
+      case MPIU_SCALAR:   PetscSectionExpandPoints_Loop(PetscScalar); break;
+      default: SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_SUP, "not implemented for datatype %d", dataType);
+    }
+  }
+  if (newSection) {
+    *newSection = s;
+  } else {
+    ierr = PetscSectionDestroy(&s);CHKERRQ(ierr);
+  }
+  if (newSize) *newSize = size;
+  PetscFunctionReturn(0);
+}
+
 /* TODO add to DMPlex API */
 PetscErrorCode DMPlexGetConesTuple(DM dm, IS pointsIS, PetscSection *iconesSection, IS *icones)
 {
-  PetscInt            npoints;
-  const PetscInt      *points;
-  PetscSection        cs, ics;
+  PetscSection        cs;
   PetscInt            *cones;
   PetscInt            *ic;
-  PetscInt            i, n, o, oi;
   PetscInt            nicones;
   PetscErrorCode      ierr;
 
   PetscFunctionBegin;
-  ierr = ISGetLocalSize(pointsIS, &npoints);CHKERRQ(ierr);
-  ierr = ISGetIndices(pointsIS, &points);CHKERRQ(ierr);
   ierr = DMPlexGetCones(dm, &cones);CHKERRQ(ierr);
   ierr = DMPlexGetConeSection(dm, &cs);CHKERRQ(ierr);
-  ierr = PetscSectionCreate(PetscObjectComm((PetscObject)pointsIS), &ics);CHKERRQ(ierr);
-  ierr = PetscSectionSetChart(ics, 0, npoints);CHKERRQ(ierr);
-  for (i=0; i<npoints; i++) {
-    ierr = PetscSectionGetDof(cs, points[i], &n);CHKERRQ(ierr);
-    ierr = PetscSectionSetDof(ics, i, n);CHKERRQ(ierr);
-  }
-  ierr = PetscSectionSetUp(ics);CHKERRQ(ierr);
+  ierr = PetscSectionExpandPoints(cs, MPIU_INT, cones, pointsIS, &nicones, iconesSection, icones ? ((void**)&ic) : NULL);CHKERRQ(ierr);
   if (icones) {
-    ierr = PetscSectionGetStorageSize(ics, &nicones);CHKERRQ(ierr);
-    ierr = PetscMalloc1(nicones, &ic);CHKERRQ(ierr);
-    for (i=0; i<npoints; i++) {
-      ierr = PetscSectionGetOffset(cs, points[i], &o);CHKERRQ(ierr);
-      ierr = PetscSectionGetOffset(ics, i, &oi);CHKERRQ(ierr);
-      ierr = PetscSectionGetDof(ics, i, &n);CHKERRQ(ierr);
-      ierr = PetscMemcpy(&ic[oi], &cones[o], n*sizeof(PetscInt));CHKERRQ(ierr);
-    }
     ierr = ISCreateGeneral(PetscObjectComm((PetscObject)pointsIS), nicones, ic, PETSC_OWN_POINTER, icones);CHKERRQ(ierr);
   }
-  if (iconesSection) {
-    *iconesSection = ics;
-  } else {
-    ierr = PetscSectionDestroy(&ics);CHKERRQ(ierr);
-  }
-  ierr = ISRestoreIndices(pointsIS, &points);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
