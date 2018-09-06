@@ -897,11 +897,39 @@ PetscErrorCode PetscSectionExpandPoints(PetscSection origSection, MPI_Datatype d
 }
 
 /* TODO add to DMPlex API */
+PetscErrorCode DMPlexGetCoordinatesTuple(DM dm, IS points, PetscSection *pCoordSection, Vec *pCoord)
+{
+  PetscSection        cs;
+  Vec                 coords;
+  const PetscScalar   *arr;
+  PetscScalar         *newarr=NULL;
+  PetscInt            n;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidHeaderSpecific(points, IS_CLASSID, 2);
+  if (pCoordSection) PetscValidPointer(pCoordSection, 3);
+  if (pCoord) PetscValidPointer(pCoord, 4);
+  ierr = DMGetCoordinateSection(dm, &cs);CHKERRQ(ierr);
+  ierr = DMGetCoordinatesLocal(dm, &coords);CHKERRQ(ierr);
+  ierr = VecGetArrayRead(coords, &arr);CHKERRQ(ierr);
+  ierr = PetscSectionExpandPoints(cs, MPIU_SCALAR, arr, points, &n, pCoordSection, pCoord ? ((void**)&newarr) : NULL);CHKERRQ(ierr);
+  ierr = VecRestoreArrayRead(coords, &arr);CHKERRQ(ierr);
+  if (pCoord) {
+    /* set array in two steps to mimic PETSC_OWN_POINTER */
+    ierr = VecCreateSeqWithArray(PetscObjectComm((PetscObject)points), 1, n, NULL, pCoord);CHKERRQ(ierr);
+    ierr = VecReplaceArray(*pCoord, newarr);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+/* TODO add to DMPlex API */
 PetscErrorCode DMPlexGetConesTuple(DM dm, IS points, PetscSection *pConesSection, IS *pCones)
 {
   PetscSection        cs;
   PetscInt            *cones;
-  PetscInt            *newarr;
+  PetscInt            *newarr=NULL;
   PetscInt            n;
   PetscErrorCode      ierr;
 
