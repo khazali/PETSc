@@ -77,6 +77,8 @@ PetscErrorCode  TSCreate(MPI_Comm comm, TS *ts)
   t->cfltime            = PETSC_MAX_REAL;
   t->cfltime_local      = PETSC_MAX_REAL;
 
+  t->num_rhs_splits     = 0;
+
   /* zeros pointers for Hessian callbacks */
   t->HF[0][0] = t->HF[0][1] = t->HF[0][2] = NULL;
   t->HF[1][0] = t->HF[1][1] = t->HF[1][2] = NULL;

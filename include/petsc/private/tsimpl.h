@@ -128,6 +128,15 @@ struct _p_TSTrajectory {
   void           *data;
 };
 
+typedef struct _TS_RHSSplitLink *TS_RHSSplitLink;
+struct _TS_RHSSplitLink {
+  TS              ts;
+  char            *splitname;
+  IS              is;
+  TS_RHSSplitLink next;
+  PetscLogEvent   event;
+};
+
 struct _p_TS {
   PETSCHEADER(struct _TSOps);
   TSProblemType  problem_type;
@@ -282,6 +291,10 @@ struct _p_TS {
   /* ------------------- Default work-area management ------------------ */
   PetscInt nwork;
   Vec      *work;
+
+  /* ---------------------- RHS splitting support ---------------------------------*/
+  PetscInt        num_rhs_splits;
+  TS_RHSSplitLink tsrhssplit;
 };
 
 struct _TSAdaptOps {

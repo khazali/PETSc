@@ -3,9 +3,9 @@ ALL: lib
 
 CFLAGS   =
 FFLAGS   =
-SOURCEC  = ts.c tscreate.c tsreg.c tsregall.c dlregists.c tseig.c tsobj.c \
+SOURCEC  = ts.c tscreate.c tsreg.c tsregall.c dlregists.c tseig.c tsrhssplit.c \
            tssplitjac.c tsgradhess.c tsadjointts.c tstlmts.c tspdeconstrainedutils.c \
-           tspropagator.c tshistory.c
+           tspropagator.c tshistory.c tsobj.c
 SOURCEF  =
 SOURCEH  =
 DIRS     = sensitivity
