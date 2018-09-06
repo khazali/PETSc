@@ -846,65 +846,46 @@ static PetscErrorCode DMPlexInterpolatePointSF(DM dm, PetscSF pointSF, PetscInt 
 }
 
 /* TODO add to DMPlex API */
-PetscErrorCode DMPlexGetConesTuple(MPI_Comm comm, DM dm, PetscInt npoints, const PetscInt points[], PetscSection *iconesSection, PetscInt *iconesSize, PetscInt *icones[])
+PetscErrorCode DMPlexGetConesTuple(DM dm, IS pointsIS, PetscSection *iconesSection, IS *icones)
 {
+  PetscInt            npoints;
+  const PetscInt      *points;
   PetscSection        cs, ics;
   PetscInt            *cones;
   PetscInt            *ic;
-  PetscInt            i, n, o, oi, p;
+  PetscInt            i, n, o, oi;
   PetscInt            nicones;
   PetscErrorCode      ierr;
 
   PetscFunctionBegin;
+  ierr = ISGetLocalSize(pointsIS, &npoints);CHKERRQ(ierr);
+  ierr = ISGetIndices(pointsIS, &points);CHKERRQ(ierr);
   ierr = DMPlexGetCones(dm, &cones);CHKERRQ(ierr);
   ierr = DMPlexGetConeSection(dm, &cs);CHKERRQ(ierr);
-  ierr = PetscSectionCreate(comm, &ics);CHKERRQ(ierr);
+  ierr = PetscSectionCreate(PetscObjectComm((PetscObject)pointsIS), &ics);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(ics, 0, npoints);CHKERRQ(ierr);
   for (i=0; i<npoints; i++) {
-    p = points[i];
-    ierr = PetscSectionGetDof(cs, p, &n);CHKERRQ(ierr);
+    ierr = PetscSectionGetDof(cs, points[i], &n);CHKERRQ(ierr);
     ierr = PetscSectionSetDof(ics, i, n);CHKERRQ(ierr);
   }
   ierr = PetscSectionSetUp(ics);CHKERRQ(ierr);
-  ierr = PetscSectionGetStorageSize(ics, &nicones);CHKERRQ(ierr);
-  ierr = PetscMalloc1(nicones, &ic);CHKERRQ(ierr);
-  for (i=0; i<npoints; i++) {
-    p = points[i];
-    ierr = PetscSectionGetOffset(cs, p, &o);CHKERRQ(ierr);
-    ierr = PetscSectionGetOffset(ics, i, &oi);CHKERRQ(ierr);
-    ierr = PetscSectionGetDof(ics, i, &n);CHKERRQ(ierr);
-    ierr = PetscMemcpy(&ic[oi], &cones[o], n*sizeof(PetscInt));CHKERRQ(ierr);
+  if (icones) {
+    ierr = PetscSectionGetStorageSize(ics, &nicones);CHKERRQ(ierr);
+    ierr = PetscMalloc1(nicones, &ic);CHKERRQ(ierr);
+    for (i=0; i<npoints; i++) {
+      ierr = PetscSectionGetOffset(cs, points[i], &o);CHKERRQ(ierr);
+      ierr = PetscSectionGetOffset(ics, i, &oi);CHKERRQ(ierr);
+      ierr = PetscSectionGetDof(ics, i, &n);CHKERRQ(ierr);
+      ierr = PetscMemcpy(&ic[oi], &cones[o], n*sizeof(PetscInt));CHKERRQ(ierr);
+    }
+    ierr = ISCreateGeneral(PetscObjectComm((PetscObject)pointsIS), nicones, ic, PETSC_OWN_POINTER, icones);CHKERRQ(ierr);
   }
   if (iconesSection) {
     *iconesSection = ics;
   } else {
     ierr = PetscSectionDestroy(&ics);CHKERRQ(ierr);
   }
-  if (iconesSize) *iconesSize = nicones;
-  if (icones) {
-    *icones = ic;
-  } else {
-    ierr = PetscFree(ic);CHKERRQ(ierr);
-  }
-  PetscFunctionReturn(0);
-}
-
-/* TODO add to DMPlex API */
-PetscErrorCode DMPlexGetConesTupleIS(DM dm, IS pointsIS, PetscSection *iconesSection, IS *iconesIS)
-{
-  PetscInt npoints, iconesSize;
-  const PetscInt *points;
-  PetscInt *icones;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = ISGetLocalSize(pointsIS, &npoints);CHKERRQ(ierr);
-  ierr = ISGetIndices(pointsIS, &points);CHKERRQ(ierr);
-  ierr = DMPlexGetConesTuple(PetscObjectComm((PetscObject)pointsIS), dm, npoints, points, iconesSection, &iconesSize, iconesIS ? &icones : NULL);CHKERRQ(ierr);
   ierr = ISRestoreIndices(pointsIS, &points);CHKERRQ(ierr);
-  if (iconesIS) {
-    ierr = ISCreateGeneral(PetscObjectComm((PetscObject)pointsIS), iconesSize, icones, PETSC_OWN_POINTER, iconesIS);CHKERRQ(ierr);
-  }
   PetscFunctionReturn(0);
 }
 
@@ -1081,7 +1062,7 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
     tmine = &rmine1[o];
     tremote = &rremote1[o];
     ierr = ISCreateGeneral(PETSC_COMM_SELF, n, tmine, PETSC_USE_POINTER, &sntPointsPerRank[r]);CHKERRQ(ierr);
-    ierr = DMPlexGetConesTupleIS(dm, sntPointsPerRank[r], &sntConesSectionPerRank[r], &sntConesPerRank[r]);CHKERRQ(ierr);
+    ierr = DMPlexGetConesTuple(dm, sntPointsPerRank[r], &sntConesSectionPerRank[r], &sntConesPerRank[r]);CHKERRQ(ierr);
     {
       AO ao;
       const PetscInt *sntConesPerRank_r_old;
@@ -1141,7 +1122,7 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
     ierr = PetscMalloc1(n, &tmine);CHKERRQ(ierr);
     for (i=0; i<n; i++) tmine[i] = mine_orig_numbering[irmine[o+i]];
     ierr = ISCreateGeneral(PETSC_COMM_SELF, n, tmine, PETSC_OWN_POINTER, &refPointsPerRank[r]);CHKERRQ(ierr);
-    ierr = DMPlexGetConesTupleIS(dm, refPointsPerRank[r], &refConesSectionPerRank[r], &refConesPerRank[r]);CHKERRQ(ierr);
+    ierr = DMPlexGetConesTuple(dm, refPointsPerRank[r], &refConesSectionPerRank[r], &refConesPerRank[r]);CHKERRQ(ierr);
   }
 
   /* send the cones */
