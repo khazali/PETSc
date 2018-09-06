@@ -768,6 +768,10 @@ PetscErrorCode PetscFEIntegrateResidual_OpenCL(PetscFE fem, PetscDS prob, PetscI
   PetscFunctionReturn(0);
 }
 
+PETSC_EXTERN PetscErrorCode PetscFESetUp_Basic(PetscFE);
+PETSC_EXTERN PetscErrorCode PetscFEGetTabulation_Basic(PetscFE, PetscInt, const PetscReal [],
+                                                       PetscReal *, PetscReal *, PetscReal *);
+
 PetscErrorCode PetscFEInitialize_OpenCL(PetscFE fem)
 {
   PetscFunctionBegin;
