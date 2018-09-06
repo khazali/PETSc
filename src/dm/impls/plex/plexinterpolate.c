@@ -897,20 +897,20 @@ PetscErrorCode PetscSectionExpandPoints(PetscSection origSection, MPI_Datatype d
 }
 
 /* TODO add to DMPlex API */
-PetscErrorCode DMPlexGetConesTuple(DM dm, IS pointsIS, PetscSection *iconesSection, IS *icones)
+PetscErrorCode DMPlexGetConesTuple(DM dm, IS points, PetscSection *pConesSection, IS *pCones)
 {
   PetscSection        cs;
   PetscInt            *cones;
-  PetscInt            *ic;
-  PetscInt            nicones;
+  PetscInt            *newarr;
+  PetscInt            n;
   PetscErrorCode      ierr;
 
   PetscFunctionBegin;
   ierr = DMPlexGetCones(dm, &cones);CHKERRQ(ierr);
   ierr = DMPlexGetConeSection(dm, &cs);CHKERRQ(ierr);
-  ierr = PetscSectionExpandPoints(cs, MPIU_INT, cones, pointsIS, &nicones, iconesSection, icones ? ((void**)&ic) : NULL);CHKERRQ(ierr);
-  if (icones) {
-    ierr = ISCreateGeneral(PetscObjectComm((PetscObject)pointsIS), nicones, ic, PETSC_OWN_POINTER, icones);CHKERRQ(ierr);
+  ierr = PetscSectionExpandPoints(cs, MPIU_INT, cones, points, &n, pConesSection, pCones ? ((void**)&newarr) : NULL);CHKERRQ(ierr);
+  if (pCones) {
+    ierr = ISCreateGeneral(PetscObjectComm((PetscObject)points), n, newarr, PETSC_OWN_POINTER, pCones);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
