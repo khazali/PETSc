@@ -624,9 +624,9 @@ int main(int argc, char **argv)
   ierr = CreateMesh(PETSC_COMM_WORLD, user.testNum, &user, &user.dm);CHKERRQ(ierr);
   ierr = DMPlexCheckSymmetry(user.dm);CHKERRQ(ierr);
   ierr = DMPlexCheckSkeleton(user.dm, user.cellSimplex, 0);CHKERRQ(ierr);
+  ierr = CheckPointSF(user.dm, &user);CHKERRQ(ierr);
   if (user.ibd || user.iad) {ierr = DMPlexCheckFaces(user.dm, user.cellSimplex, 0);CHKERRQ(ierr);}
   ierr = CheckMesh(user.dm, &user);CHKERRQ(ierr);
-  ierr = CheckPointSF(user.dm, &user);CHKERRQ(ierr);
   ierr = DMDestroy(&user.dm);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return ierr;
