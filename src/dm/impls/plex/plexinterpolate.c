@@ -951,6 +951,46 @@ PetscErrorCode DMPlexGetConesTuple(DM dm, IS points, PetscSection *pConesSection
   PetscFunctionReturn(0);
 }
 
+/* TODO add to DMPlex API */
+PetscErrorCode DMPlexGetConesRecursive(DM dm, IS points, IS *pCones)
+{
+  PetscSection        cs;
+  PetscInt            *cones;
+  const PetscInt      *arr=NULL;
+  PetscInt            *newarr=NULL;
+  PetscInt            n;
+  PetscInt            i, pStart, pEnd;
+  PetscBool           foundNonVertex;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  ierr = DMPlexGetCones(dm, &cones);CHKERRQ(ierr);
+  ierr = DMPlexGetConeSection(dm, &cs);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthStratum(dm, 0, &pStart, &pEnd);CHKERRQ(ierr);
+  ierr = ISGetLocalSize(points, &n);CHKERRQ(ierr);
+  ierr = ISGetIndices(points, &arr);CHKERRQ(ierr);
+  foundNonVertex = PETSC_FALSE;
+  for (i=0; i<n; i++) {
+    if (arr[i] < pStart || arr[i] >= pEnd) {
+      foundNonVertex = PETSC_TRUE;
+      break;
+    }
+  }
+  ierr = ISRestoreIndices(points, &arr);CHKERRQ(ierr);
+  if (foundNonVertex) {
+    IS newpoints;
+
+    ierr = PetscSectionExpandPoints(cs, MPIU_INT, cones, points, PETSC_TRUE, &n, NULL, (void**)&newarr);CHKERRQ(ierr);
+    ierr = ISCreateGeneral(PETSC_COMM_SELF, n, newarr, PETSC_OWN_POINTER, &newpoints);CHKERRQ(ierr);
+    ierr = DMPlexGetConesRecursive(dm, newpoints, pCones);CHKERRQ(ierr);
+    ierr = ISDestroy(&newpoints);CHKERRQ(ierr);
+  } else {
+    ierr = PetscObjectReference((PetscObject)points);CHKERRQ(ierr);
+    *pCones = points;
+  }
+  PetscFunctionReturn(0);
+}
+
 /* Compare cones of the master and slave face (with the same cone points modulo order), and return relative orientation of the slave. */
 /* TODO employ also in DMPlexInterpolate */
 static PetscErrorCode DMPlexOrientFace_Private(PetscInt coneSize, const PetscInt masterCone[], const PetscInt slaveCone[], PetscInt *orientation)
