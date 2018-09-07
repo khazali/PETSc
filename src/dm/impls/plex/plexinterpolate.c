@@ -1094,6 +1094,39 @@ static PetscErrorCode ExchangeISByRank_Private(PetscObject obj, PetscInt nsranks
   PetscFunctionReturn(0);
 }
 
+/* TODO VecExchangeBegin/End */
+static PetscErrorCode ExchangeVecByRank_Private(PetscObject obj, PetscInt nsranks, const PetscMPIInt sranks[], Vec svecs[], PetscInt nrranks, const PetscMPIInt rranks[], Vec *rvecs[])
+{
+  PetscInt r;
+  PetscInt *ssize, *rsize;
+  PetscScalar **rarr;
+  const PetscScalar **sarr;
+  Vec *rvecs_;
+  MPI_Request *sreq, *rreq;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscMalloc4(nsranks, &ssize, nsranks, &sarr, nrranks, &rreq, nsranks, &sreq);CHKERRQ(ierr);
+  for (r=0; r<nsranks; r++) {
+    ierr = VecGetLocalSize(svecs[r], &ssize[r]);CHKERRQ(ierr);
+    ierr = VecGetArrayRead(svecs[r], &sarr[r]);CHKERRQ(ierr);
+  }
+  ierr = ExchangeArrayByRank_Private(obj, MPIU_SCALAR, nsranks, sranks, ssize, (const void**)sarr, nrranks, rranks, &rsize, (void***)&rarr);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nrranks, &rvecs_);CHKERRQ(ierr);
+  for (r=0; r<nrranks; r++) {
+    /* set array in two steps to mimic PETSC_OWN_POINTER */
+    ierr = VecCreateSeqWithArray(PETSC_COMM_SELF, 1, rsize[r], NULL, &rvecs_[r]);CHKERRQ(ierr);
+    ierr = VecReplaceArray(rvecs_[r], rarr[r]);CHKERRQ(ierr);
+  }
+  for (r=0; r<nsranks; r++) {
+    ierr = VecRestoreArrayRead(svecs[r], &sarr[r]);CHKERRQ(ierr);
+  }
+  ierr = PetscFree2(rsize, rarr);CHKERRQ(ierr);
+  ierr = PetscFree4(ssize, sarr, rreq, sreq);CHKERRQ(ierr);
+  *rvecs = rvecs_;
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
 {
   PetscSF             sf;
