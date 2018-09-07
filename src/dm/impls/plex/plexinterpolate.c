@@ -1167,6 +1167,163 @@ static PetscErrorCode ExchangeVecByRank_Private(PetscObject obj, PetscInt nsrank
   PetscFunctionReturn(0);
 }
 
+/* TODO add to DMPlex API */
+PETSC_EXTERN PetscErrorCode DMPlexCheckConeOrientationOnInterfaces(DM);
+PetscErrorCode DMPlexCheckConeOrientationOnInterfaces(DM dm)
+{
+  PetscSF             sf;
+  PetscInt            nleaves, nranks, nroots;
+  const PetscInt      *mine, *roffset, *rmine, *rremote;
+  const PetscSFNode   *remote;
+  const PetscMPIInt   *ranks;
+  PetscSF             msf, imsf;
+  PetscInt            nileaves, niranks;
+  const PetscMPIInt   *iranks;
+  const PetscInt      *iroffset, *irmine, *irremote;
+  PetscInt            *rmine1, *rremote1; /* rmine and rremote copies simultaneously sorted by rank and rremote */
+  PetscInt            *tmine, *mine_orig_numbering;
+  const PetscInt      *degree;
+  IS                  sntPointsPerRank, sntConesPerRank;
+  Vec                 *sntCoordinatesPerRank;
+  IS                  refPointsPerRank, refConesPerRank;
+  Vec                 *refCoordinatesPerRank;
+  Vec                 *recCoordinatesPerRank;
+  PetscInt            i, j, k, n, o, r;
+  PetscMPIInt         commsize, myrank;
+  PetscBool           same;
+  MPI_Comm            comm;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  ierr = PetscObjectGetComm((PetscObject)dm, &comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm, &myrank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm, &commsize);CHKERRQ(ierr);
+  if (commsize < 2) PetscFunctionReturn(0);
+  ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
+  if (!sf) PetscFunctionReturn(0);
+  ierr = PetscSFGetGraph(sf, &nroots, &nleaves, &mine, &remote);CHKERRQ(ierr);
+  if (nroots < 0) PetscFunctionReturn(0);
+  ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
+  ierr = PetscSFGetRanks(sf, &nranks, &ranks, &roffset, &rmine, &rremote);CHKERRQ(ierr);
+
+  /* TODO: workaround for hang in DMGetCoordinates() (which is a bug since DMGetCoordinates() should be non-collective) */
+  {
+    Vec t;
+    ierr = DMGetCoordinatesLocal(dm, &t);
+  }
+
+PetscSequentialPhaseBegin(comm,1);
+PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF, "[%d] BEGIN Expand sent cones per rank\n",myrank);
+  /* Expand sent cones per rank */
+  ierr = PetscMalloc2(nleaves, &rmine1, nleaves, &rremote1);CHKERRQ(ierr);
+PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF, "[%d] #1\n",myrank);
+  for (r=0; r<nranks; r++) {
+    /* simultaneously sort rank-wise portions of rmine & rremote by values in rremote
+       - to unify order with the other side */
+    o = roffset[r];
+    n = roffset[r+1] - o;
+    ierr = PetscMemcpy(&rmine1[o], &rmine[o], n*sizeof(PetscInt));CHKERRQ(ierr);
+    ierr = PetscMemcpy(&rremote1[o], &rremote[o], n*sizeof(PetscInt));CHKERRQ(ierr);
+    ierr = PetscSortIntWithArray(n, &rremote1[o], &rmine1[o]);CHKERRQ(ierr);
+  }
+  ierr = PetscMalloc1(nranks, &sntCoordinatesPerRank);CHKERRQ(ierr);
+  for (r=0; r<nranks; r++) {
+    o = roffset[r];
+    n = roffset[r+1] - o;
+    tmine = &rmine1[o];
+    ierr = ISCreateGeneral(PETSC_COMM_SELF, n, tmine, PETSC_USE_POINTER, &sntPointsPerRank);CHKERRQ(ierr);
+ISView(sntPointsPerRank, PETSC_VIEWER_STDOUT_SELF);
+    ierr = DMPlexGetConesRecursive(dm, sntPointsPerRank, &sntConesPerRank);CHKERRQ(ierr);
+ISView(sntConesPerRank, PETSC_VIEWER_STDOUT_SELF);
+    ierr = DMPlexGetCoordinatesTuple(dm, sntConesPerRank, NULL, &sntCoordinatesPerRank[r]);CHKERRQ(ierr);
+VecView(sntCoordinatesPerRank[r], PETSC_VIEWER_STDOUT_SELF);
+    ierr = ISDestroy(&sntPointsPerRank);CHKERRQ(ierr);
+    ierr = ISDestroy(&sntConesPerRank);CHKERRQ(ierr);
+  }
+PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF, "[%d] END Expand sent cones per rank\n",myrank);
+PetscViewerFlush(PETSC_VIEWER_STDOUT_SELF);
+PetscSequentialPhaseEnd(comm,1);
+
+  /* Expand referenced cones per rank */
+  /* - compute root degrees (nonzero indicates referenced point) */
+  ierr = PetscSFComputeDegreeBegin(sf,&degree);CHKERRQ(ierr);
+  ierr = PetscSFComputeDegreeEnd(sf,&degree);CHKERRQ(ierr);
+
+  /* - create inverse SF */
+  ierr = PetscSFGetMultiSF(sf,&msf);CHKERRQ(ierr);
+  ierr = PetscSFCreateInverseSF(msf,&imsf);CHKERRQ(ierr);
+  ierr = PetscSFSetUp(imsf);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(imsf, NULL, &nileaves, NULL, NULL);CHKERRQ(ierr);
+  ierr = PetscSFGetRanks(imsf, &niranks, &iranks, &iroffset, &irmine, &irremote);CHKERRQ(ierr);
+
+  /* - compute original numbering of multi-roots (referenced points) */
+  ierr = PetscMalloc1(nileaves, &mine_orig_numbering);CHKERRQ(ierr);
+  for (i=0,j=0,k=0; i<nroots; i++) {
+    if (!degree[i]) continue;
+    for (j=0; j<degree[i]; j++,k++) {
+      mine_orig_numbering[k] = i;
+    }
+  }
+  if (PetscUnlikely(k != nileaves)) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"sanity check fail");
+
+PetscSequentialPhaseBegin(comm,1);
+PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF, "[%d] BEGIN Expand referenced cones per rank\n",myrank);
+  /* - expand cones per rank */
+  ierr = PetscMalloc1(niranks, &refCoordinatesPerRank);CHKERRQ(ierr);
+  for (r=0; r<niranks; r++) {
+    o = iroffset[r];
+    n = iroffset[r+1] - o;
+    ierr = PetscMalloc1(n, &tmine);CHKERRQ(ierr);
+    for (i=0; i<n; i++) tmine[i] = mine_orig_numbering[irmine[o+i]];
+    ierr = ISCreateGeneral(PETSC_COMM_SELF, n, tmine, PETSC_OWN_POINTER, &refPointsPerRank);CHKERRQ(ierr);
+ISView(refPointsPerRank, PETSC_VIEWER_STDOUT_SELF);
+    ierr = DMPlexGetConesRecursive(dm, refPointsPerRank, &refConesPerRank);CHKERRQ(ierr);
+ISView(refConesPerRank, PETSC_VIEWER_STDOUT_SELF);
+    ierr = DMPlexGetCoordinatesTuple(dm, refConesPerRank, NULL, &refCoordinatesPerRank[r]);CHKERRQ(ierr);
+VecView(refCoordinatesPerRank[r], PETSC_VIEWER_STDOUT_SELF);
+    ierr = ISDestroy(&refPointsPerRank);CHKERRQ(ierr);
+    ierr = ISDestroy(&refConesPerRank);CHKERRQ(ierr);
+  }
+PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF, "[%d] END Expand referenced cones per rank\n",myrank);
+PetscViewerFlush(PETSC_VIEWER_STDOUT_SELF);
+PetscSequentialPhaseEnd(comm,1);
+
+  /* Send the coordinates */
+  ierr = ExchangeVecByRank_Private((PetscObject)sf, nranks, ranks, sntCoordinatesPerRank, niranks, iranks, &recCoordinatesPerRank);CHKERRQ(ierr);
+
+for (r=0; r<niranks; r++) {
+  VecView(recCoordinatesPerRank[r], PETSC_VIEWER_STDOUT_SELF);
+}
+
+  /* Compare recCoordinatesPerRank with refCoordinatesPerRank */
+  for (r=0; r<niranks; r++) {
+    ierr = VecEqual(refCoordinatesPerRank[r], recCoordinatesPerRank[r], &same);CHKERRQ(ierr);
+    if (!same) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "interface cones do not conform for remote rank %d", iranks[r]);
+  }
+
+  /* destroy sent stuff */
+  for (r=0; r<nranks; r++) {
+    ierr = VecDestroy(&sntCoordinatesPerRank[r]);CHKERRQ(ierr);
+  }
+  ierr = PetscFree(sntCoordinatesPerRank);CHKERRQ(ierr);
+  ierr = PetscFree2(rmine1, rremote1);CHKERRQ(ierr);
+  ierr = PetscSFDestroy(&imsf);CHKERRQ(ierr);
+
+  /* destroy referenced stuff */
+  for (r=0; r<niranks; r++) {
+    ierr = VecDestroy(&refCoordinatesPerRank[r]);CHKERRQ(ierr);
+  }
+  ierr = PetscFree(refCoordinatesPerRank);CHKERRQ(ierr);
+  ierr = PetscFree(mine_orig_numbering);CHKERRQ(ierr);
+
+  /* destroy received stuff */
+  for (r=0; r<niranks; r++) {
+    ierr = VecDestroy(&recCoordinatesPerRank[r]);CHKERRQ(ierr);
+  }
+  ierr = PetscFree(recCoordinatesPerRank);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
 {
   PetscSF             sf;

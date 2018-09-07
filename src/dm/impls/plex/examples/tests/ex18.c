@@ -3,6 +3,9 @@ static char help[] = "Tests for parallel mesh loading\n\n";
 #include <petscdmplex.h>
 #include <petscsf.h>
 
+/* TODO add to DMPlex API */
+PETSC_EXTERN PetscErrorCode DMPlexCheckConeOrientationOnInterfaces(DM);
+
 /* List of test meshes
 
 Triangle
@@ -625,7 +628,10 @@ int main(int argc, char **argv)
   ierr = DMPlexCheckSymmetry(user.dm);CHKERRQ(ierr);
   ierr = DMPlexCheckSkeleton(user.dm, user.cellSimplex, 0);CHKERRQ(ierr);
   ierr = CheckPointSF(user.dm, &user);CHKERRQ(ierr);
-  if (user.ibd || user.iad) {ierr = DMPlexCheckFaces(user.dm, user.cellSimplex, 0);CHKERRQ(ierr);}
+  if (user.ibd || user.iad) {
+    ierr = DMPlexCheckFaces(user.dm, user.cellSimplex, 0);CHKERRQ(ierr);
+    ierr = DMPlexCheckConeOrientationOnInterfaces(user.dm);CHKERRQ(ierr);
+  }
   ierr = CheckMesh(user.dm, &user);CHKERRQ(ierr);
   ierr = DMDestroy(&user.dm);CHKERRQ(ierr);
   ierr = PetscFinalize();
