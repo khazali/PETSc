@@ -49,10 +49,8 @@
 
 #if defined(PETSC_USE_64BIT_INDICES)
 #define PetscInt integer8
-#define MPIU_INTEGER MPI_INTEGER8
 #else
 #define PetscInt integer4
-#define MPIU_INTEGER MPI_INTEGER
 #endif
 #define PetscInt64 integer8
 #if defined(PETSC_USING_F90) && !defined(PETSC_USE_FORTRANKIND)
