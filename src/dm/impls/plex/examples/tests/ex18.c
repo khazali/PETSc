@@ -675,7 +675,7 @@ int main(int argc, char **argv)
   testset:
     nsize: 2
     # TODO get rid of -hotfix
-    args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail -dm_plex_fix_cone_orientation 0 -hotfix
+    args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail
     test:
       # TODO point SF wrong - missing face
       suffix: 4
