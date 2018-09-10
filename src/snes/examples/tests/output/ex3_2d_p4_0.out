@@ -1,0 +1,4 @@
+L_2 Error: < 1.0e-11
+L_2 Residual: 4.85059e-14
+Linear L_2 Residual: 4.46869e-14
+Nonlinear solve converged due to CONVERGED_FNORM_RELATIVE iterations 1
