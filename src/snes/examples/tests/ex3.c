@@ -309,6 +309,6 @@ int main(int argc, char **argv)
   test:
     suffix: 2d_p4_0
     requires: triangle
-    args: -cells 2,2 -dm_plex_separate_marker -curved -potential_petscspace_order 4 -coords_petscspace_order 2 -dmsnes_check -snes_converged_reason -snes_error_if_not_converged -ksp_rtol 1e-10
+    args: -cells 2,2 -dm_plex_separate_marker -curved -potential_petscspace_degree 4 -coords_petscspace_degree 2 -dmsnes_check -snes_converged_reason -snes_error_if_not_converged -ksp_rtol 1e-10
 
 TEST*/
