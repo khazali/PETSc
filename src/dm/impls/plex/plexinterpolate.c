@@ -1045,6 +1045,7 @@ PETSC_STATIC_INLINE PetscErrorCode DMPlexFixFaceOrientations_TranslateBack_Priva
 {
   PetscFunctionBegin;
   if (coneSize < 3) {
+    /* edges just get flipped */
     *ornt = start ? -2 : 0;
   } else {
     *ornt = reverse ? -(start+1) : start;
