@@ -324,8 +324,9 @@ PetscErrorCode WashNetworkCleanUp(Wash wash,PetscInt *edgelist)
 
   PetscFunctionBegin;
   ierr = MPI_Comm_rank(wash->comm,&rank);CHKERRQ(ierr);
+  ierr = PetscFree(edgelist);CHKERRQ(ierr);
   if (!rank) {
-    ierr = PetscFree(edgelist);CHKERRQ(ierr);
+    //ierr = PetscFree(edgelist);CHKERRQ(ierr);
     ierr = PetscFree2(wash->junction,wash->pipe);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
@@ -539,7 +540,7 @@ int main(int argc,char ** argv)
   const PetscInt    *cone;
   DM                networkdm;
   PetscMPIInt       size,rank;
-  PetscReal         ftime = 20.0;
+  PetscReal         ftime = 1.0;
   Vec               X;
   TS                ts;
   PetscInt          steps;
@@ -547,8 +548,14 @@ int main(int argc,char ** argv)
   PetscBool         viewpipes,monipipes=PETSC_FALSE,userJac=PETSC_TRUE;
   PetscInt          pipesCase;
   DMNetworkMonitor  monitor;
+  MPI_Comm          comm;
+
+  PetscInt          nedges,nvertices; /* local num of edges and vertices */
+  PetscInt          *eowners,estart,eend;
+  PetscMPIInt       tag=0;
 
   ierr = PetscInitialize(&argc,&argv,(char*)0,help);if (ierr) return ierr;
+  comm = PETSC_COMM_WORLD;
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
   ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
 
@@ -565,7 +572,7 @@ int main(int argc,char ** argv)
   ierr = DMNetworkRegisterComponent(networkdm,"pipestruct",sizeof(struct _p_Pipe),&KeyPipe);CHKERRQ(ierr);
 
   /* Set global number of pipes, edges, and vertices */
-  pipesCase = 2;
+  pipesCase = 0;
   ierr = PetscOptionsGetInt(NULL,NULL, "-case", &pipesCase, NULL);CHKERRQ(ierr);
 
   ierr = WashNetworkCreate(PETSC_COMM_WORLD,pipesCase,&wash,&edgelist);CHKERRQ(ierr);
@@ -574,13 +581,95 @@ int main(int argc,char ** argv)
   junctions    = wash->junction;
   pipes       = wash->pipe;
 
+  //------------ new ----------------------
+  if (rank == 10) {
+    for (e=0; e<numEdges; e++) {
+      printf(" e[%d] %d -> %d \n",e,edgelist[2*e],edgelist[2*e+1]);
+    }
+  }
+
+  /* all processes get global and local number of edges */
+  ierr = MPI_Bcast(&numEdges,1,MPIU_INT,0,PETSC_COMM_WORLD);CHKERRQ(ierr);
+  nedges = numEdges/size; /* local nedges */
+  if (!rank) {
+    nedges += numEdges - size*(numEdges/size);
+  }
+  printf("[%d] nedges %d, numEdges %d\n",rank,nedges,numEdges);
+
+  ierr = PetscMalloc1(size+1,&eowners);CHKERRQ(ierr);
+  ierr = MPI_Allgather(&nedges,1,MPIU_INT,eowners+1,1,MPIU_INT,PETSC_COMM_WORLD);CHKERRQ(ierr);
+  eowners[0] = 0;
+  for (i=2; i<=size; i++) {
+    eowners[i] += eowners[i-1];
+  }
+  if (rank == 1) {
+    for (i=0; i<=size; i++) printf("eowners[%d] = %d\n",i,eowners[i]);
+  }
+  estart = eowners[rank];
+  eend   = eowners[rank+1];
+
+  /* distribute row block edgelist to all processors */
+  if (rank) {
+    ierr = PetscMalloc(eend-estart,&edgelist);CHKERRQ(ierr);
+  }
+  if (!rank) {
+    for (i=1; i<size; i++) {
+      //printf("[%d] send list %d to [%d]\n",rank,2*(eowners[i+1]-eowners[i]),i);
+      ierr = MPI_Send(edgelist+2*eowners[i],2*(eowners[i+1]-eowners[i]),MPIU_INT,i,tag,comm);CHKERRQ(ierr);
+    }
+  } else {
+    MPI_Status      status;
+    ierr = MPI_Recv(edgelist,2*(eend-estart),MPIU_INT,0,tag,comm,&status);CHKERRQ(ierr);
+    /*
+    for (i=0; i< eend-estart; i++) {
+      printf("[%d] recv %d ---> %d\n",rank,edgelist[2*i],edgelist[2*i+1]);
+     } */
+  }
+
+  /* all processes get global and local number of vertices */
+  PetscInt *nvtx,*vtxDone;
+  ierr = PetscCalloc2(size,&nvtx,numVertices,&vtxDone);CHKERRQ(ierr);
+  if (!rank) {
+    for (i=0; i<size; i++) {
+      for (e=eowners[i]; e<eowners[i+1]; e++) {
+        v = edgelist[2*e];
+        if (!vtxDone[v]) {
+          nvtx[i]++; vtxDone[v] = 1;
+        }
+        v = edgelist[2*e+1];
+        if (!vtxDone[v]) {
+          nvtx[i]++; vtxDone[v] = 1;
+        }
+      }
+    }
+    //printf("nvtx:\n");
+    //for (i=0; i<size; i++) printf(" %d, ",nvtx[i]);
+    //printf("\n");
+  }
+  ierr = MPI_Bcast(&numVertices,1,MPIU_INT,0,PETSC_COMM_WORLD);CHKERRQ(ierr);
+  ierr = MPI_Scatter(nvtx,1,MPIU_INT,&nvertices,1,MPIU_INT,0,PETSC_COMM_WORLD);CHKERRQ(ierr);
+  printf("[%d] nvtx %d, numVertices %d\n",rank,nvertices,numVertices);
+
+  ierr = PetscFree2(nvtx,vtxDone);CHKERRQ(ierr);
+  ierr = PetscFree(eowners);CHKERRQ(ierr);
+
+  //------------ end of new ----------------------
+
   /* Set number of vertices and edges */
-  ierr = DMNetworkSetSizes(networkdm,1,0,&numVertices,&numEdges,NULL,NULL);CHKERRQ(ierr);
-  /* Add edge connectivity */
+  if (!rank) { //RM later!!!
+    nvertices = numVertices; nedges = numEdges;
+  } else {
+    nvertices = 0; nedges = 0;
+  }
+  ierr = DMNetworkSetSizes(networkdm,1,0,&nvertices,&nedges,NULL,NULL);CHKERRQ(ierr);
+
+  /* Add local edge connectivity */
   edgelists[0] = edgelist;
   ierr = DMNetworkSetEdgeList(networkdm,edgelists,NULL);CHKERRQ(ierr);
+
   /* Set up the network layout */
   ierr = DMNetworkLayoutSetUp(networkdm);CHKERRQ(ierr);
+  ierr = DMView(networkdm,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
   /* Add EDGEDATA component to all edges -- currently networkdm is a sequential network */
   ierr = DMNetworkGetEdgeRange(networkdm,&eStart,&eEnd);CHKERRQ(ierr);

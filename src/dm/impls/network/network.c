@@ -61,6 +61,8 @@ PetscErrorCode DMNetworkSetSizes(DM dm,PetscInt Nsubnet,PetscInt NsubnetCouple,P
   if (Nsubnet > 0) PetscValidLogicalCollectiveInt(dm,Nsubnet,2);
   if (network->nsubnet != 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Network sizes alread set, cannot resize the network");
 
+  if (!nV || !nE) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_NULL,"Local vertex size or edge size must be provided");
+
   network->nsubnet  = Nsubnet + NsubnetCouple;
   Nsubnet          += NsubnetCouple;
   network->ncsubnet = NsubnetCouple;
@@ -177,6 +179,12 @@ PetscErrorCode DMNetworkLayoutSetUp(DM dm)
   PetscInt       *edgelist_couple=NULL;
 
   PetscFunctionBegin;
+  MPI_Comm          comm;
+  PetscMPIInt       size,rank;
+  ierr = PetscObjectGetComm((PetscObject)dm,&comm);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(comm,&rank);CHKERRQ(ierr);
+  ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
+
   if (network->nVertices) {
     ierr = PetscCalloc1(numCorners*network->nVertices,&vertexcoords);CHKERRQ(ierr);
   }
@@ -208,10 +216,13 @@ PetscErrorCode DMNetworkLayoutSetUp(DM dm)
     i++;
   }
 
-#if 0
-  for(i=0; i < network->nEdges; i++) {
-    ierr = PetscPrintf(PETSC_COMM_SELF,"[%D %D]",network->edges[2*i],network->edges[2*i+1]);CHKERRQ(ierr);
-    printf("\n");
+#if 1
+  if (rank == 0) {
+    ierr = PetscPrintf(PETSC_COMM_SELF,"[%d] edgelist:\n",rank);
+    for(i=0; i < network->nEdges; i++) {
+      ierr = PetscPrintf(PETSC_COMM_SELF,"[%D %D]",network->edges[2*i],network->edges[2*i+1]);CHKERRQ(ierr);
+      printf("\n");
+    }
   }
 #endif
 
@@ -227,7 +238,7 @@ PetscErrorCode DMNetworkLayoutSetUp(DM dm)
     ierr = PetscFree(edges);
   }
 #else
-    ierr = DMPlexCreateFromCellList(PetscObjectComm((PetscObject)dm),dim,network->nEdges,network->nVertices,numCorners,PETSC_FALSE,network->edges,spacedim,vertexcoords,&network->plex);CHKERRQ(ierr);
+  ierr = DMPlexCreateFromCellList(PetscObjectComm((PetscObject)dm),dim,network->nEdges,network->nVertices,numCorners,PETSC_FALSE,network->edges,spacedim,vertexcoords,&network->plex);CHKERRQ(ierr); //crash!!!
  #endif
 
   if (network->nVertices) {
@@ -1885,9 +1896,34 @@ PetscErrorCode DMView_Network(DM dm,PetscViewer viewer)
 {
   PetscErrorCode ierr;
   DM_Network     *network = (DM_Network*)dm->data;
+  PetscBool      iascii;
+  PetscMPIInt    rank;
+  PetscInt       p,nsubnet,i;
+  PetscInt       *edgelist;
 
   PetscFunctionBegin;
-  ierr = DMView(network->plex,viewer);CHKERRQ(ierr);
+  ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)dm),&rank);CHKERRQ(ierr);
+  PetscValidHeaderSpecific(dm,DM_CLASSID, 1);
+  PetscValidHeaderSpecific(viewer, PETSC_VIEWER_CLASSID, 2);
+  ierr = PetscObjectTypeCompare((PetscObject)viewer,PETSCVIEWERASCII,&iascii);CHKERRQ(ierr);
+  if (iascii) {
+    nsubnet = network->nsubnet - network->ncsubnet; /* num of subnetworks */
+    ierr = PetscViewerASCIIPushSynchronized(viewer);CHKERRQ(ierr);
+    ierr = PetscViewerASCIISynchronizedPrintf(viewer, "  [%d] nEdges: %D, nVertices: %D, nsubnet: %D\n",rank,network->nEdges,network->nVertices,nsubnet);CHKERRQ(ierr);
+    for(i=0; i < nsubnet; i++) {
+      edgelist = network->subnet[i].edgelist;
+      if (edgelist) {
+        ierr = PetscViewerASCIISynchronizedPrintf(viewer, "    [%d]: %D-subnet:\n",rank,i);CHKERRQ(ierr);
+        for (p = network->subnet[i].eStart; p < network->subnet[i].eEnd; p++) {
+          ierr = PetscViewerASCIISynchronizedPrintf(viewer, "     [%d]: %D ----> %D\n",rank,edgelist[2*p],edgelist[2*p+1]);CHKERRQ(ierr);
+        }
+      }
+    }
+
+    ierr = PetscViewerFlush(viewer);CHKERRQ(ierr);
+    ierr = PetscViewerASCIIPopSynchronized(viewer);CHKERRQ(ierr);
+
+  } else SETERRQ1(PetscObjectComm((PetscObject) dm), PETSC_ERR_SUP, "Viewer type %s not yet supported for DMNetwork writing", ((PetscObject)viewer)->type_name);
   PetscFunctionReturn(0);
 }
 

@@ -263,7 +263,7 @@ PetscErrorCode DMInitialize_Network(DM dm)
 
   PetscFunctionBegin;
 
-  dm->ops->view                            = NULL;
+  dm->ops->view                            = DMView_Network;
   dm->ops->setfromoptions                  = DMSetFromOptions_Network;
   dm->ops->clone                           = DMClone_Network;
   dm->ops->setup                           = DMSetUp_Network;
