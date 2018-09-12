@@ -260,6 +260,68 @@ static PetscErrorCode DMPlexGetFacesHybrid_Internal(DM dm, PetscInt dim, PetscIn
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode AreAllConePointsInArray_Private(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points, PetscBool *flg)
+{
+  PetscInt i,l,n;
+  const PetscInt *cone;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  *flg = PETSC_TRUE;
+  ierr = DMPlexGetConeSize(dm, p, &n);CHKERRQ(ierr);
+  ierr = DMPlexGetCone(dm, p, &cone);CHKERRQ(ierr);
+  for (i=0; i<n; i++) {
+    ierr = PetscFindInt(cone[i], npoints, points, &l);CHKERRQ(ierr);
+    if (l < 0) {
+      *flg = PETSC_FALSE;
+      break;
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+/* TODO this is hotfix only that should be replace by actual fix */
+static PetscErrorCode DMPlexHotfixInterpolatedPointSF_Private(DM dm)
+{
+  PetscSF sf;
+  PetscInt i,p;
+  PetscInt nroots,nleaves,nleaves1;
+  const PetscInt *ilocal;
+  const PetscSFNode *iremote;
+  PetscInt *ilocal1;
+  PetscSFNode *iremote1;
+  PetscBool flg;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
+  ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(sf, &nroots, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
+  ierr = PetscMalloc2(nleaves, &ilocal1, nleaves, &iremote1);CHKERRQ(ierr);
+  ierr = PetscMemcpy(ilocal1, ilocal, nleaves*sizeof(PetscInt));CHKERRQ(ierr);
+  ierr = PetscMemcpy(iremote1, iremote, nleaves*sizeof(PetscSFNode));CHKERRQ(ierr);
+  nleaves1 = nleaves;
+
+  /* 1) if some point p is in interface, then all its cone points must be also in interface  */
+  for (i=0; i<nleaves; i++) {
+    p = ilocal1[i];
+    ierr = AreAllConePointsInArray_Private(dm, p, nleaves1, ilocal1, &flg);CHKERRQ(ierr);
+    if (!flg) {
+      /* remove p - shift all following points one position back */
+      ierr = PetscMemmove(&ilocal1[i], &ilocal1[i+1], (nleaves1-(i+1))*sizeof(PetscInt));CHKERRQ(ierr);
+      ierr = PetscMemmove(&iremote1[i], &iremote1[i+1], (nleaves1-(i+1))*sizeof(PetscSFNode));CHKERRQ(ierr);
+      nleaves1--;
+      i--;
+    }
+  }
+
+  ierr = PetscSFSetGraph(sf, nroots, nleaves1, ilocal1, PETSC_COPY_VALUES, iremote1, PETSC_COPY_VALUES);CHKERRQ(ierr);
+  ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
+  ierr = PetscObjectViewFromOptions((PetscObject)sf,NULL,"-fixed_sf_view");CHKERRQ(ierr);
+  ierr = PetscFree2(ilocal1, iremote1);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* This interpolates faces for cells at some stratum */
 static PetscErrorCode DMPlexInterpolateFaces_Internal(DM dm, PetscInt cellDepth, DM idm)
 {
@@ -1658,10 +1720,13 @@ PetscErrorCode DMPlexInterpolate(DM dm, DM *dmInt)
       odm = idm;
     }
 
-    /* TODO dirty hotfix for ex18 */
     {
       PetscBool flg=PETSC_FALSE;
+      PetscBool flg1=PETSC_FALSE;
       ierr = PetscOptionsGetBool(NULL, NULL, "-hotfix", &flg, NULL);CHKERRQ(ierr);
+      ierr = PetscOptionsGetBool(NULL, NULL, "-hotfix1", &flg1, NULL);CHKERRQ(ierr);
+      if (flg || flg1) {ierr = DMPlexHotfixInterpolatedPointSF_Private(idm);CHKERRQ(ierr);}
+      if (flg) {ierr = PetscOptionsGetBool(NULL, NULL, "-cell_simplex", &flg, NULL);CHKERRQ(ierr);}
       if (flg) {
         PetscSF sf;
         PetscInt nroots,nleaves;
@@ -1673,28 +1738,17 @@ PetscErrorCode DMPlexInterpolate(DM dm, DM *dmInt)
         ierr = MPI_Comm_rank(PetscObjectComm((PetscObject)idm),&rank);CHKERRQ(ierr);
         ierr = DMGetPointSF(idm, &sf);CHKERRQ(ierr);
         ierr = PetscSFGetGraph(sf, &nroots, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
-        ierr = PetscOptionsGetBool(NULL, NULL, "-cell_simplex", &flg, NULL);CHKERRQ(ierr);
         if (!rank) {
-          if (flg) {
-            ierr = PetscMalloc1(nleaves+1, &ilocal1);CHKERRQ(ierr);
-            ierr = PetscMalloc1(nleaves+1, &iremote1);CHKERRQ(ierr);
-            ierr = PetscMemcpy(ilocal1, ilocal, 3*sizeof(PetscInt));CHKERRQ(ierr);
-            ierr = PetscMemcpy(iremote1, iremote, 3*sizeof(PetscSFNode));CHKERRQ(ierr);
-            ilocal1[3] = 8;
-            iremote1[3].rank = 1;
-            iremote1[3].index = 6;
-            ierr = PetscMemcpy(ilocal1+4, ilocal+3, 3*sizeof(PetscInt));CHKERRQ(ierr);
-            ierr = PetscMemcpy(iremote1+4, iremote+3, 3*sizeof(PetscSFNode));CHKERRQ(ierr);
-            ierr = PetscSFSetGraph(sf, nroots, nleaves+1, ilocal1, PETSC_OWN_POINTER, iremote1, PETSC_OWN_POINTER);CHKERRQ(ierr);
-          } else {
-            ierr = PetscMalloc1(nleaves-1, &ilocal1);CHKERRQ(ierr);
-            ierr = PetscMalloc1(nleaves-1, &iremote1);CHKERRQ(ierr);
-            ierr = PetscMemcpy(ilocal1, ilocal, 5*sizeof(PetscInt));CHKERRQ(ierr);
-            ierr = PetscMemcpy(iremote1, iremote, 5*sizeof(PetscSFNode));CHKERRQ(ierr);
-            ierr = PetscMemcpy(ilocal1+5, ilocal+6, 4*sizeof(PetscInt));CHKERRQ(ierr);
-            ierr = PetscMemcpy(iremote1+5, iremote+6, 4*sizeof(PetscSFNode));CHKERRQ(ierr);
-            ierr = PetscSFSetGraph(sf, nroots, nleaves-1, ilocal1, PETSC_OWN_POINTER, iremote1, PETSC_OWN_POINTER);CHKERRQ(ierr);
-          }
+          ierr = PetscMalloc1(nleaves+1, &ilocal1);CHKERRQ(ierr);
+          ierr = PetscMalloc1(nleaves+1, &iremote1);CHKERRQ(ierr);
+          ierr = PetscMemcpy(ilocal1, ilocal, 3*sizeof(PetscInt));CHKERRQ(ierr);
+          ierr = PetscMemcpy(iremote1, iremote, 3*sizeof(PetscSFNode));CHKERRQ(ierr);
+          ilocal1[3] = 8;
+          iremote1[3].rank = 1;
+          iremote1[3].index = 6;
+          ierr = PetscMemcpy(ilocal1+4, ilocal+3, 3*sizeof(PetscInt));CHKERRQ(ierr);
+          ierr = PetscMemcpy(iremote1+4, iremote+3, 3*sizeof(PetscSFNode));CHKERRQ(ierr);
+          ierr = PetscSFSetGraph(sf, nroots, nleaves+1, ilocal1, PETSC_OWN_POINTER, iremote1, PETSC_OWN_POINTER);CHKERRQ(ierr);
         } else {
           ierr = PetscSFSetGraph(sf, nroots, nleaves, ilocal, PETSC_OWN_POINTER, iremote, PETSC_OWN_POINTER);CHKERRQ(ierr);
         }
