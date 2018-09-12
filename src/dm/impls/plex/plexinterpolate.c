@@ -1004,36 +1004,61 @@ PetscErrorCode DMPlexGetConesRecursive(DM dm, IS points, IS *pCones)
 }
 
 /* Compare cones of the master and slave face (with the same cone points modulo order), and return relative orientation of the slave. */
-/* TODO employ also in DMPlexInterpolate */
-static PetscErrorCode DMPlexOrientFace_Private(PetscInt coneSize, const PetscInt masterCone[], const PetscInt slaveCone[], PetscInt *orientation)
+PETSC_STATIC_INLINE PetscErrorCode DMPlexFixFaceOrientations_Orient_Private(PetscInt coneSize, const PetscInt masterCone[], const PetscInt slaveCone[], PetscInt *start, PetscBool *reverse)
 {
-  PetscInt        ornt, i, j;
+  PetscInt        i;
 
   PetscFunctionBegin;
-  /* - First find the initial vertex */
-  for (i = 0; i < coneSize; ++i) if (masterCone[0] == slaveCone[i]) break;
-  /* - Try forward comparison */
-  for (j = 0; j < coneSize; ++j) if (masterCone[j] != slaveCone[(i+j)%coneSize]) break;
-  if (j == coneSize) {
-    if ((coneSize == 2) && (i == 1)) ornt = -2;
-    else                             ornt = i;
-  } else {
-    /* - Try backward comparison */
-    for (j = 0; j < coneSize; ++j) if (masterCone[j] != slaveCone[(i+coneSize-j)%coneSize]) break;
-    if (j == coneSize) {
-      if (i == 0) ornt = -coneSize;
-      else        ornt = -i;
-    } else SETERRQ(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Could not determine face orientation");
+  for (i=0; i<coneSize; i++) {
+    if (slaveCone[i] == masterCone[0]) {
+      *start = i;
+      break;
+    }
   }
-  *orientation = ornt;
+  if (PetscUnlikely(i==coneSize)) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_INCOMP, "starting point of master cone not found in slave cone");
+  *reverse = PETSC_FALSE;
+  for (i=1; i<coneSize; i++) {if (slaveCone[((*start)+i)%coneSize] != masterCone[i]) break;}
+  if (i == coneSize) PetscFunctionReturn(0);
+  *reverse = PETSC_TRUE;
+  for (i=1; i<coneSize; i++) {if (slaveCone[((*start)-i)%coneSize] != masterCone[i]) break;}
+  if (i < coneSize) SETERRQ(PETSC_COMM_SELF, PETSC_ERR_ARG_INCOMP, "master and slave cone have non-conforming order of points");
+  PetscFunctionReturn(0);
+}
+
+PETSC_STATIC_INLINE PetscErrorCode DMPlexFixFaceOrientations_Translate_Private(PetscInt ornt, PetscInt *start, PetscBool *reverse)
+{
+  PetscFunctionBegin;
+  *reverse = (ornt < 0) ? PETSC_TRUE : PETSC_FALSE;
+  *start = *reverse ? -(ornt+1) : ornt;
+  PetscFunctionReturn(0);
+}
+
+PETSC_STATIC_INLINE PetscErrorCode DMPlexFixFaceOrientations_Combine_Private(PetscInt coneSize, PetscInt start0, PetscBool reverse0, PetscInt start1, PetscBool reverse1, PetscInt *start, PetscBool *reverse)
+{
+  PetscFunctionBegin;
+  *reverse = (reverse0 == reverse1) ? PETSC_FALSE : PETSC_TRUE;
+  *start = ((start0 + start1) % coneSize);
+  PetscFunctionReturn(0);
+}
+
+PETSC_STATIC_INLINE PetscErrorCode DMPlexFixFaceOrientations_TranslateBack_Private(PetscInt coneSize, PetscInt start, PetscBool reverse, PetscInt *ornt)
+{
+  PetscFunctionBegin;
+  if (coneSize < 3) {
+    *ornt = start ? -2 : 0;
+  } else {
+    *ornt = reverse ? -(start+1) : start;
+  }
   PetscFunctionReturn(0);
 }
 
 static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscSection coneSection, IS correctCones, IS wrongCones)
 {
-  PetscInt j,k,n, o, p, q, pStart, pEnd, supportSize, coneSize;
+  PetscInt i, j, k, n, o, p, q, pStart, pEnd, coneSize, supportSize, supportConeSize;
+  PetscInt start0, start1, start;
+  PetscBool reverse0, reverse1, reverse;
   PetscInt newornt;
-  const PetscInt *correctCones_, *wrongCones_, *points_, *support, *cone, *ornts;
+  const PetscInt *correctCones_, *wrongCones_, *points_, *support, *supportCone, *ornts;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -1046,23 +1071,39 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
     ierr = PetscSectionGetDof(coneSection, p, &n);CHKERRQ(ierr);
     if (!n) continue; /* do nothing for points with no cone */
     ierr = PetscSectionGetOffset(coneSection, p, &o);CHKERRQ(ierr);
-    ierr = DMPlexOrientFace_Private(n, &correctCones_[o], &wrongCones_[o], &newornt);CHKERRQ(ierr);
-    if (newornt) {
+    ierr = DMPlexFixFaceOrientations_Orient_Private(n, &correctCones_[o], &wrongCones_[o], &start1, &reverse1);CHKERRQ(ierr);
+    if (start1 || reverse1) {
       q = points_[p];
+      ierr = DMPlexGetConeSize(dm, q, &coneSize);CHKERRQ(ierr);
+      /* permute orientations */
+      {
+        const PetscInt *ornts;
+        PetscInt *newornts;
+        ierr = DMPlexGetConeOrientation(dm, q, &ornts);CHKERRQ(ierr);
+        ierr = PetscMalloc1(coneSize, &newornts);CHKERRQ(ierr);
+        if (reverse1) {for (i=0; i<coneSize; i++) newornts[(start1-i)%coneSize] = ornts[i];}
+        else          {for (i=0; i<coneSize; i++) newornts[(start1+i)%coneSize] = ornts[i];}
+        ierr = DMPlexSetConeOrientation(dm, q, newornts);CHKERRQ(ierr);
+        ierr = PetscFree(newornts);CHKERRQ(ierr);
+      }
+      /* fix oriention of q within cones of q's support points */
       ierr = DMPlexGetSupport(dm, q, &support);CHKERRQ(ierr);
       ierr = DMPlexGetSupportSize(dm, q, &supportSize);CHKERRQ(ierr);
       for (j=0; j<supportSize; j++) {
-        ierr = DMPlexGetCone(dm, support[j], &cone);CHKERRQ(ierr);
-        ierr = DMPlexGetConeSize(dm, support[j], &coneSize);CHKERRQ(ierr);
+        ierr = DMPlexGetCone(dm, support[j], &supportCone);CHKERRQ(ierr);
+        ierr = DMPlexGetConeSize(dm, support[j], &supportConeSize);CHKERRQ(ierr);
         ierr = DMPlexGetConeOrientation(dm, support[j], &ornts);CHKERRQ(ierr);
-        for (k=0; k<coneSize; k++) {
-          if (cone[k] == q) {
-            if (ornts[k]) SETERRQ4(PETSC_COMM_SELF,PETSC_ERR_SUP,"interface point %d has nonzero orientation %d within cone of %d (cone local index %d) - this was not anticipated and is currently not supported (shouldn't be a big deal, though)", q, ornts[k], support[j], k);
+        for (k=0; k<supportConeSize; k++) {
+          if (supportCone[k] == q) {
+            ierr = DMPlexFixFaceOrientations_Translate_Private(ornts[k], &start0, &reverse0);CHKERRQ(ierr);
+            ierr = DMPlexFixFaceOrientations_Combine_Private(coneSize, start0, reverse0, start1, reverse1, &start, &reverse);CHKERRQ(ierr);
+            ierr = DMPlexFixFaceOrientations_TranslateBack_Private(coneSize, start, reverse, &newornt);CHKERRQ(ierr);
             ierr = DMPlexInsertConeOrientation(dm, support[j], k, newornt);CHKERRQ(ierr);
-            ierr = DMPlexSetCone(dm, q, &correctCones_[o]);CHKERRQ(ierr);
           }
         }
       }
+      /* rewrite cone */
+      ierr = DMPlexSetCone(dm, q, &correctCones_[o]);CHKERRQ(ierr);
     }
   }
 
@@ -1350,6 +1391,10 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
   if (nroots < 0) PetscFunctionReturn(0);
   ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
   ierr = PetscSFGetRanks(sf, &nranks, &ranks, &roffset, &rmine, &rremote);CHKERRQ(ierr);
+
+  {
+    ierr = DMViewFromOptions(dm, NULL, "-before_fix_dm_view");CHKERRQ(ierr);
+  }
 
   /* Expand sent cones per rank */
   ierr = PetscMalloc2(nleaves, &rmine1, nleaves, &rremote1);CHKERRQ(ierr);
