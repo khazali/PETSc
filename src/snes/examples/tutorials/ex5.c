@@ -101,12 +101,8 @@ int main(int argc,char **argv)
   PetscReal      bratu_lambda_max = 6.81;
   PetscReal      bratu_lambda_min = 0.;
   PetscInt       MMS              = 0;
-  PetscBool      flg              = PETSC_FALSE;
+  PetscBool      flg;
   DM             da;
-#if defined(PETSC_HAVE_MATLAB_ENGINE)
-  Vec            r               = NULL;
-  PetscBool      matlab_function = PETSC_FALSE;
-#endif
   KSP            ksp;
   PetscInt       lits,slits;
 
@@ -166,21 +162,27 @@ int main(int argc,char **argv)
   default: SETERRQ1(PETSC_COMM_WORLD,PETSC_ERR_USER,"Unknown MMS type %d",MMS);
   }
   ierr = DMDASNESSetFunctionLocal(da,INSERT_VALUES,(DMDASNESFunction)FormFunctionLocal,&user);CHKERRQ(ierr);
+  flg = PETSC_FALSE;
   ierr = PetscOptionsGetBool(NULL,NULL,"-fd",&flg,NULL);CHKERRQ(ierr);
   if (!flg) {
     ierr = DMDASNESSetJacobianLocal(da,(DMDASNESJacobian)FormJacobianLocal,&user);CHKERRQ(ierr);
   }
 
+  flg = PETSC_FALSE;
   ierr = PetscOptionsGetBool(NULL,NULL,"-obj",&flg,NULL);CHKERRQ(ierr);
   if (flg) {
     ierr = DMDASNESSetObjectiveLocal(da,(DMDASNESObjective)FormObjectiveLocal,&user);CHKERRQ(ierr);
   }
 
 #if defined(PETSC_HAVE_MATLAB_ENGINE)
-  ierr = PetscOptionsGetBool(NULL,NULL,"-matlab_function",&matlab_function,0);CHKERRQ(ierr);
-  if (matlab_function) {
+  flg = PETSC_FALSE;
+  ierr = PetscOptionsGetBool(NULL,NULL,"-matlab_function",&flg,0);CHKERRQ(ierr);
+  if (flg) {
+    Vec r;
     ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
     ierr = SNESSetFunction(snes,r,FormFunctionMatlab,&user);CHKERRQ(ierr);
+    /* SNES retains a reference and we won't access this vector again */
+    ierr = VecDestroy(&r);CHKERRQ(ierr);
   }
 #endif
 
@@ -229,9 +231,6 @@ int main(int argc,char **argv)
      Free work space.  All PETSc objects should be destroyed when they
      are no longer needed.
    - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-#if defined(PETSC_HAVE_MATLAB_ENGINE)
-  ierr = VecDestroy(&r);CHKERRQ(ierr);
-#endif
   ierr = VecDestroy(&x);CHKERRQ(ierr);
   ierr = SNESDestroy(&snes);CHKERRQ(ierr);
   ierr = DMDestroy(&da);CHKERRQ(ierr);
