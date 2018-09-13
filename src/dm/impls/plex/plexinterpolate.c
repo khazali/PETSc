@@ -1130,12 +1130,23 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
   ierr = ISGetIndices(correctCones, &correctCones_);CHKERRQ(ierr);
   ierr = ISGetIndices(wrongCones, &wrongCones_);CHKERRQ(ierr);
 
+  {
+    PetscMPIInt myrank;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &myrank);
+    PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"[%d] BEGIN DMPlexFixFaceOrientations_Private\n", myrank);
+  }
   ierr = PetscSectionGetChart(coneSection, &pStart, &pEnd);CHKERRQ(ierr);
   for (p=pStart; p<pEnd; p++) {
     ierr = PetscSectionGetDof(coneSection, p, &n);CHKERRQ(ierr);
     if (!n) continue; /* do nothing for points with no cone */
     ierr = PetscSectionGetOffset(coneSection, p, &o);CHKERRQ(ierr);
     ierr = DMPlexFixFaceOrientations_Orient_Private(n, &correctCones_[o], &wrongCones_[o], &start1, &reverse1);CHKERRQ(ierr);
+    {
+      PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"##### p=%d o=%d point[p]=%d &wrongCones_[o] &correctCones_[o]\n", p, o, points_[p]);
+      PetscViewerASCIIPushTab(PETSC_VIEWER_STDOUT_SELF);
+      PetscIntView(n, &wrongCones_[o], PETSC_VIEWER_STDOUT_SELF);
+      PetscIntView(n, &correctCones_[o], PETSC_VIEWER_STDOUT_SELF);
+    }
     if (start1 || reverse1) {
       q = points_[p];
       ierr = DMPlexGetConeSize(dm, q, &coneSize);CHKERRQ(ierr);
@@ -1145,6 +1156,11 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
       ierr = PetscMalloc1(coneSize, &newornts);CHKERRQ(ierr);
       if (reverse1) {for (i=0; i<coneSize; i++) newornts[(coneSize+start1-i)%coneSize] = ornts[i];}
       else          {for (i=0; i<coneSize; i++) newornts[(start1+i)%coneSize] = ornts[i];}
+      {
+        PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"ornts newornts\n");
+        PetscIntView(coneSize, ornts, PETSC_VIEWER_STDOUT_SELF);
+        PetscIntView(coneSize, newornts, PETSC_VIEWER_STDOUT_SELF);
+      }
       /* if direction of q (face) is flipped, flip also directions of q's cone points (edges) */
       if (reverse1) {
         for (i=0; i<coneSize; i++) {
@@ -1152,6 +1168,10 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
           ierr = DMPlexFixFaceOrientations_Translate_Private(newornts[i], &start0, &reverse0);CHKERRQ(ierr);
           ierr = DMPlexFixFaceOrientations_Combine_Private(coneConeSize, start0, reverse0, 1, PETSC_FALSE, &start, &reverse);CHKERRQ(ierr);
           ierr = DMPlexFixFaceOrientations_TranslateBack_Private(coneConeSize, start, reverse, &newornts[i]);CHKERRQ(ierr);
+        }
+        {
+          PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"newornts after flip\n");
+          PetscIntView(coneSize, newornts, PETSC_VIEWER_STDOUT_SELF);
         }
       }
       ierr = DMPlexSetConeOrientation(dm, q, newornts);CHKERRQ(ierr);
@@ -1168,6 +1188,12 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
             ierr = DMPlexFixFaceOrientations_Translate_Private(ornts[k], &start0, &reverse0);CHKERRQ(ierr);
             ierr = DMPlexFixFaceOrientations_Combine_Private(coneSize, start0, reverse0, start1, reverse1, &start, &reverse);CHKERRQ(ierr);
             ierr = DMPlexFixFaceOrientations_TranslateBack_Private(coneSize, start, reverse, &newornt);CHKERRQ(ierr);
+            {
+              PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"interface point %d has original orientation %d within cone of %d (cone local index %d of %d)\n", q, ornts[k], support[j], k, supportConeSize);
+              PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"  start0 %d start1 %d start %d\n", start0, start1, start);
+              PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"  reverse0 %d reverse1 %d reverse %d\n", reverse0, reverse1, reverse);
+              PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"  new orientation %d\n", newornt);
+            }
             ierr = DMPlexInsertConeOrientation(dm, support[j], k, newornt);CHKERRQ(ierr);
           }
         }
@@ -1175,6 +1201,15 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
       /* rewrite cone */
       ierr = DMPlexSetCone(dm, q, &correctCones_[o]);CHKERRQ(ierr);
     }
+    {
+      PetscViewerASCIIPopTab(PETSC_VIEWER_STDOUT_SELF);
+    }
+  }
+
+  {
+    PetscMPIInt myrank;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &myrank);
+    PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"[%d] END DMPlexFixFaceOrientations_Private\n", myrank);
   }
 
   ierr = ISRestoreIndices(points, &points_);CHKERRQ(ierr);
@@ -1329,6 +1364,11 @@ PetscErrorCode DMPlexCheckConeOrientationOnInterfaces(DM dm)
   ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
   ierr = PetscSFGetRanks(sf, &nranks, &ranks, &roffset, &rmine, &rremote);CHKERRQ(ierr);
 
+  {
+    PetscSynchronizedPrintf(PETSC_COMM_WORLD,"[%d] BEGIN DMPlexCheckConeOrientationOnInterfaces\n", myrank);
+    PetscSynchronizedFlush(PETSC_COMM_WORLD,PETSC_STDOUT);
+  }
+
   /* TODO: workaround for hang in DMGetCoordinates() (which is a bug since DMGetCoordinates() should be non-collective) */
   {
     Vec t;
@@ -1423,6 +1463,11 @@ PetscErrorCode DMPlexCheckConeOrientationOnInterfaces(DM dm)
     ierr = VecDestroy(&recCoordinatesPerRank[r]);CHKERRQ(ierr);
   }
   ierr = PetscFree(recCoordinatesPerRank);CHKERRQ(ierr);
+
+  {
+    PetscSynchronizedPrintf(PETSC_COMM_WORLD,"[%d] END DMPlexCheckConeOrientationOnInterfaces\n", myrank);
+    PetscSynchronizedFlush(PETSC_COMM_WORLD,PETSC_STDOUT);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -1461,6 +1506,11 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
   if (nroots < 0) PetscFunctionReturn(0);
   ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
   ierr = PetscSFGetRanks(sf, &nranks, &ranks, &roffset, &rmine, &rremote);CHKERRQ(ierr);
+
+  {
+    PetscSynchronizedPrintf(PETSC_COMM_WORLD,"[%d] BEGIN DMPlexFixConeOrientationOnInterfaces_Private\n", myrank);
+    PetscSynchronizedFlush(PETSC_COMM_WORLD,PETSC_STDOUT);
+  }
 
   /* Expand sent cones per rank */
   ierr = PetscMalloc2(nleaves, &rmine1, nleaves, &rremote1);CHKERRQ(ierr);
@@ -1575,8 +1625,20 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
   }
 
   /* Compare recConesPerRank with refConesPerRank and adjust orientations */
+  {
+    PetscSequentialPhaseBegin(PETSC_COMM_WORLD,1);
+  }
   for (r=0; r<niranks; r++) {
+    {
+      PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF, "[%d] r=%d iranks[r]=%d refConesPerRank[r] recConesPerRank[r]\n",myrank,r,iranks[r]);
+      ISView(refConesPerRank[r], PETSC_VIEWER_STDOUT_SELF);
+      ISView(recConesPerRank[r], PETSC_VIEWER_STDOUT_SELF);
+    }
     ierr = DMPlexFixFaceOrientations_Private(dm, refPointsPerRank[r], refConesSectionPerRank[r], recConesPerRank[r], refConesPerRank[r]);CHKERRQ(ierr);
+  }
+  {
+    PetscViewerFlush(PETSC_VIEWER_STDOUT_SELF);
+    PetscSequentialPhaseEnd(PETSC_COMM_WORLD,1);
   }
 
   /* destroy sent stuff */
@@ -1607,6 +1669,11 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
 
   ierr = PetscFree2(rmine1, rremote1);CHKERRQ(ierr);
   ierr = PetscSFDestroy(&imsf);CHKERRQ(ierr);
+  {
+    MPI_Barrier(PETSC_COMM_WORLD);
+    PetscSynchronizedPrintf(PETSC_COMM_WORLD,"[%d] END DMPlexFixConeOrientationOnInterfaces_Private\n", myrank);
+    PetscSynchronizedFlush(PETSC_COMM_WORLD,PETSC_STDOUT);
+  }
   PetscFunctionReturn(0);
 }
 
