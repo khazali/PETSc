@@ -636,12 +636,10 @@ int main(int argc, char **argv)
   testset:
     nsize: 2
     # TODO get rid of -hotfix
-    args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail
+    args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail -hotfix
     test:
-      # TODO point SF wrong - missing face
       suffix: 4
     test:
-      # TODO point SF wrong - shouldn't contain the cell
       suffix: 4_hex
       args: -cell_simplex 0
 
