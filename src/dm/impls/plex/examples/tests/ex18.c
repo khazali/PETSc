@@ -144,6 +144,7 @@ typedef struct {
   PetscBool iad;                          /* Interpolate the mesh after DMPlexDistribute() */
   PetscBool ibd;                          /* Interpolate the mesh before DMPlexDistribute() */
   PetscBool useGenerator;                 /* Construct mesh with a mesh generator */
+  PetscInt  faces[3];                     /* Number of faces per dimension for generator */
   PetscBool hotfix;                       /* Use hotfix for bad edge orientation */
   char      filename[PETSC_MAX_PATH_LEN]; /* Import mesh from file */
 } AppCtx;
@@ -151,6 +152,8 @@ typedef struct {
 PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscBool interpolate = PETSC_FALSE;    /* Interpolate mesh */
+  PetscInt dim;
+  PetscBool flg1, flg2;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -168,7 +171,15 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsBegin(comm, "", "Meshing Interpolation Test Options", "DMPLEX");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-debug", "The debugging level", "ex18.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-testnum", "The mesh to create", "ex18.c", options->testNum, &options->testNum, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex18.c", options->dim, &options->dim, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex18.c", options->dim, &options->dim, &flg1);CHKERRQ(ierr);
+  if (options->dim < 1 || options->dim > 3) SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "dimension set to %d, must be between 1 and 3", options->dim);
+  options->faces[0] = 2; options->faces[1] = 2; options->faces[2] = 2;
+  dim = 3;
+  ierr = PetscOptionsIntArray("-faces", "Number of faces per dimension", "ex18.c", options->faces, &dim, &flg2);CHKERRQ(ierr);
+  if (flg2) {
+    if (flg1 && dim != options->dim) SETERRQ2(comm, PETSC_ERR_ARG_OUTOFRANGE, "specified -dim %d is not equal to number of length %d of specified array -faces (note that -dim can be omitted)", options->dim, dim);
+    options->dim = dim;
+  }
   ierr = PetscOptionsBool("-cell_simplex", "Use simplices if true, otherwise hexes", "ex18.c", options->cellSimplex, &options->cellSimplex, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-distribute", "Distribute the mesh", "ex18.c", options->distribute, &options->distribute, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-interpolate", "Interpolate the mesh", "ex18.c", interpolate, &interpolate, NULL);CHKERRQ(ierr);
@@ -502,7 +513,6 @@ PetscErrorCode CheckPointSF(DM dm, AppCtx *user)
 
 PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
 {
-  PetscInt       dim          = user->dim;
   PetscBool      cellSimplex  = user->cellSimplex;
   PetscBool      useGenerator = user->useGenerator;
   PetscBool      interpolate  = user->ibd;
@@ -517,13 +527,11 @@ PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
   ierr = PetscStrlen(filename, &len);CHKERRQ(ierr);
   if (len) {
     ierr = DMPlexCreateFromFile(comm, filename, interpolate, dm);CHKERRQ(ierr);
-    ierr = DMGetDimension(*dm, &dim);CHKERRQ(ierr);
+    ierr = DMGetDimension(*dm, &user->dim);CHKERRQ(ierr);
   } else if (useGenerator) {
-    const PetscInt cells[3] = {2, 2, 2};
-
-    ierr = DMPlexCreateBoxMesh(comm, dim, cellSimplex, cells, NULL, NULL, NULL, interpolate, dm);CHKERRQ(ierr);
+    ierr = DMPlexCreateBoxMesh(comm, user->dim, cellSimplex, user->faces, NULL, NULL, NULL, interpolate, dm);CHKERRQ(ierr);
   } else {
-    switch (dim) {
+    switch (user->dim) {
     case 2:
       if (cellSimplex) {
         ierr = CreateSimplex_2D(comm, interpolate, user, dm);CHKERRQ(ierr);
@@ -539,7 +547,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
       }
       break;
     default:
-      SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "Cannot make meshes for dimension %D", dim);
+      SETERRQ1(comm, PETSC_ERR_ARG_OUTOFRANGE, "Cannot make meshes for dimension %D", user->dim);
     }
   }
   ierr = PetscObjectSetName((PetscObject) *dm, "Original Mesh");CHKERRQ(ierr);
