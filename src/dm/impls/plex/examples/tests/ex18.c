@@ -476,7 +476,7 @@ PetscErrorCode IsAnySupportPointInArray(DM dm, PetscInt p, PetscInt npoints, con
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CheckPointSF(DM dm, AppCtx *user)
+PetscErrorCode CheckPointSF(DM dm)
 {
   PetscSF sf;
   PetscInt d,depth,i,nleaves,p,plo,phi;
@@ -571,6 +571,8 @@ PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
       ierr = DMViewFromOptions(*dm, NULL, "-dist_dm_view");CHKERRQ(ierr);
     }
 
+    ierr = CheckPointSF(*dm);CHKERRQ(ierr);
+
     if (iad) {
       DM idm;
 
@@ -596,7 +598,6 @@ int main(int argc, char **argv)
   ierr = CreateMesh(PETSC_COMM_WORLD, user.testNum, &user, &user.dm);CHKERRQ(ierr);
   ierr = DMPlexCheckSymmetry(user.dm);CHKERRQ(ierr);
   ierr = DMPlexCheckSkeleton(user.dm, user.cellSimplex, 0);CHKERRQ(ierr);
-  ierr = CheckPointSF(user.dm, &user);CHKERRQ(ierr);
   ierr = CheckMesh(user.dm, &user);CHKERRQ(ierr);
   if (user.ibd || user.iad) {
     ierr = DMPlexCheckConeOrientationOnInterfaces(user.dm);CHKERRQ(ierr);
