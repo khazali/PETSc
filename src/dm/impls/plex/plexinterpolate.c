@@ -1614,6 +1614,81 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode AreAllConePointsInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points, PetscBool *flg)
+{
+  PetscInt i,l,n;
+  const PetscInt *cone;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  *flg = PETSC_TRUE;
+  ierr = DMPlexGetConeSize(dm, p, &n);CHKERRQ(ierr);
+  ierr = DMPlexGetCone(dm, p, &cone);CHKERRQ(ierr);
+  for (i=0; i<n; i++) {
+    ierr = PetscFindInt(cone[i], npoints, points, &l);CHKERRQ(ierr);
+    if (l < 0) {
+      *flg = PETSC_FALSE;
+      break;
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode IsAnySupportPointInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points, PetscBool *flg)
+{
+  PetscInt i,l,n;
+  const PetscInt *support;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  *flg = PETSC_FALSE;
+  ierr = DMPlexGetSupportSize(dm, p, &n);CHKERRQ(ierr);
+  ierr = DMPlexGetSupport(dm, p, &support);CHKERRQ(ierr);
+  for (i=0; i<n; i++) {
+    ierr = PetscFindInt(support[i], npoints, points, &l);CHKERRQ(ierr);
+    if (l >= 0) {
+      *flg = PETSC_TRUE;
+      break;
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode CheckPointSF(DM dm)
+{
+  PetscSF sf;
+  PetscInt d,depth,i,nleaves,p,plo,phi;
+  const PetscInt *locals;
+  PetscBool flg;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
+  ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(sf, NULL, &nleaves, &locals, NULL);CHKERRQ(ierr);
+
+  /* 1) if some point p is in interface, then all its cone points must be also in interface  */
+  for (i=0; i<nleaves; i++) {
+    p = locals[i];
+    ierr = AreAllConePointsInArray(dm, p, nleaves, locals, &flg);CHKERRQ(ierr);
+    if (!flg) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but not all points from its cone",p);
+  }
+
+  /* 2) if some point p is in interface, then at least one of its support points must lie in interface */
+  /* Only check edges & faces */
+  for (d=0; d<depth-1; d++) {
+    ierr = DMPlexGetDepthStratum(dm, d, &plo, &phi);CHKERRQ(ierr);
+    for (i=0; i<nleaves; i++) {
+      p = locals[i];
+      if (p >= plo && p < phi) {
+        ierr = IsAnySupportPointInArray(dm, p, nleaves, locals, &flg);CHKERRQ(ierr);
+        if (!flg) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but no point from its support",p);
+      }
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
 /*@C
   DMPlexInterpolate - Take in a cell-vertex mesh and return one with all intermediate faces, edges, etc.
 
@@ -1702,7 +1777,10 @@ PetscErrorCode DMPlexInterpolate(DM dm, DM *dmInt)
     }
 
     if (depth > 0) {
-      PetscBool flg = PETSC_TRUE;
+      PetscBool flg = PETSC_FALSE;
+      ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_check_pointsf", &flg, NULL);CHKERRQ(ierr);
+      if (flg) {ierr = CheckPointSF(idm);CHKERRQ(ierr);}
+      flg = PETSC_TRUE;
       ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_fix_cone_orientation", &flg, NULL);CHKERRQ(ierr);
       if (flg) {ierr = DMPlexFixConeOrientationOnInterfaces_Private(idm);CHKERRQ(ierr);}
     }

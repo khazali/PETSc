@@ -436,81 +436,6 @@ PetscErrorCode CheckMesh(DM dm, AppCtx *user)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode AreAllConePointsInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points, PetscBool *flg)
-{
-  PetscInt i,l,n;
-  const PetscInt *cone;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  *flg = PETSC_TRUE;
-  ierr = DMPlexGetConeSize(dm, p, &n);CHKERRQ(ierr);
-  ierr = DMPlexGetCone(dm, p, &cone);CHKERRQ(ierr);
-  for (i=0; i<n; i++) {
-    ierr = PetscFindInt(cone[i], npoints, points, &l);CHKERRQ(ierr);
-    if (l < 0) {
-      *flg = PETSC_FALSE;
-      break;
-    }
-  }
-  PetscFunctionReturn(0);
-}
-
-PetscErrorCode IsAnySupportPointInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points, PetscBool *flg)
-{
-  PetscInt i,l,n;
-  const PetscInt *support;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  *flg = PETSC_FALSE;
-  ierr = DMPlexGetSupportSize(dm, p, &n);CHKERRQ(ierr);
-  ierr = DMPlexGetSupport(dm, p, &support);CHKERRQ(ierr);
-  for (i=0; i<n; i++) {
-    ierr = PetscFindInt(support[i], npoints, points, &l);CHKERRQ(ierr);
-    if (l >= 0) {
-      *flg = PETSC_TRUE;
-      break;
-    }
-  }
-  PetscFunctionReturn(0);
-}
-
-PetscErrorCode CheckPointSF(DM dm)
-{
-  PetscSF sf;
-  PetscInt d,depth,i,nleaves,p,plo,phi;
-  const PetscInt *locals;
-  PetscBool flg;
-  PetscErrorCode ierr;
-
-  PetscFunctionBegin;
-  ierr = DMPlexGetDepth(dm, &depth);CHKERRQ(ierr);
-  ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(sf, NULL, &nleaves, &locals, NULL);CHKERRQ(ierr);
-
-  /* 1) if some point p is in interface, then all its cone points must be also in interface  */
-  for (i=0; i<nleaves; i++) {
-    p = locals[i];
-    ierr = AreAllConePointsInArray(dm, p, nleaves, locals, &flg);CHKERRQ(ierr);
-    if (!flg) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but not all points from its cone",p);
-  }
-
-  /* 2) if some point p is in interface, then at least one of its support points must lie in interface */
-  /* Only check edges & faces */
-  for (d=0; d<depth-1; d++) {
-    ierr = DMPlexGetDepthStratum(dm, d, &plo, &phi);CHKERRQ(ierr);
-    for (i=0; i<nleaves; i++) {
-      p = locals[i];
-      if (p >= plo && p < phi) {
-        ierr = IsAnySupportPointInArray(dm, p, nleaves, locals, &flg);CHKERRQ(ierr);
-        if (!flg) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but no point from its support",p);
-      }
-    }
-  }
-  PetscFunctionReturn(0);
-}
-
 PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
 {
   PetscBool      cellSimplex  = user->cellSimplex;
@@ -571,8 +496,6 @@ PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
       ierr = DMViewFromOptions(*dm, NULL, "-dist_dm_view");CHKERRQ(ierr);
     }
 
-    ierr = CheckPointSF(*dm);CHKERRQ(ierr);
-
     if (iad) {
       DM idm;
 
@@ -618,6 +541,7 @@ int main(int argc, char **argv)
   testset:
     nsize: 2
     args: -interpolate -dm_view ascii::ascii_info_detail
+    args: -dm_plex_check_pointsf
     test:
       suffix: 1
       args: -distribute 0
@@ -635,16 +559,19 @@ int main(int argc, char **argv)
     suffix: 2
     nsize: 3
     args: -testnum 1 -interpolate -dm_view ascii::ascii_info_detail
+    args: -dm_plex_check_pointsf
   test:
     suffix: 3
     nsize: 2
     args: -dim 3 -dm_view ascii::ascii_info_detail
+    args: -dm_plex_check_pointsf
 
   testset:
     # the same as 1% for 3D
     nsize: 2
     # TODO get rid of -hotfix
     args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail -hotfix
+    args: -dm_plex_check_pointsf
     test:
       suffix: 4
       args: -distribute 0
@@ -663,6 +590,7 @@ int main(int argc, char **argv)
     nsize: 2
     args: -filename ${PETSC_DIR}/share/petsc/datafiles/meshes/TwoQuads.exo
     args: -cell_simplex 0 -interpolate -dm_view ascii::ascii_info_detail
+    args: -dm_plex_check_pointsf
     test:
       suffix: 5
       args: -distribute 0
@@ -674,6 +602,7 @@ int main(int argc, char **argv)
     nsize: {{1 2 4}}
     args: -use_generator -faces {{2,2,2  1,3,5  3,4,7}}
     args: -interpolate -distribute -interpolate_after_distribute {{0 1}}
+    args: -dm_plex_check_pointsf
     test:
       suffix: 6_tet
       requires: ctetgen
@@ -688,4 +617,5 @@ int main(int argc, char **argv)
     nsize: {{1 2 4}}
     args: -filename ${PETSC_DIR}/share/petsc/datafiles/meshes/blockcylinder-50.exo
     args: -cell_simplex 0 -interpolate -distribute -interpolate_after_distribute {{0 1}}
+    args: -dm_plex_check_pointsf
 TEST*/
