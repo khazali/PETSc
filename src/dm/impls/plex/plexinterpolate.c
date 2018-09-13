@@ -1102,7 +1102,7 @@ PETSC_STATIC_INLINE PetscErrorCode DMPlexFixFaceOrientations_TranslateBack_Priva
   PetscFunctionBegin;
   if (coneSize < 3) {
     /* edges just get flipped */
-    *ornt = start ? -2 : 0;
+    *ornt = (start != reverse) ? -2 : 0;
   } else {
     *ornt = reverse ? -(start+1) : start;
   }
@@ -1111,11 +1111,11 @@ PETSC_STATIC_INLINE PetscErrorCode DMPlexFixFaceOrientations_TranslateBack_Priva
 
 static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscSection coneSection, IS correctCones, IS wrongCones)
 {
-  PetscInt i, j, k, n, o, p, q, pStart, pEnd, coneSize, supportSize, supportConeSize;
+  PetscInt i, j, k, n, o, p, q, pStart, pEnd, coneSize, coneConeSize, supportSize, supportConeSize;
   PetscInt start0, start1, start;
   PetscBool reverse0, reverse1, reverse;
   PetscInt newornt;
-  const PetscInt *correctCones_, *wrongCones_, *points_, *support, *supportCone, *ornts;
+  const PetscInt *correctCones_, *wrongCones_, *points_, *cone, *support, *supportCone, *ornts;
   PetscInt *newornts;
   PetscErrorCode ierr;
 
@@ -1144,6 +1144,7 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
     if (start1 || reverse1) {
       q = points_[p];
       ierr = DMPlexGetConeSize(dm, q, &coneSize);CHKERRQ(ierr);
+      ierr = DMPlexGetCone(dm, q, &cone);CHKERRQ(ierr);
       /* permute q's cone orientations */
       ierr = DMPlexGetConeOrientation(dm, q, &ornts);CHKERRQ(ierr);
       ierr = PetscMalloc1(coneSize, &newornts);CHKERRQ(ierr);
@@ -1153,6 +1154,15 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
         PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"ornts newornts\n");
         PetscIntView(coneSize, ornts, PETSC_VIEWER_STDOUT_SELF);
         PetscIntView(coneSize, newornts, PETSC_VIEWER_STDOUT_SELF);
+      }
+      /* if direction of q (face) is flipped, flip also directions of q's cone points (edges) */
+      if (reverse1) {
+        for (i=0; i<coneSize; i++) {
+          ierr = DMPlexGetConeSize(dm, cone[i], &coneConeSize);CHKERRQ(ierr);
+          ierr = DMPlexFixFaceOrientations_Translate_Private(newornts[i], &start0, &reverse0);CHKERRQ(ierr);
+          ierr = DMPlexFixFaceOrientations_Combine_Private(coneConeSize, start0, reverse0, start0, reverse1, &start, &reverse);CHKERRQ(ierr);
+          ierr = DMPlexFixFaceOrientations_TranslateBack_Private(coneConeSize, start, reverse, &newornts[i]);CHKERRQ(ierr);
+        }
       }
       ierr = DMPlexSetConeOrientation(dm, q, newornts);CHKERRQ(ierr);
       ierr = PetscFree(newornts);CHKERRQ(ierr);
