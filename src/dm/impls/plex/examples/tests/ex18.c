@@ -681,4 +681,11 @@ int main(int argc, char **argv)
     test:
       suffix: 6_hex
       args: -cell_simplex 0
+
+  test:
+    requires: exodusii
+    suffix: 7
+    nsize: {{1 2 4}}
+    args: -filename ${PETSC_DIR}/share/petsc/datafiles/meshes/blockcylinder-50.exo
+    args: -cell_simplex 0 -interpolate -distribute -interpolate_after_distribute {{0 1}}
 TEST*/
