@@ -650,6 +650,7 @@ int main(int argc, char **argv)
       args: -cell_simplex 0 -distribute 1 -interpolate_after_distribute {{0 1}separate output}
 
   testset:
+    requires: exodusii
     nsize: 2
     args: -filename ${PETSC_DIR}/share/petsc/datafiles/meshes/TwoQuads.exo
     args: -cell_simplex 0 -interpolate -dm_view ascii::ascii_info_detail
