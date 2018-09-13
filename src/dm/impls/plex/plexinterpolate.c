@@ -291,12 +291,18 @@ static PetscErrorCode DMPlexHotfixInterpolatedPointSF_Private(DM dm)
   PetscInt *ilocal1;
   PetscSFNode *iremote1;
   PetscBool flg;
+  PetscMPIInt commsize;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = MPI_Comm_size(PetscObjectComm((PetscObject)dm), &commsize);CHKERRQ(ierr);
+  if (commsize < 2) PetscFunctionReturn(0);
   ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
-  ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
+  if (!sf) PetscFunctionReturn(0);
   ierr = PetscSFGetGraph(sf, &nroots, &nleaves, &ilocal, &iremote);CHKERRQ(ierr);
+  if (nroots < 0) PetscFunctionReturn(0);
+  ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
+
   ierr = PetscMalloc2(nleaves, &ilocal1, nleaves, &iremote1);CHKERRQ(ierr);
   ierr = PetscMemcpy(ilocal1, ilocal, nleaves*sizeof(PetscInt));CHKERRQ(ierr);
   ierr = PetscMemcpy(iremote1, iremote, nleaves*sizeof(PetscSFNode));CHKERRQ(ierr);
