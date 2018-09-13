@@ -1462,10 +1462,6 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
   ierr = PetscSFSetUp(sf);CHKERRQ(ierr);
   ierr = PetscSFGetRanks(sf, &nranks, &ranks, &roffset, &rmine, &rremote);CHKERRQ(ierr);
 
-  {
-    ierr = DMViewFromOptions(dm, NULL, "-before_fix_dm_view");CHKERRQ(ierr);
-  }
-
   /* Expand sent cones per rank */
   ierr = PetscMalloc2(nleaves, &rmine1, nleaves, &rremote1);CHKERRQ(ierr);
   for (r=0; r<nranks; r++) {
@@ -1744,6 +1740,7 @@ PetscErrorCode DMPlexInterpolate(DM dm, DM *dmInt)
     {
       PetscBool flg=PETSC_FALSE;
       PetscBool flg1=PETSC_FALSE;
+      ierr = DMViewFromOptions(idm, NULL, "-before_fix_dm_view");CHKERRQ(ierr);
       ierr = PetscOptionsGetBool(NULL, NULL, "-hotfix", &flg, NULL);CHKERRQ(ierr);
       ierr = PetscOptionsGetBool(NULL, NULL, "-hotfix1", &flg1, NULL);CHKERRQ(ierr);
       if (flg || flg1) {ierr = DMPlexHotfixInterpolatedPointSF_Private(idm);CHKERRQ(ierr);}
