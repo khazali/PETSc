@@ -556,6 +556,7 @@ int main(int argc, char **argv)
       args: -cell_simplex 0 -distribute 1 -interpolate_after_distribute {{0 1}separate output}
 
   test:
+    #TODO edge 4 at rank 0 missing in SF
     suffix: 2
     nsize: 3
     args: -testnum 1 -interpolate -dm_view ascii::ascii_info_detail

@@ -1610,52 +1610,59 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode AreAllConePointsInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points, PetscBool *flg)
+static PetscErrorCode CheckAllConePointsInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points)
 {
   PetscInt i,l,n;
   const PetscInt *cone;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  *flg = PETSC_TRUE;
   ierr = DMPlexGetConeSize(dm, p, &n);CHKERRQ(ierr);
   ierr = DMPlexGetCone(dm, p, &cone);CHKERRQ(ierr);
   for (i=0; i<n; i++) {
     ierr = PetscFindInt(cone[i], npoints, points, &l);CHKERRQ(ierr);
-    if (l < 0) {
-      *flg = PETSC_FALSE;
-      break;
-    }
+    if (l < 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but not %d from its cone",p,cone[i]);
   }
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode IsAnySupportPointInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points, PetscBool *flg)
+static PetscErrorCode CheckAllSharedSupportPointsInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points)
 {
-  PetscInt i,l,n;
-  const PetscInt *support;
+  PetscInt i,j,l,n,coneSize;
+  const PetscInt *support, *cone;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
-  *flg = PETSC_FALSE;
   ierr = DMPlexGetSupportSize(dm, p, &n);CHKERRQ(ierr);
   ierr = DMPlexGetSupport(dm, p, &support);CHKERRQ(ierr);
   for (i=0; i<n; i++) {
     ierr = PetscFindInt(support[i], npoints, points, &l);CHKERRQ(ierr);
     if (l >= 0) {
-      *flg = PETSC_TRUE;
-      break;
+      /* support[i] found in array, let's check next one */
+      continue;
+    } else {
+      /* support[i] not found in array - this implies no of its cone points other than p can be in the array */
+      ierr = DMPlexGetCone(dm, support[i], &cone);CHKERRQ(ierr);
+      ierr = DMPlexGetConeSize(dm, support[i], &coneSize);CHKERRQ(ierr);
+      for (j=0; j<coneSize; j++) {
+        if (cone[j] == p) continue;
+        ierr = PetscFindInt(cone[j], npoints, points, &l);CHKERRQ(ierr);
+        if (l >= 0) {
+          /* support[i] is not present in array but at least two different points from its cone are (p and cone[j]) */
+          SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d and %d but not their common support point %d",p,cone[j],support[i]);
+        }
+      }
     }
   }
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CheckPointSF(DM dm)
+/* TODO add to API? */
+PetscErrorCode DMPlexCheckPointSF(DM dm)
 {
   PetscSF sf;
   PetscInt d,depth,i,nleaves,p,plo,phi;
   const PetscInt *locals;
-  PetscBool flg;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -1663,22 +1670,19 @@ PetscErrorCode CheckPointSF(DM dm)
   ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(sf, NULL, &nleaves, &locals, NULL);CHKERRQ(ierr);
 
-  /* 1) if some point p is in interface, then all its cone points must be also in interface  */
+  /* 1) if some point is in interface, then all its cone points must be also in interface  */
   for (i=0; i<nleaves; i++) {
-    p = locals[i];
-    ierr = AreAllConePointsInArray(dm, p, nleaves, locals, &flg);CHKERRQ(ierr);
-    if (!flg) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but not all points from its cone",p);
+    ierr = CheckAllConePointsInArray(dm, locals[i], nleaves, locals);CHKERRQ(ierr);
   }
 
-  /* 2) if some point p is in interface, then at least one of its support points must lie in interface */
-  /* Only check edges & faces */
+  /* 2) if at least two interface points share a support point, it must be also in interface */
+  /* Only check support edges for 2D, edges & faces for 3D */
   for (d=0; d<depth-1; d++) {
     ierr = DMPlexGetDepthStratum(dm, d, &plo, &phi);CHKERRQ(ierr);
     for (i=0; i<nleaves; i++) {
       p = locals[i];
       if (p >= plo && p < phi) {
-        ierr = IsAnySupportPointInArray(dm, p, nleaves, locals, &flg);CHKERRQ(ierr);
-        if (!flg) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but no point from its support",p);
+        ierr = CheckAllSharedSupportPointsInArray(dm, p, nleaves, locals);CHKERRQ(ierr);
       }
     }
   }
@@ -1776,7 +1780,7 @@ PetscErrorCode DMPlexInterpolate(DM dm, DM *dmInt)
     if (depth > 0) {
       PetscBool flg = PETSC_FALSE;
       ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_check_pointsf", &flg, NULL);CHKERRQ(ierr);
-      if (flg) {ierr = CheckPointSF(idm);CHKERRQ(ierr);}
+      if (flg) {ierr = DMPlexCheckPointSF(idm);CHKERRQ(ierr);}
       flg = PETSC_TRUE;
       ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_fix_cone_orientation", &flg, NULL);CHKERRQ(ierr);
       if (flg) {ierr = DMPlexFixConeOrientationOnInterfaces_Private(idm);CHKERRQ(ierr);}
