@@ -634,14 +634,22 @@ int main(int argc, char **argv)
     args: -dim 3 -dm_view ascii::ascii_info_detail
 
   testset:
+    # the same as 1% for 3D
     nsize: 2
     # TODO get rid of -hotfix
     args: -dim 3 -interpolate -dm_view ascii::ascii_info_detail -hotfix
     test:
       suffix: 4
+      args: -distribute 0
+    test:
+      suffix: 4_dist
+      args: -distribute 1 -interpolate_after_distribute {{0 1}separate output}
     test:
       suffix: 4_hex
-      args: -cell_simplex 0
+      args: -cell_simplex 0 -distribute 0
+    test:
+      suffix: 4_hex_dist
+      args: -cell_simplex 0 -distribute 1 -interpolate_after_distribute {{0 1}separate output}
 
   testset:
     nsize: 2
