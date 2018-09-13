@@ -1107,8 +1107,8 @@ PETSC_STATIC_INLINE PetscErrorCode DMPlexFixFaceOrientations_TranslateBack_Priva
 {
   PetscFunctionBegin;
   if (coneSize < 3) {
-    /* edges just get flipped */
-    *ornt = (start != reverse) ? -2 : 0;
+    /* edges just get flipped if start == 1 regardless direction */
+    *ornt = start ? -2 : 0;
   } else {
     *ornt = reverse ? -(start+1) : start;
   }
@@ -1150,7 +1150,7 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
         for (i=0; i<coneSize; i++) {
           ierr = DMPlexGetConeSize(dm, cone[i], &coneConeSize);CHKERRQ(ierr);
           ierr = DMPlexFixFaceOrientations_Translate_Private(newornts[i], &start0, &reverse0);CHKERRQ(ierr);
-          ierr = DMPlexFixFaceOrientations_Combine_Private(coneConeSize, start0, reverse0, start0, reverse1, &start, &reverse);CHKERRQ(ierr);
+          ierr = DMPlexFixFaceOrientations_Combine_Private(coneConeSize, start0, reverse0, 1, PETSC_FALSE, &start, &reverse);CHKERRQ(ierr);
           ierr = DMPlexFixFaceOrientations_TranslateBack_Private(coneConeSize, start, reverse, &newornts[i]);CHKERRQ(ierr);
         }
       }
