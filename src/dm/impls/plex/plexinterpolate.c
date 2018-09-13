@@ -1116,6 +1116,7 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
   PetscBool reverse0, reverse1, reverse;
   PetscInt newornt;
   const PetscInt *correctCones_, *wrongCones_, *points_, *support, *supportCone, *ornts;
+  PetscInt *newornts;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -1143,23 +1144,18 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
     if (start1 || reverse1) {
       q = points_[p];
       ierr = DMPlexGetConeSize(dm, q, &coneSize);CHKERRQ(ierr);
-      /* permute orientations */
+      /* permute q's cone orientations */
+      ierr = DMPlexGetConeOrientation(dm, q, &ornts);CHKERRQ(ierr);
+      ierr = PetscMalloc1(coneSize, &newornts);CHKERRQ(ierr);
+      if (reverse1) {for (i=0; i<coneSize; i++) newornts[(coneSize+start1-i)%coneSize] = ornts[i];}
+      else          {for (i=0; i<coneSize; i++) newornts[(start1+i)%coneSize] = ornts[i];}
       {
-        const PetscInt *ornts;
-        PetscInt *newornts;
-        ierr = DMPlexGetConeOrientation(dm, q, &ornts);CHKERRQ(ierr);
-        ierr = PetscMalloc1(coneSize, &newornts);CHKERRQ(ierr);
-        if (reverse1) {for (i=0; i<coneSize; i++) newornts[(coneSize+start1-i)%coneSize] = ornts[i];}
-        else          {for (i=0; i<coneSize; i++) newornts[(start1+i)%coneSize] = ornts[i];}
-
-        {
-          PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"ornts newornts\n");
-          PetscIntView(coneSize, ornts, PETSC_VIEWER_STDOUT_SELF);
-          PetscIntView(coneSize, newornts, PETSC_VIEWER_STDOUT_SELF);
-        }
-        ierr = DMPlexSetConeOrientation(dm, q, newornts);CHKERRQ(ierr);
-        ierr = PetscFree(newornts);CHKERRQ(ierr);
+        PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"ornts newornts\n");
+        PetscIntView(coneSize, ornts, PETSC_VIEWER_STDOUT_SELF);
+        PetscIntView(coneSize, newornts, PETSC_VIEWER_STDOUT_SELF);
       }
+      ierr = DMPlexSetConeOrientation(dm, q, newornts);CHKERRQ(ierr);
+      ierr = PetscFree(newornts);CHKERRQ(ierr);
       /* fix oriention of q within cones of q's support points */
       ierr = DMPlexGetSupport(dm, q, &support);CHKERRQ(ierr);
       ierr = DMPlexGetSupportSize(dm, q, &supportSize);CHKERRQ(ierr);
