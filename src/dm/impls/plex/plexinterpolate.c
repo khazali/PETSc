@@ -1163,6 +1163,10 @@ static PetscErrorCode DMPlexFixFaceOrientations_Private(DM dm, IS points, PetscS
           ierr = DMPlexFixFaceOrientations_Combine_Private(coneConeSize, start0, reverse0, start0, reverse1, &start, &reverse);CHKERRQ(ierr);
           ierr = DMPlexFixFaceOrientations_TranslateBack_Private(coneConeSize, start, reverse, &newornts[i]);CHKERRQ(ierr);
         }
+        {
+          PetscViewerASCIIPrintf(PETSC_VIEWER_STDOUT_SELF,"newornts after flip\n");
+          PetscIntView(coneSize, newornts, PETSC_VIEWER_STDOUT_SELF);
+        }
       }
       ierr = DMPlexSetConeOrientation(dm, q, newornts);CHKERRQ(ierr);
       ierr = PetscFree(newornts);CHKERRQ(ierr);
