@@ -669,4 +669,16 @@ int main(int argc, char **argv)
     test:
       suffix: 5_dist
       args: -distribute 1 -interpolate_after_distribute {{0 1}}
+
+  testset:
+    nsize: {{1 2 4}}
+    args: -use_generator -faces {{2,2,2  1,3,5  3,4,7}}
+    args: -interpolate -distribute -interpolate_after_distribute {{0 1}}
+    test:
+      suffix: 6_tet
+      requires: ctetgen
+      args: -cell_simplex 1 -dm_plex_generator ctetgen
+    test:
+      suffix: 6_hex
+      args: -cell_simplex 0
 TEST*/
