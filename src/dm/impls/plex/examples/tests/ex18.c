@@ -1,6 +1,7 @@
 static char help[] = "Tests for parallel mesh loading\n\n";
 
 #include <petscdmplex.h>
+#include <petscsf.h>
 
 /* List of test meshes
 
@@ -490,6 +491,33 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, 
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode CheckPointSF(DM dm, AppCtx *user)
+{
+  //PetscInt d,depth,i,p,plo,phi;
+  PetscSF         sf;
+  const PetscInt *locals;
+  PetscInt        nleaves, l;
+  PetscErrorCode  ierr;
+
+  PetscFunctionBegin;
+  ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(sf, NULL, &nleaves, &locals, NULL);CHKERRQ(ierr);
+  /* If a point p is on the interface, then all its cone points must be also on interface  */
+  for (l = 0; l < nleaves; ++l) {
+    const PetscInt *cone;
+    const PetscInt  point = locals[l];
+    PetscInt        coneSize, c, ind;
+
+    ierr = DMPlexGetConeSize(dm, point, &coneSize);CHKERRQ(ierr);
+    ierr = DMPlexGetCone(dm, point, &cone);CHKERRQ(ierr);
+    for (c = 0; c < coneSize; ++c) {
+      ierr = PetscFindInt(cone[c], nleaves, locals, &ind);CHKERRQ(ierr);
+      if (ind < 0) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Point SF contains %D but is missing cone point %D = %D", point, c, cone[c]);
+    }
+  }
+  PetscFunctionReturn(0);
+}
+
 int main(int argc, char **argv)
 {
   DM             dm;
@@ -503,6 +531,7 @@ int main(int argc, char **argv)
   ierr = DMPlexCheckSkeleton(dm, user.cellSimplex, 0);CHKERRQ(ierr);
   if (user.interpolate != NONE) {ierr = DMPlexCheckFaces(dm, user.cellSimplex, 0);CHKERRQ(ierr);}
   ierr = CheckMesh(dm, &user);CHKERRQ(ierr);
+  ierr = CheckPointSF(dm, &user);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return ierr;
