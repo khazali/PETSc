@@ -21,7 +21,6 @@
 #define PCPARMSGlobalType PetscEnum
 #define PCPARMSLocalType PetscEnum
 #define PCFieldSplitSchurFactType PetscEnum
-#define CoarseProblemType PetscEnum
 #define PCGAMGType character*(80)
 !
 ! GAMG types

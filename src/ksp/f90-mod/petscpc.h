@@ -104,16 +104,8 @@
       parameter (PC_FIELDSPLIT_SCHUR_FACT_FULL=3)
 
 !
-! CoarseProblemType
+! PCMGType
 !
-      PetscEnum SEQUENTIAL_BDDC
-      PetscEnum REPLICATED_BDDC
-      PetscEnum PARALLEL_BDDC
-      PetscEnum MULTILEVEL_BDDC
-      parameter (SEQUENTIAL_BDDC=0)
-      parameter (REPLICATED_BDDC=1)
-      parameter (PARALLEL_BDDC=2)
-      parameter (MULTILEVEL_BDDC=3)
 
       PetscEnum PC_MG_MULTIPLICATIVE
       PetscEnum PC_MG_ADDITIVE
