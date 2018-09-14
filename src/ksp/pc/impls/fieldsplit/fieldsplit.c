@@ -530,9 +530,9 @@ static PetscErrorCode PCSetUp_FieldSplit(PC pc)
       if (jac->pmat[i]) {
         ierr = PetscObjectReference((PetscObject) jac->pmat[i]);CHKERRQ(ierr);
         if (jac->type == PC_COMPOSITE_SCHUR) {
+          ierr = PetscObjectReference((PetscObject) jac->pmat[i]);CHKERRQ(ierr);
+          ierr = MatDestroy(&jac->schur_user);CHKERRQ(ierr);
           jac->schur_user = jac->pmat[i];
-
-          ierr = PetscObjectReference((PetscObject) jac->schur_user);CHKERRQ(ierr);
         }
       } else {
         const char *prefix;
@@ -2101,9 +2101,9 @@ static PetscErrorCode  PCFieldSplitSetSchurPre_FieldSplit(PC pc,PCFieldSplitSchu
   PetscFunctionBegin;
   jac->schurpre = ptype;
   if (ptype == PC_FIELDSPLIT_SCHUR_PRE_USER && pre) {
+    ierr            = PetscObjectReference((PetscObject)pre);CHKERRQ(ierr);
     ierr            = MatDestroy(&jac->schur_user);CHKERRQ(ierr);
     jac->schur_user = pre;
-    ierr            = PetscObjectReference((PetscObject)jac->schur_user);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
