@@ -254,7 +254,7 @@ PetscErrorCode MatCreateSubMatrix_SMF(Mat mat,IS isrow,IS iscol,MatReuse cll,
   PetscFunctionBegin;
   ierr = MatShellGetContext(mat,(void **)&ctx);CHKERRQ(ierr);
   if (newmat){
-    ierr = MatDestroy(&*newmat);CHKERRQ(ierr);
+    ierr = MatDestroy(newmat);CHKERRQ(ierr);
   }
   ierr = MatCreateSubMatrixFree(ctx->A,isrow,iscol, newmat);CHKERRQ(ierr);
   PetscFunctionReturn(0);

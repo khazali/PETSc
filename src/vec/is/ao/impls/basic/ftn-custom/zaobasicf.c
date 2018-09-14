@@ -18,7 +18,7 @@ PETSC_EXTERN void PETSC_STDCALL aocreatebasic_(MPI_Comm *comm,PetscInt *napp,Pet
 {
   CHKFORTRANNULLINTEGER(myapp);
   CHKFORTRANNULLINTEGER(mypetsc);
-  *ierr = AOCreateBasic(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*napp,myapp,mypetsc,aoout);
+  *ierr = AOCreateBasic(MPI_Comm_f2c(*(MPI_Fint*)comm),*napp,myapp,mypetsc,aoout);
 }
 
 PETSC_EXTERN void PETSC_STDCALL aocreatebasicis_(IS *isapp,IS *ispetsc,AO *aoout,PetscErrorCode *ierr)
@@ -33,7 +33,7 @@ PETSC_EXTERN void PETSC_STDCALL aocreatememoryscalable_(MPI_Comm *comm,PetscInt 
 {
   CHKFORTRANNULLINTEGER(myapp);
   CHKFORTRANNULLINTEGER(mypetsc);
-  *ierr = AOCreateMemoryScalable(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*napp,myapp,mypetsc,aoout);
+  *ierr = AOCreateMemoryScalable(MPI_Comm_f2c(*(MPI_Fint*)comm),*napp,myapp,mypetsc,aoout);
 }
 
 PETSC_EXTERN void PETSC_STDCALL aocreatememoryscalableis_(IS *isapp,IS *ispetsc,AO *aoout,PetscErrorCode *ierr)

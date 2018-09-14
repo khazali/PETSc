@@ -15,13 +15,13 @@ PETSC_EXTERN void PETSC_STDCALL petscfopen_(MPI_Comm *comm,char* fname PETSC_MIX
 
   FIXCHAR(fname,len1,c1);
   FIXCHAR(fmode,len2,c2);
-  *ierr = PetscFOpen(MPI_Comm_f2c(*(MPI_Fint*)&*comm),c1,c2,file);
+  *ierr = PetscFOpen(MPI_Comm_f2c(*(MPI_Fint*)comm),c1,c2,file);
   FREECHAR(fname,c1);
   FREECHAR(fmode,c2);
 }
 
 PETSC_EXTERN void PETSC_STDCALL petscfclose_(MPI_Comm *comm,FILE **file,PetscErrorCode *ierr)
 {
-  *ierr = PetscFClose(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*file);
+  *ierr = PetscFClose(MPI_Comm_f2c(*(MPI_Fint*)comm),*file);
 }
 

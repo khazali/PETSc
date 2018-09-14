@@ -9,6 +9,6 @@
 PETSC_EXTERN void PETSC_STDCALL veccreateseqwitharray_(MPI_Comm *comm,PetscInt *bs,PetscInt *n,PetscScalar *s,Vec *V,PetscErrorCode *ierr)
 {
   CHKFORTRANNULLSCALAR(s);
-  *ierr = VecCreateSeqWithArray(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*bs,*n,s,V);
+  *ierr = VecCreateSeqWithArray(MPI_Comm_f2c(*(MPI_Fint*)comm),*bs,*n,s,V);
 }
 

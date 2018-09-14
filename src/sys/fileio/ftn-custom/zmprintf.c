@@ -43,7 +43,7 @@ PETSC_EXTERN void PETSC_STDCALL petscfprintf_(MPI_Comm *comm,FILE **file,char* f
   FIXCHAR(fname,len1,c1);
   *ierr = PetscFixSlashN(c1,&tmp);if (*ierr) return;
   FREECHAR(fname,c1);
-  *ierr = PetscFPrintf(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*file,tmp);if (*ierr) return;
+  *ierr = PetscFPrintf(MPI_Comm_f2c(*(MPI_Fint*)comm),*file,tmp);if (*ierr) return;
   *ierr = PetscFree(tmp);
 }
 
@@ -54,7 +54,7 @@ PETSC_EXTERN void PETSC_STDCALL petscprintf_(MPI_Comm *comm,char* fname PETSC_MI
   FIXCHAR(fname,len1,c1);
   *ierr = PetscFixSlashN(c1,&tmp);if (*ierr) return;
   FREECHAR(fname,c1);
-  *ierr = PetscPrintf(MPI_Comm_f2c(*(MPI_Fint*)&*comm),tmp);if (*ierr) return;
+  *ierr = PetscPrintf(MPI_Comm_f2c(*(MPI_Fint*)comm),tmp);if (*ierr) return;
   *ierr = PetscFree(tmp);
 }
 
@@ -65,7 +65,7 @@ PETSC_EXTERN void PETSC_STDCALL petscsynchronizedfprintf_(MPI_Comm *comm,FILE **
   FIXCHAR(fname,len1,c1);
   *ierr = PetscFixSlashN(c1,&tmp);if (*ierr) return;
   FREECHAR(fname,c1);
-  *ierr = PetscSynchronizedFPrintf(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*file,tmp);if (*ierr) return;
+  *ierr = PetscSynchronizedFPrintf(MPI_Comm_f2c(*(MPI_Fint*)comm),*file,tmp);if (*ierr) return;
   *ierr = PetscFree(tmp);
 }
 
@@ -76,7 +76,7 @@ PETSC_EXTERN void PETSC_STDCALL petscsynchronizedprintf_(MPI_Comm *comm,char* fn
   FIXCHAR(fname,len1,c1);
   *ierr = PetscFixSlashN(c1,&tmp);if (*ierr) return;
   FREECHAR(fname,c1);
-  *ierr = PetscSynchronizedPrintf(MPI_Comm_f2c(*(MPI_Fint*)&*comm),tmp);if (*ierr) return;
+  *ierr = PetscSynchronizedPrintf(MPI_Comm_f2c(*(MPI_Fint*)comm),tmp);if (*ierr) return;
   *ierr = PetscFree(tmp);
 }
 

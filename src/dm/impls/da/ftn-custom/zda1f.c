@@ -11,7 +11,7 @@
 PETSC_EXTERN void PETSC_STDCALL dmdacreate1d_(MPI_Comm *comm,DMBoundaryType *bx,PetscInt *M,PetscInt *w,PetscInt *s,PetscInt *lc,DM *inra,PetscErrorCode *ierr)
 {
   CHKFORTRANNULLINTEGER(lc);
-  *ierr = DMDACreate1d(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*bx,*M,*w,*s,lc,inra);
+  *ierr = DMDACreate1d(MPI_Comm_f2c(*(MPI_Fint*)comm),*bx,*M,*w,*s,lc,inra);
 }
 
 

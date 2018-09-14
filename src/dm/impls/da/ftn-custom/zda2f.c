@@ -13,6 +13,6 @@ PETSC_EXTERN void PETSC_STDCALL dmdacreate2d_(MPI_Comm *comm,DMBoundaryType *bx,
 {
   CHKFORTRANNULLINTEGER(lx);
   CHKFORTRANNULLINTEGER(ly);
-  *ierr = DMDACreate2d(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*bx,*by,*stencil_type,*M,*N,*m,*n,*w,*s,lx,ly,inra);
+  *ierr = DMDACreate2d(MPI_Comm_f2c(*(MPI_Fint*)comm),*bx,*by,*stencil_type,*M,*N,*m,*n,*w,*s,lx,ly,inra);
 }
 

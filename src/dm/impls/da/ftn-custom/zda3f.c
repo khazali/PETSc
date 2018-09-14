@@ -15,6 +15,6 @@ PETSC_EXTERN void PETSC_STDCALL dmdacreate3d_(MPI_Comm *comm,DMBoundaryType *bx,
   CHKFORTRANNULLINTEGER(lx);
   CHKFORTRANNULLINTEGER(ly);
   CHKFORTRANNULLINTEGER(lz);
-  *ierr = DMDACreate3d(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*bx,*by,*bz,*stencil_type,
+  *ierr = DMDACreate3d(MPI_Comm_f2c(*(MPI_Fint*)comm),*bx,*by,*bz,*stencil_type,
                        *M,*N,*P,*m,*n,*p,*w,*s,lx,ly,lz,inra);
 }

@@ -18,13 +18,13 @@ PETSC_EXTERN void PETSC_STDCALL petscviewerasciiopen_(MPI_Comm *comm,char* name 
 {
   char *c1;
   FIXCHAR(name,len,c1);
-  *ierr = PetscViewerASCIIOpen(MPI_Comm_f2c(*(MPI_Fint*)&*comm),c1,lab);
+  *ierr = PetscViewerASCIIOpen(MPI_Comm_f2c(*(MPI_Fint*)comm),c1,lab);
   FREECHAR(name,c1);
 }
 
 PETSC_EXTERN PetscViewer PETSC_STDCALL petsc_viewer_stdout__(MPI_Comm *comm)
 {
-  return PETSC_VIEWER_STDOUT_(MPI_Comm_f2c(*(MPI_Fint*)&*comm));
+  return PETSC_VIEWER_STDOUT_(MPI_Comm_f2c(*(MPI_Fint*)comm));
 }
 
 

@@ -28,7 +28,7 @@ PETSC_EXTERN void PETSC_STDCALL petscdrawcreate_(MPI_Comm *comm,char* display PE
 
   FIXCHAR(display,len1,t1);
   FIXCHAR(title,len2,t2);
-  *ierr = PetscDrawCreate(MPI_Comm_f2c(*(MPI_Fint*)&*comm),t1,t2,*x,*y,*w,*h,inctx);
+  *ierr = PetscDrawCreate(MPI_Comm_f2c(*(MPI_Fint*)comm),t1,t2,*x,*y,*w,*h,inctx);
   FREECHAR(display,t1);
   FREECHAR(title,t2);
 }

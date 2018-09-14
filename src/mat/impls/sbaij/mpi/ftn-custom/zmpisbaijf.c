@@ -14,7 +14,7 @@ PETSC_EXTERN void PETSC_STDCALL matcreatesbaij_(MPI_Comm *comm,PetscInt *bs,Pets
 {
   CHKFORTRANNULLINTEGER(d_nnz);
   CHKFORTRANNULLINTEGER(o_nnz);
-  *ierr = MatCreateSBAIJ(MPI_Comm_f2c(*(MPI_Fint*)&*comm),*bs,*m,*n,*M,*N,*d_nz,d_nnz,*o_nz,o_nnz,newmat);
+  *ierr = MatCreateSBAIJ(MPI_Comm_f2c(*(MPI_Fint*)comm),*bs,*m,*n,*M,*N,*d_nz,d_nnz,*o_nz,o_nnz,newmat);
 }
 
 PETSC_EXTERN void PETSC_STDCALL matmpisbaijsetpreallocation_(Mat *mat,PetscInt *bs,PetscInt *d_nz,PetscInt *d_nnz,PetscInt *o_nz,PetscInt *o_nnz,PetscErrorCode *ierr)

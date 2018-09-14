@@ -20,7 +20,7 @@
 
 PETSC_EXTERN PetscViewer PETSC_STDCALL petsc_viewer_draw__(MPI_Comm *comm)
 {
-  return PETSC_VIEWER_DRAW_(MPI_Comm_f2c(*(MPI_Fint*)&*comm));
+  return PETSC_VIEWER_DRAW_(MPI_Comm_f2c(*(MPI_Fint*)comm));
 }
 
 PETSC_EXTERN void PETSC_STDCALL petscviewerdrawgetdraw_(PetscViewer *vin,int *win,PetscDraw *draw,PetscErrorCode *ierr)
@@ -45,7 +45,7 @@ PETSC_EXTERN void PETSC_STDCALL petscviewerdrawopen_(MPI_Comm *comm,char* displa
 
   FIXCHAR(display,len1,c1);
   FIXCHAR(title,len2,c2);
-  *ierr = PetscViewerDrawOpen(MPI_Comm_f2c(*(MPI_Fint*)&*comm),c1,c2,*x,*y,*w,*h,v);
+  *ierr = PetscViewerDrawOpen(MPI_Comm_f2c(*(MPI_Fint*)comm),c1,c2,*x,*y,*w,*h,v);
   FREECHAR(display,c1);
   FREECHAR(title,c2);
 }

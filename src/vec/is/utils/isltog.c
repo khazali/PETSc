@@ -1480,8 +1480,8 @@ PetscErrorCode  ISLocalToGlobalMappingGetInfo(ISLocalToGlobalMapping mapping,Pet
   PetscValidHeaderSpecific(mapping,IS_LTOGM_CLASSID,1);
   ierr = ISLocalToGlobalMappingGetBlockInfo(mapping,nproc,procs,&bnumprocs,&bindices);CHKERRQ(ierr);
   if (bs > 1) { /* we need to expand the cached info */
-    ierr = PetscCalloc1(*nproc,&*indices);CHKERRQ(ierr);
-    ierr = PetscCalloc1(*nproc,&*numprocs);CHKERRQ(ierr);
+    ierr = PetscCalloc1(*nproc,indices);CHKERRQ(ierr);
+    ierr = PetscCalloc1(*nproc,numprocs);CHKERRQ(ierr);
     for (i=0; i<*nproc; i++) {
       ierr = PetscMalloc1(bs*bnumprocs[i],&(*indices)[i]);CHKERRQ(ierr);
       for (j=0; j<bnumprocs[i]; j++) {
