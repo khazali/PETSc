@@ -185,6 +185,18 @@ static PetscErrorCode MatSolve_SuperLU_DIST(Mat A,Vec b_mpi,Vec x)
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode MatSolveTranspose_SuperLU_DIST(Mat A,Vec b,Vec x)
+{
+  Mat_SuperLU_DIST *lu = (Mat_SuperLU_DIST*)A->spptr;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  lu->options.Trans = TRANS;
+  ierr = MatSolve_SuperLU_DIST(A,b,x);CHKERRQ(ierr);
+  lu->options.Trans = NOTRANS;
+  PetscFunctionReturn(0);
+}
+
 static PetscErrorCode MatMatSolve_SuperLU_DIST(Mat A,Mat B_mpi,Mat X)
 {
   Mat_SuperLU_DIST *lu = (Mat_SuperLU_DIST*)A->data;
@@ -517,6 +529,7 @@ static PetscErrorCode MatLUFactorSymbolic_SuperLU_DIST(Mat F,Mat A,IS r,IS c,con
   PetscStackCall("SuperLU_DIST:LUstructInit",LUstructInit(N, &lu->LUstruct));
   F->ops->lufactornumeric = MatLUFactorNumeric_SuperLU_DIST;
   F->ops->solve           = MatSolve_SuperLU_DIST;
+  F->ops->solvetranspose  = MatSolveTranspose_SuperLU_DIST;
   F->ops->matsolve        = MatMatSolve_SuperLU_DIST;
   F->ops->getinertia      = NULL;
 
