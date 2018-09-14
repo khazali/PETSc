@@ -2367,7 +2367,7 @@ PetscErrorCode PetscSectionSetClosurePermutation_Internal(PetscSection section, 
 }
 
 /*@
-  PetscSectionSetClosurePermutation - Get the dof permutation for the closure of each cell in the section, meaning clPerm[newIndex] = oldIndex.
+  PetscSectionSetClosurePermutation - Set the dof permutation for the closure of each cell in the section, meaning clPerm[newIndex] = oldIndex.
 
   Input Parameters:
 + section - The PetscSection
