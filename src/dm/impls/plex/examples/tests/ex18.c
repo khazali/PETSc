@@ -143,7 +143,7 @@ typedef struct {
   char       filename[PETSC_MAX_PATH_LEN]; /* Import mesh from file */
 } AppCtx;
 
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   const char    *interpTypes[3]  = {"none", "serial", "parallel"};
   PetscInt       interp;
@@ -174,7 +174,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateSimplex_2D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, DM *dm)
+static PetscErrorCode CreateSimplex_2D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, DM *dm)
 {
   PetscInt       testNum = user->testNum, p;
   PetscMPIInt    rank, size;
@@ -256,7 +256,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, PetscBool interpolate, AppCtx *us
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateSimplex_3D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, DM *dm)
+static PetscErrorCode CreateSimplex_3D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, DM *dm)
 {
   PetscInt       testNum = user->testNum, p;
   PetscMPIInt    rank, size;
@@ -299,7 +299,7 @@ PetscErrorCode CreateSimplex_3D(MPI_Comm comm, PetscBool interpolate, AppCtx *us
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateQuad_2D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, DM *dm)
+static PetscErrorCode CreateQuad_2D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, DM *dm)
 {
   PetscInt       testNum = user->testNum, p;
   PetscMPIInt    rank, size;
@@ -342,7 +342,7 @@ PetscErrorCode CreateQuad_2D(MPI_Comm comm, PetscBool interpolate, AppCtx *user,
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, DM *dm)
+static PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, DM *dm)
 {
   PetscInt       testNum = user->testNum, p;
   PetscMPIInt    rank, size;
@@ -385,7 +385,7 @@ PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscBool interpolate, AppCtx *user, 
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CheckMesh(DM dm, AppCtx *user)
+static PetscErrorCode CheckMesh(DM dm, AppCtx *user)
 {
   PetscReal      detJ, J[9], refVol = 1.0;
   PetscReal      vol;
@@ -412,7 +412,7 @@ PetscErrorCode CheckMesh(DM dm, AppCtx *user)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
+static PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
 {
   PetscInt       dim            = user->dim;
   PetscBool      cellSimplex    = user->cellSimplex;
