@@ -314,6 +314,11 @@ static PetscErrorCode DMPlexHotfixInterpolatedPointSF_Private(DM dm)
     ierr = AreAllConePointsInArray_Private(dm, p, nleaves1, ilocal1, &flg);CHKERRQ(ierr);
     if (!flg) {
       /* remove p - shift all following points one position back */
+      {
+        PetscMPIInt rank;
+        MPI_Comm_rank(PetscObjectComm((PetscObject)dm), &rank);
+        PetscPrintf(PETSC_COMM_SELF, "[%d] removing point %d from SF\n",rank,p);
+      }
       ierr = PetscMemmove(&ilocal1[i], &ilocal1[i+1], (nleaves1-(i+1))*sizeof(PetscInt));CHKERRQ(ierr);
       ierr = PetscMemmove(&iremote1[i], &iremote1[i+1], (nleaves1-(i+1))*sizeof(PetscSFNode));CHKERRQ(ierr);
       nleaves1--;
@@ -1438,10 +1443,20 @@ PetscErrorCode DMPlexCheckConeOrientationOnInterfaces(DM dm)
   ierr = ExchangeVecByRank_Private((PetscObject)sf, nranks, ranks, sntCoordinatesPerRank, niranks, iranks, &recCoordinatesPerRank);CHKERRQ(ierr);
 
   /* Compare recCoordinatesPerRank with refCoordinatesPerRank */
+PetscSequentialPhaseBegin(comm,1);
   for (r=0; r<niranks; r++) {
     ierr = VecEqual(refCoordinatesPerRank[r], recCoordinatesPerRank[r], &same);CHKERRQ(ierr);
-    if (!same) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "interface cones do not conform for remote rank %d", iranks[r]);
+    if (!same) {
+      IS ise,isi;
+      VecView(refCoordinatesPerRank[r],PETSC_VIEWER_STDOUT_SELF);
+      VecView(recCoordinatesPerRank[r],PETSC_VIEWER_STDOUT_SELF);
+      VecWhichEqual(refCoordinatesPerRank[r],recCoordinatesPerRank[r],&ise);
+      ISComplementVec(ise,recCoordinatesPerRank[r],&isi);
+      ISView(isi,PETSC_VIEWER_STDOUT_SELF);
+      //SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "interface cones do not conform for remote rank %d", iranks[r]);
+    }
   }
+PetscSequentialPhaseEnd(comm,1);
 
   /* destroy sent stuff */
   for (r=0; r<nranks; r++) {
