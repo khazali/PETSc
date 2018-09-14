@@ -31,3 +31,10 @@
       parameter ( TAO_DIVERGED_TR_REDUCTION = -7)
       parameter ( TAO_DIVERGED_USER = -8)
       parameter ( TAO_CONTINUE_ITERATING = 0)
+
+      PetscEnum TAO_SUBSET_SUBVEC
+      PetscEnum TAO_SUBSET_MASK
+      PetscEnum TAO_SUBSET_MATRIXFREE
+      parameter ( TAO_SUBSET_SUBVEC = 0)
+      parameter ( TAO_SUBSET_MASK = 1)
+      parameter ( TAO_SUBSET_MATRIXFREE = 2)
