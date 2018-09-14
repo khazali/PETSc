@@ -5,6 +5,7 @@ static char help[] = "Tests for parallel mesh loading\n\n";
 
 /* TODO add to DMPlex API */
 PETSC_EXTERN PetscErrorCode DMPlexCheckConeOrientationOnInterfaces(DM);
+PETSC_EXTERN PetscErrorCode DMPlexCheckPointSF(DM);
 
 /* List of test meshes
 
@@ -444,6 +445,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
   PetscBool      iad          = user->iad;
   const char    *filename     = user->filename;
   size_t         len;
+  PetscBool      flg;
   PetscMPIInt    rank;
   PetscErrorCode ierr;
 
@@ -499,11 +501,16 @@ PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, DM *dm)
     if (iad) {
       DM idm;
 
+      /*  -dm_plex_check_pointsf consumed and DMPlexCheckPointSF() called in DMPlexInterpolate() */
       ierr = DMPlexInterpolate(*dm, &idm);CHKERRQ(ierr);
       ierr = DMDestroy(dm);CHKERRQ(ierr);
       *dm = idm;
       ierr = PetscObjectSetName((PetscObject) *dm, "Interpolated Redistributed Mesh");CHKERRQ(ierr);
       ierr = DMViewFromOptions(*dm, NULL, "-intp_dm_view");CHKERRQ(ierr);
+    } else {
+      flg = PETSC_FALSE;
+      ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_check_pointsf", &flg, NULL);CHKERRQ(ierr);
+      if (flg) {ierr = DMPlexCheckPointSF(*dm);CHKERRQ(ierr);}
     }
   }
   ierr = PetscObjectSetName((PetscObject) *dm, "Parallel Mesh");CHKERRQ(ierr);

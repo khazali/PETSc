@@ -1658,6 +1658,7 @@ static PetscErrorCode CheckAllSharedSupportPointsInArray(DM dm, PetscInt p, Pets
 }
 
 /* TODO add to API? */
+PETSC_EXTERN PetscErrorCode DMPlexCheckPointSF(DM);
 PetscErrorCode DMPlexCheckPointSF(DM dm)
 {
   PetscSF sf;
