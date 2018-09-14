@@ -1749,6 +1749,11 @@ PetscErrorCode DMPlexInterpolate(DM dm, DM *dmInt)
       odm = idm;
     }
 
+    ierr = PetscObjectGetName((PetscObject) dm,  &name);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) idm,  name);CHKERRQ(ierr);
+    ierr = DMPlexCopyCoordinates(dm, idm);CHKERRQ(ierr);
+    ierr = DMCopyLabels(dm, idm);CHKERRQ(ierr);
+
     {
       PetscBool flg=PETSC_FALSE;
       PetscBool flg1=PETSC_FALSE;
@@ -1793,10 +1798,6 @@ PetscErrorCode DMPlexInterpolate(DM dm, DM *dmInt)
       ierr = PetscOptionsGetBool(NULL, NULL, "-dm_plex_fix_cone_orientation", &flg, NULL);CHKERRQ(ierr);
       if (flg) {ierr = DMPlexFixConeOrientationOnInterfaces_Private(idm);CHKERRQ(ierr);}
     }
-    ierr = PetscObjectGetName((PetscObject) dm,  &name);CHKERRQ(ierr);
-    ierr = PetscObjectSetName((PetscObject) idm,  name);CHKERRQ(ierr);
-    ierr = DMPlexCopyCoordinates(dm, idm);CHKERRQ(ierr);
-    ierr = DMCopyLabels(dm, idm);CHKERRQ(ierr);
   }
   {
     PetscBool            isper;
