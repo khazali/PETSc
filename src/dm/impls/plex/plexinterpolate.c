@@ -1610,26 +1610,41 @@ static PetscErrorCode DMPlexFixConeOrientationOnInterfaces_Private(DM dm)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode CheckAllConePointsInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points)
+static PetscErrorCode AreAllConePointsInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points, PetscInt *missingPoint)
 {
   PetscInt i,l,n;
   const PetscInt *cone;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  *missingPoint = -1;
   ierr = DMPlexGetConeSize(dm, p, &n);CHKERRQ(ierr);
   ierr = DMPlexGetCone(dm, p, &cone);CHKERRQ(ierr);
   for (i=0; i<n; i++) {
     ierr = PetscFindInt(cone[i], npoints, points, &l);CHKERRQ(ierr);
-    if (l < 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but not %d from its cone",p,cone[i]);
+    if (l < 0) {
+      *missingPoint = cone[i];
+      break;
+    }
   }
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode CheckAllConePointsInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points)
+{
+  PetscInt missingPoint;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = AreAllConePointsInArray(dm, p, npoints, points, &missingPoint);CHKERRQ(ierr);
+  if (missingPoint >= 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but not %d from its cone",p,missingPoint);
   PetscFunctionReturn(0);
 }
 
 static PetscErrorCode CheckAllSharedSupportPointsInArray(DM dm, PetscInt p, PetscInt npoints, const PetscInt *points)
 {
-  PetscInt i,j,l,n,coneSize;
-  const PetscInt *support, *cone;
+  PetscInt i,l,n,missingPoint;
+  const PetscInt *support;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -1641,17 +1656,9 @@ static PetscErrorCode CheckAllSharedSupportPointsInArray(DM dm, PetscInt p, Pets
       /* support[i] found in array, let's check next one */
       continue;
     } else {
-      /* support[i] not found in array - this implies no of its cone points other than p can be in the array */
-      ierr = DMPlexGetCone(dm, support[i], &cone);CHKERRQ(ierr);
-      ierr = DMPlexGetConeSize(dm, support[i], &coneSize);CHKERRQ(ierr);
-      for (j=0; j<coneSize; j++) {
-        if (cone[j] == p) continue;
-        ierr = PetscFindInt(cone[j], npoints, points, &l);CHKERRQ(ierr);
-        if (l >= 0) {
-          /* support[i] is not present in array but at least two different points from its cone are (p and cone[j]) */
-          SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d and %d but not their common support point %d",p,cone[j],support[i]);
-        }
-      }
+      /* support[i] not found in array - but that's wrong if all its cone points are present in array */
+      ierr = AreAllConePointsInArray(dm, support[i], npoints, points, &missingPoint);CHKERRQ(ierr);
+      if (missingPoint < 0) SETERRQ4(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d and all other cone points of support[%d]=%d but not support[%d]",p,i,support[i],i);
     }
   }
   PetscFunctionReturn(0);
