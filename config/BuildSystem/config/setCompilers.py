@@ -891,6 +891,7 @@ class Configure(config.base.Configure):
       raise RuntimeError('Fortran compiler you provided with -FC='+self.argDB['FC']+' does not work.'+'\n'+self.mesg)
     elif self.useMPICompilers() and 'with-mpi-dir' in self.argDB and os.path.isdir(os.path.join(self.argDB['with-mpi-dir'], 'bin')):
       self.usedMPICompilers = 1
+      yield os.path.join(self.argDB['with-mpi-dir'], 'bin', 'mpifort')
       yield os.path.join(self.argDB['with-mpi-dir'], 'bin', 'mpif90')
       yield os.path.join(self.argDB['with-mpi-dir'], 'bin', 'mpif77')
       yield os.path.join(self.argDB['with-mpi-dir'], 'bin', 'mpxlf95_r')
@@ -979,7 +980,7 @@ class Configure(config.base.Configure):
       except RuntimeError as e:
         self.mesg = str(e)
         self.logPrint('Error testing Fortran compiler: '+str(e))
-        if os.path.basename(self.FC) in ['mpif90', 'mpif77']:
+        if os.path.basename(self.FC) in ['mpifort', 'mpif90', 'mpif77']:
           self.logPrint(' MPI installation '+str(self.FC)+' is likely incorrect.\n  Use --with-mpi-dir to indicate an alternate MPI.')
         self.delMakeMacro('FC')
         del self.FC
@@ -1608,7 +1609,7 @@ if (dlclose(handle)) {
 
     if 'with-mpi-dir' in self.argDB and self.argDB['with-mpi-compilers']:
       optcplrs = [(['with-cc','CC'],['mpicc','mpcc','hcc','mpcc_r']),
-              (['with-fc','FC'],['mpif90','mpif77','mpxlf95_r','mpxlf90_r','mpxlf_r','mpf90','mpf77']),
+              (['with-fc','FC'],['mpifort','mpif90','mpif77','mpxlf95_r','mpxlf90_r','mpxlf_r','mpf90','mpf77']),
               (['with-cxx','CXX'],['mpicxx','hcp','mpic++','mpiCC','mpCC_r'])]
       for opts,cplrs in optcplrs:
         for opt in opts:
