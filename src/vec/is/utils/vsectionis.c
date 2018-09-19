@@ -47,6 +47,7 @@ PetscErrorCode PetscSectionCreate(MPI_Comm comm, PetscSection *s)
   (*s)->pStart             = -1;
   (*s)->pEnd               = -1;
   (*s)->perm               = NULL;
+  (*s)->pointMajor         = PETSC_TRUE;
   (*s)->maxDof             = 0;
   (*s)->atlasDof           = NULL;
   (*s)->atlasOff           = NULL;
@@ -174,6 +175,36 @@ PetscErrorCode PetscSectionClone(PetscSection section, PetscSection *newSection)
   PetscValidPointer(newSection, 2);
   ierr = PetscSectionCreate(PetscObjectComm((PetscObject) section), newSection);CHKERRQ(ierr);
   ierr = PetscSectionCopy(section, *newSection);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
+  PetscSectionSetFromOptions - sets parameters in a PetscSection from the options database
+
+  Collective on PetscSection
+
+  Input Parameter:
+. section - the PetscSection
+
+  Options Database:
+. -petscsection_point_major the dof order
+
+  Level: intermediate
+
+.seealso: PetscSection, PetscSectionCreate(), PetscSectionDestroy()
+@*/
+PetscErrorCode PetscSectionSetFromOptions(PetscSection s)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(s, PETSC_SECTION_CLASSID, 1);
+  ierr = PetscObjectOptionsBegin((PetscObject) s);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-petscsection_point_major", "The for ordering, either point major or field major", "PetscSectionSetPointMajor", s->pointMajor, &s->pointMajor, NULL);CHKERRQ(ierr);
+  /* process any options handlers added with PetscObjectAddOptionsHandler() */
+  ierr = PetscObjectProcessOptionsHandlers(PetscOptionsObject,(PetscObject) s);CHKERRQ(ierr);
+  ierr = PetscOptionsEnd();CHKERRQ(ierr);
+  ierr = PetscObjectViewFromOptions((PetscObject) s, NULL, "-petscsection_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -576,6 +607,54 @@ PetscErrorCode PetscSectionSetPermutation(PetscSection s, IS perm)
 }
 
 /*@
+  PetscSectionGetPointMajor - Returns the flag for dof ordering, true if it is point major, otherwise field major
+
+  Not collective
+
+  Input Parameter:
+. s - the PetscSection
+
+  Output Parameter:
+. pm - the flag for point major ordering
+
+  Level: intermediate
+
+.seealso: PetscSectionSetPointMajor()
+@*/
+PetscErrorCode PetscSectionGetPointMajor(PetscSection s, PetscBool *pm)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(s, PETSC_SECTION_CLASSID, 1);
+  PetscValidPointer(pm,2);
+  *pm = s->pointMajor;
+  PetscFunctionReturn(0);
+}
+
+/*@
+  PetscSectionSetPointMajor - Sets the flag for dof ordering, true if it is point major, otherwise field major
+
+  Not collective
+
+  Input Parameters:
++ s  - the PetscSection
+- pm - the flag for point major ordering
+
+  Not collective
+
+  Level: intermediate
+
+.seealso: PetscSectionGetPointMajor()
+@*/
+PetscErrorCode PetscSectionSetPointMajor(PetscSection s, PetscBool pm)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(s, PETSC_SECTION_CLASSID, 1);
+  if (s->setup) SETERRQ(PetscObjectComm((PetscObject) s), PETSC_ERR_ARG_WRONGSTATE, "Cannot set the dof ordering after the section is setup");
+  s->pointMajor = pm;
+  PetscFunctionReturn(0);
+}
+
+/*@
   PetscSectionGetDof - Return the number of degrees of freedom associated with a given point.
 
   Not collective
@@ -923,38 +1002,54 @@ PetscErrorCode PetscSectionSetUpBC(PetscSection s)
 PetscErrorCode PetscSectionSetUp(PetscSection s)
 {
   const PetscInt *pind   = NULL;
-  PetscInt        offset = 0, p, f;
+  PetscInt        offset = 0, foff, p, f;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(s, PETSC_SECTION_CLASSID, 1);
   if (s->setup) PetscFunctionReturn(0);
   s->setup = PETSC_TRUE;
+  /* Set offsets and field offsets for all points */
+  /*   Assume that all fields have the same chart */
   if (s->perm) {ierr = ISGetIndices(s->perm, &pind);CHKERRQ(ierr);}
-  for (p = 0; p < s->pEnd - s->pStart; ++p) {
-    const PetscInt q = pind ? pind[p] : p;
+  if (s->pointMajor) {
+    for (p = 0; p < s->pEnd - s->pStart; ++p) {
+      const PetscInt q = pind ? pind[p] : p;
 
-    s->atlasOff[q] = offset;
-    offset        += s->atlasDof[q];
-    s->maxDof      = PetscMax(s->maxDof, s->atlasDof[q]);
-  }
-  ierr = PetscSectionSetUpBC(s);CHKERRQ(ierr);
-  /* Assume that all fields have the same chart */
-  for (p = 0; p < s->pEnd - s->pStart; ++p) {
-    const PetscInt q   = pind ? pind[p] : p;
-    PetscInt       off = s->atlasOff[q];
+      /* Set point offset */
+      s->atlasOff[q] = offset;
+      offset        += s->atlasDof[q];
+      s->maxDof      = PetscMax(s->maxDof, s->atlasDof[q]);
+      /* Set field offset */
+      for (f = 0, foff = s->atlasOff[q]; f < s->numFields; ++f) {
+        PetscSection sf = s->field[f];
 
+        sf->atlasOff[q] = foff;
+        foff += sf->atlasDof[q];
+      }
+    }
+  } else {
+    /* Set field offsets for all points */
     for (f = 0; f < s->numFields; ++f) {
       PetscSection sf = s->field[f];
 
-      sf->atlasOff[q] = off;
-      off += sf->atlasDof[q];
+      for (p = 0; p < s->pEnd - s->pStart; ++p) {
+        const PetscInt q = pind ? pind[p] : p;
+
+        sf->atlasOff[q] = offset;
+        offset += sf->atlasDof[q];
+      }
+    }
+    /* Disable point offsets since these are unused */
+    for (p = 0; p < s->pEnd - s->pStart; ++p) {
+      s->atlasOff[p] = -1;
+      s->maxDof      = PetscMax(s->maxDof, s->atlasDof[p]);
     }
   }
   if (s->perm) {ierr = ISRestoreIndices(s->perm, &pind);CHKERRQ(ierr);}
-  for (f = 0; f < s->numFields; ++f) {
-    ierr = PetscSectionSetUpBC(s->field[f]);CHKERRQ(ierr);
-  }
+  /* Setup BC sections */
+  ierr = PetscSectionSetUpBC(s);CHKERRQ(ierr);
+  for (f = 0; f < s->numFields; ++f) {ierr = PetscSectionSetUpBC(s->field[f]);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
