@@ -493,7 +493,6 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, 
 
 static PetscErrorCode CheckPointSF(DM dm, AppCtx *user)
 {
-  //PetscInt d,depth,i,p,plo,phi;
   PetscSF         sf;
   const PetscInt *locals;
   PetscInt        nleaves, l;
