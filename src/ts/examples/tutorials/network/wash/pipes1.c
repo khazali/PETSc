@@ -602,11 +602,10 @@ int main(int argc,char ** argv)
   for (i=2; i<=size; i++) {
     eowners[i] += eowners[i-1];
   }
-  if (rank == 1) {
-    for (i=0; i<=size; i++) printf("eowners[%d] = %d\n",i,eowners[i]);
-  }
+
   estart = eowners[rank];
   eend   = eowners[rank+1];
+  printf("[%d] own lists row %d - %d\n",rank,estart,eend);
 
   /* distribute row block edgelist to all processors */
   if (rank) {
@@ -626,7 +625,7 @@ int main(int argc,char ** argv)
      } */
   }
 
-  /* all processes get global and local number of vertices */
+  /* all processes get global and local number of vertices, without ghost vertices */
   PetscInt *nvtx,*vtxDone;
   ierr = PetscCalloc2(size,&nvtx,numVertices,&vtxDone);CHKERRQ(ierr);
   if (!rank) {
@@ -642,25 +641,15 @@ int main(int argc,char ** argv)
         }
       }
     }
-    //printf("nvtx:\n");
-    //for (i=0; i<size; i++) printf(" %d, ",nvtx[i]);
-    //printf("\n");
   }
   ierr = MPI_Bcast(&numVertices,1,MPIU_INT,0,PETSC_COMM_WORLD);CHKERRQ(ierr);
   ierr = MPI_Scatter(nvtx,1,MPIU_INT,&nvertices,1,MPIU_INT,0,PETSC_COMM_WORLD);CHKERRQ(ierr);
-  printf("[%d] nvtx %d, numVertices %d\n",rank,nvertices,numVertices);
-
   ierr = PetscFree2(nvtx,vtxDone);CHKERRQ(ierr);
+
+  printf("[%d] nvertices %d, numVertices %d\n",rank,nvertices,numVertices);
   ierr = PetscFree(eowners);CHKERRQ(ierr);
 
   //------------ end of new ----------------------
-
-  /* Set number of vertices and edges */
-  if (!rank) { //RM later!!!
-    nvertices = numVertices; nedges = numEdges;
-  } else {
-    nvertices = 0; nedges = 0;
-  }
   ierr = DMNetworkSetSizes(networkdm,1,0,&nvertices,&nedges,NULL,NULL);CHKERRQ(ierr);
 
   /* Add local edge connectivity */
@@ -674,6 +663,7 @@ int main(int argc,char ** argv)
   /* Add EDGEDATA component to all edges -- currently networkdm is a sequential network */
   ierr = DMNetworkGetEdgeRange(networkdm,&eStart,&eEnd);CHKERRQ(ierr);
   ierr = DMNetworkGetVertexRange(networkdm,&vStart,&vEnd);CHKERRQ(ierr);
+  printf("[%d] eStart/End: %d - %d; vStart/End: %d - %d\n",rank,eStart,eEnd,vStart,vEnd);
 
   for (e = eStart; e < eEnd; e++) {
     /* Add Pipe component to all edges -- create pipe here */

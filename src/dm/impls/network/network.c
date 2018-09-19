@@ -77,7 +77,7 @@ PetscErrorCode DMNetworkSetSizes(DM dm,PetscInt Nsubnet,PetscInt NsubnetCouple,P
       if (NE[i] > 0 && nE[i] > NE[i]) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_INCOMP,"Subnetwork %D: Local edge size %D cannot be larger than global edge size %D",i,nE[i],NE[i]);
     }
 
-    a[0] = nV[i]; a[1] = nE[i];
+    a[0] = nV[i]; a[1] = nE[i]; /* local number of vertices and edges */
     ierr = MPIU_Allreduce(a,b,2,MPIU_INT,MPI_SUM,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
     network->subnet[i].Nvtx = b[0]; network->subnet[i].Nedge = b[1];
 
@@ -85,13 +85,13 @@ PetscErrorCode DMNetworkSetSizes(DM dm,PetscInt Nsubnet,PetscInt NsubnetCouple,P
 
     network->subnet[i].nvtx = nV[i];
     network->subnet[i].vStart = network->nVertices;
-    network->subnet[i].vEnd   = network->subnet[i].vStart + network->subnet[i].Nvtx;
+    network->subnet[i].vEnd   = network->subnet[i].vStart + network->subnet[i].nvtx;
     network->nVertices += network->subnet[i].nvtx;
     network->NVertices += network->subnet[i].Nvtx;
 
     network->subnet[i].nedge = nE[i];
     network->subnet[i].eStart = network->nEdges;
-    network->subnet[i].eEnd = network->subnet[i].eStart + network->subnet[i].Nedge;
+    network->subnet[i].eEnd = network->subnet[i].eStart + network->subnet[i].nedge;
     network->nEdges += network->subnet[i].nedge;
     network->NEdges += network->subnet[i].Nedge;
   }
@@ -238,7 +238,11 @@ PetscErrorCode DMNetworkLayoutSetUp(DM dm)
     ierr = PetscFree(edges);
   }
 #else
-  ierr = DMPlexCreateFromCellList(PetscObjectComm((PetscObject)dm),dim,network->nEdges,network->nVertices,numCorners,PETSC_FALSE,network->edges,spacedim,vertexcoords,&network->plex);CHKERRQ(ierr); //crash!!!
+  if (size == 1) {
+    ierr = DMPlexCreateFromCellList(PetscObjectComm((PetscObject)dm),dim,network->nEdges,network->nVertices,numCorners,PETSC_FALSE,network->edges,spacedim,vertexcoords,&network->plex);CHKERRQ(ierr);
+  } else {
+    ierr = DMPlexCreateFromCellListParallel(PetscObjectComm((PetscObject)dm),dim,network->nEdges,network->nVertices,numCorners,PETSC_FALSE,network->edges,spacedim,vertexcoords,NULL,&network->plex);CHKERRQ(ierr);
+  }
  #endif
 
   if (network->nVertices) {
