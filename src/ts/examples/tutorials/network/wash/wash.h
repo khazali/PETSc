@@ -21,7 +21,7 @@ struct _p_Wash
 {
   MPI_Comm    comm;
   Junction    junction;
-  PetscInt    nedge,nvertex,njunction; /* global number of components */
+  PetscInt    nedge,nvertex;           /* global number of components */
   Vec         localX,localXdot;        /* vectors used in local function evalutation */
   PetscInt    nnodes_loc;              /* num of global and local nodes */
 

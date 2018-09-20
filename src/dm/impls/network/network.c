@@ -216,7 +216,7 @@ PetscErrorCode DMNetworkLayoutSetUp(DM dm)
     i++;
   }
 
-#if 1
+  /*
   if (rank == 0) {
     ierr = PetscPrintf(PETSC_COMM_SELF,"[%d] edgelist:\n",rank);
     for(i=0; i < network->nEdges; i++) {
@@ -224,7 +224,7 @@ PetscErrorCode DMNetworkLayoutSetUp(DM dm)
       printf("\n");
     }
   }
-#endif
+   */
 
 #if defined(PETSC_USE_64BIT_INDICES)
   {

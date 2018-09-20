@@ -15,4 +15,8 @@ pipes1: pipes1.o $(OBJECTS_PIPE) chkopts
 	-${CLINKER} -o pipes1 pipes1.o $(OBJECTS_PIPE) ${PETSC_TS_LIB}
 	${RM} pipes1.o $(OBJECTS_PIPE)
 
+pipes2: pipes2.o $(OBJECTS_PIPE) chkopts
+	-${CLINKER} -o pipes2 pipes2.o $(OBJECTS_PIPE) ${PETSC_TS_LIB}
+	${RM} pipes2.o $(OBJECTS_PIPE)
+
 include ${PETSC_DIR}/lib/petsc/conf/test
