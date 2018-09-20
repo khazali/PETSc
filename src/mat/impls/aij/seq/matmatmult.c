@@ -741,15 +741,15 @@ PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(Mat A,Mat B,PetscReal f
   Mat_SeqAIJ         *a  = (Mat_SeqAIJ*)A->data,*b=(Mat_SeqAIJ*)B->data,*c;
   const PetscInt     *ai = a->i,*bi=b->i,*aj=a->j,*bj=b->j,*inputi,*inputj,*inputcol,*inputcol_L1;
   PetscInt           *ci,*cj,*outputj,worki_L1[9],worki_L2[9];
-  PetscInt           c_maxmem=0,a_maxrownnz=0,a_rownnz;
+  PetscInt           c_maxmem,a_maxrownnz=0,a_rownnz;
   const PetscInt     workcol[8] = {0,1,2,3,4,5,6,7};
-  PetscInt           am=A->rmap->N,bn=B->cmap->N,bm=B->rmap->N;
+  const PetscInt     am=A->rmap->N,bn=B->cmap->N,bm=B->rmap->N;
   const PetscInt     *brow_ptr[8],*brow_end[8];
   PetscInt           window[8];
   PetscInt           window_min,old_window_min,ci_nnz,outputi_nnz=0,L1_nrows,L2_nrows;
   PetscInt           i,k,ndouble = 0,L1_rowsleft,rowsleft;
   PetscReal          afill;
-  PetscInt           *workj_L1,*workj_L2,*workj_L3_in,*workj_L3_out;
+  PetscInt           *workj_L1=NULL,*workj_L2=NULL,*workj_L3_in=NULL,*workj_L3_out=NULL;
   PetscInt           L2_nnz,L3_nnz;
   PetscBool          merge_from_2_arrays = PETSC_FALSE;
 
@@ -764,10 +764,18 @@ PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(Mat A,Mat B,PetscReal f
     const PetscInt anzi  = ai[i+1] - ai[i]; /* number of nonzeros in this row of A, this is the number of rows of B that we merge */
     const PetscInt *acol = aj + ai[i]; /* column indices of nonzero entries in this row */
     a_rownnz = 0;
-    for (k=0; k<anzi; ++k) a_rownnz += bi[acol[k]+1] - bi[acol[k]];
+    for (k=0; k<anzi; ++k) {
+      a_rownnz += bi[acol[k]+1] - bi[acol[k]];
+      if (a_rownnz > bn) {
+        a_rownnz = bn;
+        break;
+      }
+    }
     a_maxrownnz = PetscMax(a_maxrownnz, a_rownnz);
-    c_maxmem += a_rownnz;
   }
+  /* This should be enough for almost all matrices. If not, memory is reallocated later. */
+  c_maxmem = 2*(ai[am]+bi[bm]);
+
 
   if (a_maxrownnz > 8) { /* temporary work area for merging rows */
     ierr = PetscMalloc1(a_maxrownnz*8,&workj_L1);CHKERRQ(ierr);
@@ -795,6 +803,13 @@ PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(Mat A,Mat B,PetscReal f
     L2_nnz               = 0;
     L2_nrows             = 1;  /* Number of rows to be merged on Level 3. workj_L3_in already exists -> initial value 1   */
     L3_nnz               = 0;
+
+    /* If the number of indices in C so far + the max number of columns in the next row > c_maxmem  -> allocate more memory */
+    while (ci_nnz+a_maxrownnz > c_maxmem) {
+      c_maxmem *= 2;
+      ndouble++;
+      ierr = PetscRealloc(sizeof(PetscInt)*c_maxmem,&cj);CHKERRQ(ierr);
+    }
 
     while (rowsleft) {
       L1_rowsleft = PetscMin(64, rowsleft); /* In the inner loop max 64 rows of B can be merged */
@@ -1009,11 +1024,11 @@ PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge(Mat A,Mat B,PetscReal f
 PetscErrorCode MatMatMultSymbolic_SeqAIJ_SeqAIJ_RowMerge2(Mat A,Mat B,PetscReal fill,Mat *C)
 {
   PetscErrorCode     ierr;
-  PetscLogDouble flops=0.0;
+  PetscLogDouble     flops=0.0;
   Mat_SeqAIJ         *a  = (Mat_SeqAIJ*)A->data,*b=(Mat_SeqAIJ*)B->data,*c;
   const PetscInt     *ai = a->i,*bi=b->i,*aj=a->j,*bj=b->j,*inputi,*inputj,*inputcol;
-  PetscInt           *ci,*cj,*outputi,*outputj,worki[9],*workj,workcol[8];
-  PetscScalar        *aa=a->a,*ba=b->a,*ca,valtmp,*workval,*inputval,*outputval,allones[8];
+  PetscInt           *ci,*cj,*outputi,*outputj,worki[9],*workj=NULL,workcol[8];
+  PetscScalar        *aa=a->a,*ba=b->a,*ca,valtmp,*workval=NULL,*inputval,*outputval,allones[8];
   PetscInt           brow_offset[8],brow_offset_end[8];
   PetscInt           c_maxmem=0,a_maxrownnz=0,a_rownnz;
   PetscInt           am=A->rmap->N,bn=B->cmap->N,bm=B->rmap->N;
