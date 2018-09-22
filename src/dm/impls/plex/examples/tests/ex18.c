@@ -502,18 +502,38 @@ static PetscErrorCode CreateMesh(MPI_Comm comm, PetscInt testNum, AppCtx *user, 
 
 static PetscErrorCode CheckPointSF(DM dm, AppCtx *user)
 {
-  PetscSF         sf;
-  const PetscInt *locals;
-  PetscInt        nleaves, l;
-  PetscErrorCode  ierr;
+  PetscSF            sf;
+  PetscSFNode       *roots, *leaves;
+  const PetscInt    *locals;
+  const PetscSFNode *remotes;
+  PetscInt           nroots, r, nleaves, l;
+  PetscErrorCode     ierr;
 
   PetscFunctionBegin;
   ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
-  ierr = PetscSFGetGraph(sf, NULL, &nleaves, &locals, NULL);CHKERRQ(ierr);
+  ierr = PetscSFGetGraph(sf, &nroots, &nleaves, &locals, &remotes);CHKERRQ(ierr);
   /* If a point p is on the interface, then all its cone points must be also on interface  */
-  for (l = 0; l < nleaves; ++l) {
+  ierr = PetscCalloc2(nroots, &roots, nroots, &leaves);CHKERRQ(ierr);
+  for (r = 0; r < nroots; ++r) {
+    const PetscInt  point = r;
     const PetscInt *cone;
-    const PetscInt  point = locals[l];
+    PetscInt        coneSize, ind0, ind1;
+
+    ierr = DMPlexGetConeSize(dm, point, &coneSize);CHKERRQ(ierr);
+    ierr = DMPlexGetCone(dm, point, &cone);CHKERRQ(ierr);
+    if (coneSize  > 1) {
+      /* Translate all points to root numbering */
+      ierr = PetscFindInt(cone[0], nleaves, locals, &ind0);CHKERRQ(ierr);
+      ierr = PetscFindInt(cone[1], nleaves, locals, &ind1);CHKERRQ(ierr);
+      roots[r].rank  = ind0 < 0 ? cone[0] : remotes[ind0].index;
+      roots[r].index = ind1 < 0 ? cone[1] : remotes[ind1].index;
+    }
+  }
+  ierr = PetscSFBcastBegin(sf, MPIU_2INT, roots, leaves);CHKERRQ(ierr);
+  ierr = PetscSFBcastEnd(sf, MPIU_2INT, roots, leaves);CHKERRQ(ierr);
+  for (l = 0; l < nleaves; ++l) {
+    const PetscInt  point = locals ? locals[l] : l;
+    const PetscInt *cone;
     PetscInt        coneSize, c, ind;
 
     ierr = DMPlexGetConeSize(dm, point, &coneSize);CHKERRQ(ierr);
@@ -521,8 +541,13 @@ static PetscErrorCode CheckPointSF(DM dm, AppCtx *user)
     for (c = 0; c < coneSize; ++c) {
       ierr = PetscFindInt(cone[c], nleaves, locals, &ind);CHKERRQ(ierr);
       if (ind < 0) SETERRQ3(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Point SF contains %D but is missing cone point %D = %D", point, c, cone[c]);
+      if (c == 0 && (leaves[point].rank  != remotes[ind].index))
+        SETERRQ9(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Point %D Cone[%D] %D --> (%D, %D) != %D Cone[%D] SF Point (%D, %D)", point, c, cone[c], remotes[ind].rank, remotes[ind].index, leaves[point].rank,  c, remotes[l].rank, remotes[l].index);
+      if (c == 1 && (leaves[point].index != remotes[ind].index))
+        SETERRQ9(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Point %D Cone[%D] %D --> (%D, %D) != %D Cone[%D] SF Point (%D, %D)", point, c, cone[c], remotes[ind].rank, remotes[ind].index, leaves[point].index, c, remotes[l].rank, remotes[l].index);
     }
   }
+  ierr = PetscFree2(roots, leaves);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
