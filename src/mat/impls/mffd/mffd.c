@@ -195,6 +195,7 @@ PetscErrorCode  MatMFFDRegister(const char sname[],PetscErrorCode (*function)(Ma
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = MatInitializePackage();CHKERRQ(ierr);
   ierr = PetscFunctionListAdd(&MatMFFDList,sname,function);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -1072,7 +1073,7 @@ PetscErrorCode  MatMFFDResetHHistory(Mat J)
   PetscFunctionReturn(0);
 }
 
-/*@C
+/*@
     MatMFFDSetBase - Sets the vector U at which matrix vector products of the
         Jacobian are computed
 

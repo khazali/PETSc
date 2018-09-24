@@ -2,7 +2,7 @@
     The VECSCATTER (vec scatter) interface routines, callable by users.
 */
 
-#include <petsc/private/vecimpl.h>    /*I   "petscvec.h"    I*/
+#include <petsc/private/vecscatterimpl.h>    /*I   "petscvec.h"    I*/
 
 /* Logging support */
 PetscClassId VEC_SCATTER_CLASSID;
@@ -31,7 +31,7 @@ PetscBool         VecScatterRegisterAllCalled = PETSC_FALSE;
   Level: intermediate
 
 .keywords: vector scatter, set, type
-.seealso: VecScatterGetType(), VecScatterCreate()
+.seealso: VecScatterGetType(), VecScatterCreateWithData()
 @*/
 PetscErrorCode VecScatterSetType(VecScatter vscat, VecScatterType type)
 {
@@ -70,7 +70,7 @@ PetscErrorCode VecScatterSetType(VecScatter vscat, VecScatterType type)
   Level: intermediate
 
 .keywords: vector scatter, get, type, name
-.seealso: VecScatterSetType(), VecScatterCreate()
+.seealso: VecScatterSetType(), VecScatterCreateWithData()
 @*/
 PetscErrorCode VecScatterGetType(VecScatter vscat, VecScatterType *type)
 {
@@ -94,7 +94,7 @@ PetscErrorCode VecScatterGetType(VecScatter vscat, VecScatterType *type)
 
   Notes:
     To see all options, run your program with the -help option, or consult the users manual.
-          Must be called after VecScatterCreate() but before the vector scatter is used.
+          Must be called before VecScatterSetUp() but before the vector scatter is used.
 
   Level: beginner
 
@@ -102,7 +102,7 @@ PetscErrorCode VecScatterGetType(VecScatter vscat, VecScatterType *type)
   Concepts: vectorscatter^setting type
 
 .keywords: VecScatter, set, options, database
-.seealso: VecScatterCreate()
+.seealso: VecScatterCreateWithData(), VecScatterCreate(), VecScatterDestroy(), VecScatterSetUp()
 @*/
 PetscErrorCode VecScatterSetFromOptions(VecScatter vscat)
 {
@@ -140,11 +140,6 @@ PetscErrorCode VecScatterSetFromOptions(VecScatter vscat)
     ierr = PetscInfo(vscat,"Using combined (merged) vector scatter begin and end\n");CHKERRQ(ierr);
   }
 
-  vscat->packtogether = PETSC_FALSE;
-  ierr = PetscOptionsBool("-vecscatter_packtogether","Pack all messages before sending","VecScatterCreate",vscat->packtogether,&vscat->packtogether,NULL);CHKERRQ(ierr);
-  if (vscat->packtogether) {
-    ierr = PetscInfo(vscat,"Pack all messages before sending\n");CHKERRQ(ierr);
-  }
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -168,7 +163,7 @@ PetscErrorCode VecScatterSetFromOptions(VecScatter vscat)
 
   Then, your vector scatter type can be chosen with the procedural interface via
 .vb
-    VecScatterCreate(MPI_Comm, VecScatter *);
+    VecScatterCreateWithData(MPI_Comm, VecScatter *);
     VecScatterSetType(VecScatter,"my_vectorscatter_name");
 .ve
    or at runtime via the option
@@ -187,14 +182,76 @@ PetscErrorCode VecScatterRegister(const char sname[], PetscErrorCode (*function)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = VecInitializePackage();CHKERRQ(ierr);
   ierr = PetscFunctionListAdd(&VecScatterList,sname,function);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-/* VecScatterCreate() will be renamed as VecScatterCreateWithVecs() */
+/*@
+   VecScatterSetData - provides the vector and index set data to the VecScatter object
+
+   Collective on VecScatter
+
+   Input Parameters:
++  ctx - the vector scatter object
+.  xin - a vector that defines the shape (parallel data layout of the vector)
+         of vectors from which we scatter
+.  yin - a vector that defines the shape (parallel data layout of the vector)
+         of vectors to which we scatter
+.  ix - the indices of xin to scatter (if NULL scatters all values)
+-  iy - the indices of yin to hold results (if NULL fills entire vector yin)
+
+   Options Database Keys: (uses regular MPI_Sends by default)
+.  -vecscatter_view         - Prints detail of communications
+.  -vecscatter_view ::ascii_info    - Print less details about communication
+.  -vecscatter_merge        - VecScatterBegin() handles all of the communication, VecScatterEnd() is a nop
+                              eliminates the chance for overlap of computation and communication
+.  -vecscatter_packtogether - Pack all messages before sending, receive all messages before unpacking
+                              will make the results of scatters deterministic when otherwise they are not (it may be slower also).
+
+    Level: intermediate
+
+  Notes:
+   In calls to VecScatter() you can use different vectors than the xin and
+   yin you used above; BUT they must have the same parallel data layout, for example,
+   they could be obtained from VecDuplicate().
+   A VecScatter context CANNOT be used in two or more simultaneous scatters;
+   that is you cannot call a second VecScatterBegin() with the same scatter
+   context until the VecScatterEnd() has been called on the first VecScatterBegin().
+   In this case a separate VecScatter is needed for each concurrent scatter.
+
+   Currently the MPI_Send() use PERSISTENT versions.
+   (this unfortunately requires that the same in and out arrays be used for each use, this
+    is why  we always need to pack the input into the work array before sending
+    and unpack upon receiving instead of using MPI datatypes to avoid the packing/unpacking).
+
+   Both ix and iy cannot be NULL at the same time.
+
+   Concepts: scatter^between vectors
+   Concepts: gather^between vectors
+
+.seealso: VecScatterDestroy(), VecScatterCreateToAll(), VecScatterCreateToZero(), VecScatterCreateWithData(), VecScatterCreate()
+@*/
+PetscErrorCode VecScatterSetData(VecScatter ctx,Vec xin,IS ix,Vec yin,IS iy)
+{
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  if (!ix && !iy) SETERRQ(PetscObjectComm((PetscObject)xin),PETSC_ERR_SUP,"Cannot pass default in for both input and output indices");
+
+  /* TODO: make sure communicator of ctx matches parallel communicator of input vectors */
+  ctx->from_v  = xin;
+  ctx->to_v    = yin;
+  ctx->from_is = ix;
+  ctx->to_is   = iy;
+  ierr = VecGetLocalSize(xin,&ctx->from_n);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(yin,&ctx->to_n);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* ---------------------------------------------------------------- */
-/*@C
-   VecScatterCreate - Creates a vector scatter context.
+/*@
+   VecScatterCreateWithData - Creates a vector scatter context.
 
    Collective on Vec
 
@@ -212,34 +269,10 @@ PetscErrorCode VecScatterRegister(const char sname[], PetscErrorCode (*function)
    Options Database Keys: (uses regular MPI_Sends by default)
 .  -vecscatter_view         - Prints detail of communications
 .  -vecscatter_view ::ascii_info    - Print less details about communication
-.  -vecscatter_ssend        - Uses MPI_Ssend_init() instead of MPI_Send_init()
-.  -vecscatter_rsend           - use ready receiver mode for MPI sends
 .  -vecscatter_merge        - VecScatterBegin() handles all of the communication, VecScatterEnd() is a nop
                               eliminates the chance for overlap of computation and communication
-.  -vecscatter_sendfirst    - Posts sends before receives
 .  -vecscatter_packtogether - Pack all messages before sending, receive all messages before unpacking
-.  -vecscatter_alltoall     - Uses MPI all to all communication for scatter
-.  -vecscatter_window       - Use MPI 2 window operations to move data
-.  -vecscatter_nopack       - Avoid packing to work vector when possible (if used with -vecscatter_alltoall then will use MPI_Alltoallw()
--  -vecscatter_reproduce    - insure that the order of the communications are done the same for each scatter, this under certain circumstances
                               will make the results of scatters deterministic when otherwise they are not (it may be slower also).
-
-$
-$                                                                                    --When packing is used--
-$                               MPI Datatypes (no packing)  sendfirst   merge        packtogether  persistent*
-$                                _nopack                   _sendfirst    _merge      _packtogether                -vecscatter_
-$ ----------------------------------------------------------------------------------------------------------------------------
-$    Message passing    Send       p                           X            X           X         always
-$                      Ssend       p                           X            X           X         always          _ssend
-$                      Rsend       p                        nonsense        X           X         always          _rsend
-$    AlltoAll  v or w              X                        nonsense     always         X         nonsense        _alltoall
-$    MPI_Win                       p                        nonsense        p           p         nonsense        _window
-$
-$   Since persistent sends and receives require a constant memory address they can only be used when data is packed into the work vector
-$   because the in and out array may be different for each call to VecScatterBegin/End().
-$
-$    p indicates possible, but not implemented. X indicates implemented
-$
 
     Level: intermediate
 
@@ -252,10 +285,10 @@ $
    context until the VecScatterEnd() has been called on the first VecScatterBegin().
    In this case a separate VecScatter is needed for each concurrent scatter.
 
-   Currently the MPI_Send(), MPI_Ssend() and MPI_Rsend() all use PERSISTENT versions.
+   Currently the MPI_Send() use PERSISTENT versions.
    (this unfortunately requires that the same in and out arrays be used for each use, this
-    is why when not using MPI_alltoallw() we always need to pack the input into the work array before sending
-    and unpack upon receeving instead of using MPI datatypes to avoid the packing/unpacking).
+    is why  we always need to pack the input into the work array before sending
+    and unpack upon receiving instead of using MPI datatypes to avoid the packing/unpacking).
 
    Both ix and iy cannot be NULL at the same time.
 
@@ -264,7 +297,7 @@ $
 
 .seealso: VecScatterDestroy(), VecScatterCreateToAll(), VecScatterCreateToZero()
 @*/
-PetscErrorCode VecScatterCreate(Vec xin,IS ix,Vec yin,IS iy,VecScatter *newctx)
+PetscErrorCode VecScatterCreateWithData(Vec xin,IS ix,Vec yin,IS iy,VecScatter *newctx)
 {
   VecScatter        ctx;
   PetscErrorCode    ierr;
@@ -272,7 +305,6 @@ PetscErrorCode VecScatterCreate(Vec xin,IS ix,Vec yin,IS iy,VecScatter *newctx)
   MPI_Comm          comm,ycomm;
 
   PetscFunctionBegin;
-  if (!ix && !iy) SETERRQ(PetscObjectComm((PetscObject)xin),PETSC_ERR_SUP,"Cannot pass default in for both input and output indices");
   PetscValidPointer(newctx,5);
   *newctx = NULL;
   ierr = VecScatterInitializePackage();CHKERRQ(ierr);
@@ -280,20 +312,14 @@ PetscErrorCode VecScatterCreate(Vec xin,IS ix,Vec yin,IS iy,VecScatter *newctx)
   /* Get comm from xin and yin */
   ierr = PetscObjectGetComm((PetscObject)xin,&comm);CHKERRQ(ierr);
   ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
-
   ierr = PetscObjectGetComm((PetscObject)yin,&ycomm);CHKERRQ(ierr);
   ierr = MPI_Comm_size(ycomm,&size);CHKERRQ(ierr);
   if (size > 1) comm = ycomm;
 
-  ierr = PetscHeaderCreate(ctx,VEC_SCATTER_CLASSID,"VecScatter","Vector Scatter","VecScatter",comm,VecScatterDestroy,VecScatterView);CHKERRQ(ierr);
+  /* TODO: If the size of both comms is > 1 check that the comms are the same */
 
-  ctx->from_v = xin; ctx->to_v = yin;
-  ctx->from_is = ix; ctx->to_is = iy;
-  ctx->inuse        = PETSC_FALSE;
-  ctx->is_duplicate = PETSC_FALSE;
-
-  ierr = VecGetLocalSize(xin,&ctx->from_n);CHKERRQ(ierr);
-  ierr = VecGetLocalSize(yin,&ctx->to_n);CHKERRQ(ierr);
+  ierr = VecScatterCreate(comm,&ctx);CHKERRQ(ierr);
+  ierr = VecScatterSetData(ctx,xin,ix,yin,iy);CHKERRQ(ierr);
   *newctx = ctx;
 
   /* Set default scatter type */
@@ -304,5 +330,36 @@ PetscErrorCode VecScatterCreate(Vec xin,IS ix,Vec yin,IS iy,VecScatter *newctx)
     ierr = VecScatterSetType(ctx,VECSCATTERMPI1);CHKERRQ(ierr);
   }
   ierr = VecScatterSetFromOptions(ctx);CHKERRQ(ierr);
+  ierr = VecScatterSetUp(ctx);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
+
+      VecScatterCreate - Create VecScatter context for scattering/gathering between two vectors
+
+      Collective on MPI_Comm
+
+      Input Parameter:
+.       comm - the MPI communicator where the scatter lives
+
+      Output Parameter:
+.       newctx - the vector scatter object
+
+.seealso: VecScatterCreateWithData(), VecScatterSetFromOptions(), VecScatterBegin(), VecScatterEnd()
+
+@*/
+PetscErrorCode  VecScatterCreate(MPI_Comm comm,VecScatter *newctx)
+{
+  VecScatter     ctx;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = VecScatterInitializePackage();CHKERRQ(ierr);
+  ierr = PetscHeaderCreate(ctx,VEC_SCATTER_CLASSID,"VecScatter","Vector Scatter","Vec",comm,VecScatterDestroy,VecScatterView);CHKERRQ(ierr);
+  ctx->inuse               = PETSC_FALSE;
+  ctx->beginandendtogether = PETSC_FALSE;
+  ctx->is_duplicate        = PETSC_FALSE;
+  *newctx = ctx;
   PetscFunctionReturn(0);
 }

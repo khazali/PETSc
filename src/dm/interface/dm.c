@@ -46,9 +46,6 @@ PetscErrorCode  DMCreate(MPI_Comm comm,DM *dm)
   PetscFunctionBegin;
   PetscValidPointer(dm,2);
   *dm = NULL;
-  ierr = PetscSysInitializePackage();CHKERRQ(ierr);
-  ierr = VecInitializePackage();CHKERRQ(ierr);
-  ierr = MatInitializePackage();CHKERRQ(ierr);
   ierr = DMInitializePackage();CHKERRQ(ierr);
 
   ierr = PetscHeaderCreate(v, DM_CLASSID, "DM", "Distribution Manager", "DM", comm, DMDestroy, DMView);CHKERRQ(ierr);
@@ -180,7 +177,7 @@ PetscErrorCode DMClone(DM dm, DM *newdm)
 
    Level: intermediate
 
-.seealso: DMCreate(), DMDestroy(), DM, DMDAInterpolationType, VecType, DMGetVecType()
+.seealso: DMCreate(), DMDestroy(), DM, DMDAInterpolationType, VecType, DMGetVecType(), DMSetMatType(), DMGetMatType()
 @*/
 PetscErrorCode  DMSetVecType(DM da,VecType ctype)
 {
@@ -206,7 +203,7 @@ PetscErrorCode  DMSetVecType(DM da,VecType ctype)
 
    Level: intermediate
 
-.seealso: DMCreate(), DMDestroy(), DM, DMDAInterpolationType, VecType
+.seealso: DMCreate(), DMDestroy(), DM, DMDAInterpolationType, VecType, DMSetMatType(), DMGetMatType(), DMSetVecType()
 @*/
 PetscErrorCode  DMGetVecType(DM da,VecType *ctype)
 {
@@ -334,7 +331,7 @@ PetscErrorCode  DMGetISColoringType(DM dm,ISColoringType *ctype)
 
    Level: intermediate
 
-.seealso: DMDACreate1d(), DMDACreate2d(), DMDACreate3d(), DMCreateMatrix(), DMSetMatrixPreallocateOnly(), MatType, DMGetMatType()
+.seealso: DMDACreate1d(), DMDACreate2d(), DMDACreate3d(), DMCreateMatrix(), DMSetMatrixPreallocateOnly(), MatType, DMGetMatType(), DMSetMatType(), DMGetMatType()
 @*/
 PetscErrorCode  DMSetMatType(DM dm,MatType ctype)
 {
@@ -363,7 +360,7 @@ PetscErrorCode  DMSetMatType(DM dm,MatType ctype)
 
    Level: intermediate
 
-.seealso: DMDACreate1d(), DMDACreate2d(), DMDACreate3d(), DMCreateMatrix(), DMSetMatrixPreallocateOnly(), MatType, DMSetMatType()
+.seealso: DMDACreate1d(), DMDACreate2d(), DMDACreate3d(), DMCreateMatrix(), DMSetMatrixPreallocateOnly(), MatType, DMSetMatType(), DMSetMatType(), DMGetMatType()
 @*/
 PetscErrorCode  DMGetMatType(DM dm,MatType *ctype)
 {
@@ -1399,6 +1396,15 @@ PetscErrorCode DMSetNullSpaceConstructor(DM dm, PetscInt field, PetscErrorCode (
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   if (field >= 10) SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_OUTOFRANGE, "Cannot handle %d >= 10 fields", field);
   dm->nullspaceConstructors[field] = nullsp;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode DMGetNullSpaceConstructor(DM dm, PetscInt field, PetscErrorCode (**nullsp)(DM dm, PetscInt field, MatNullSpace *nullSpace))
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  if (field >= 10) SETERRQ1(PetscObjectComm((PetscObject)dm), PETSC_ERR_ARG_OUTOFRANGE, "Cannot handle %d >= 10 fields", field);
+  *nullsp = dm->nullspaceConstructors[field];
   PetscFunctionReturn(0);
 }
 
@@ -3393,6 +3399,7 @@ PetscErrorCode  DMRegister(const char sname[],PetscErrorCode (*function)(DM))
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  ierr = DMInitializePackage();CHKERRQ(ierr);
   ierr = PetscFunctionListAdd(&DMList,sname,function);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -3520,6 +3527,9 @@ PetscErrorCode DMPrintLocalVec(DM dm, const char name[], PetscReal tol, Vec X)
 
   Output Parameter:
 . section - The PetscSection
+
+  Options Database Keys:
+. -dm_petscsection_view - View the Section created by the DM
 
   Level: intermediate
 

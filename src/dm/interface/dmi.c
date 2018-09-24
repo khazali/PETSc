@@ -243,7 +243,7 @@ PetscErrorCode DMCreateSuperDM_Section_Private(DM dms[], PetscInt len, IS **is, 
   }
   /* Create the supersection */
   ierr = PetscSectionCreateSupersection(sections, len, &supersection);CHKERRQ(ierr);
-  ierr = DMSetDefaultSection(*superdm, supersection);CHKERRQ(ierr);
+  ierr = DMSetSection(*superdm, supersection);CHKERRQ(ierr);
   /* Create ISes */
   if (is) {
     PetscSection supersectionGlobal;
