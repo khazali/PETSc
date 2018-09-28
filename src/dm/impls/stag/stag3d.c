@@ -612,7 +612,7 @@ static PetscErrorCode DMStagSetUpBuildGlobalOffsets_3d(DM dm,PetscInt **pGlobalO
   PetscErrorCode        ierr;
   const DM_Stag * const stag = (DM_Stag*)dm->data;
   PetscInt              *globalOffsets;
-  PetscInt              i,j,k,d,entriesPerEdge,entriesPerFace;
+  PetscInt              i,j,k,d,entriesPerEdge,entriesPerFace,count;
   PetscMPIInt           size;
   PetscBool             extra[3];
 
@@ -624,7 +624,7 @@ static PetscErrorCode DMStagSetUpBuildGlobalOffsets_3d(DM dm,PetscInt **pGlobalO
   ierr = PetscMalloc1(size,pGlobalOffsets);CHKERRQ(ierr);
   globalOffsets = *pGlobalOffsets;
   globalOffsets[0] = 0;
-  PetscInt count = 1; /* note the count is offset by 1 here. We add the size of the previous rank */
+  count = 1; /* note the count is offset by 1 here. We add the size of the previous rank */
   for (k=0; k<stag->nRanks[2]-1; ++k){
     const PetscInt nnk = stag->l[2][k];
     for (j=0; j<stag->nRanks[1]-1; ++j) {
@@ -637,16 +637,16 @@ static PetscErrorCode DMStagSetUpBuildGlobalOffsets_3d(DM dm,PetscInt **pGlobalO
       }
       {
         /* Right boundary - extra faces */
-        i = stag->nRanks[0]-1;
         const PetscInt nni = stag->l[0][i];
+        i = stag->nRanks[0]-1;
         globalOffsets[count] = globalOffsets[count-1] + nnj*nni*nnk*stag->entriesPerElement
                                + (extra[0] ? nnj*nnk*entriesPerFace : 0);
         ++count;
       }
     }
     {
-      j = stag->nRanks[1]-1;
       const PetscInt nnj = stag->l[1][j];
+      j = stag->nRanks[1]-1;
       for (i=0; i<stag->nRanks[0]-1; ++i) {
         const PetscInt nni = stag->l[0][i];
         /* Up boundary - extra faces */
@@ -655,8 +655,8 @@ static PetscErrorCode DMStagSetUpBuildGlobalOffsets_3d(DM dm,PetscInt **pGlobalO
         ++count;
       }
       {
-        i = stag->nRanks[0]-1;
         const PetscInt nni = stag->l[0][i];
+        i = stag->nRanks[0]-1;
         /* Up right boundary - 2x extra faces and extra edges */
         globalOffsets[count] = globalOffsets[count-1] + nnj*nni*nnk*stag->entriesPerElement
                                + (extra[0]             ? nnj*nnk*entriesPerFace : 0)
@@ -667,8 +667,8 @@ static PetscErrorCode DMStagSetUpBuildGlobalOffsets_3d(DM dm,PetscInt **pGlobalO
     }
   }
   {
-    k = stag->nRanks[2]-1;
     const PetscInt nnk = stag->l[2][k];
+    k = stag->nRanks[2]-1;
     for (j=0; j<stag->nRanks[1]-1; ++j) {
       const PetscInt nnj = stag->l[1][j];
       for (i=0; i<stag->nRanks[0]-1; ++i) {
@@ -679,8 +679,8 @@ static PetscErrorCode DMStagSetUpBuildGlobalOffsets_3d(DM dm,PetscInt **pGlobalO
         ++count;
       }
       {
-        i = stag->nRanks[0]-1;
         const PetscInt nni = stag->l[0][i];
+        i = stag->nRanks[0]-1;
         /* Front right boundary - 2x extra faces and extra edges */
         globalOffsets[count] = globalOffsets[count-1] + nnj*nni*nnk*stag->entriesPerElement
                                + (extra[0]             ? nnk*nnj*entriesPerFace : 0)
@@ -690,8 +690,8 @@ static PetscErrorCode DMStagSetUpBuildGlobalOffsets_3d(DM dm,PetscInt **pGlobalO
       }
     }
     {
-      j = stag->nRanks[1]-1;
       const PetscInt nnj = stag->l[1][j];
+      j = stag->nRanks[1]-1;
       for (i=0; i<stag->nRanks[0]-1; ++i) {
         const PetscInt nni = stag->l[0][i];
         /* Front up boundary - 2x extra faces and extra edges */
@@ -726,15 +726,15 @@ static PetscErrorCode DMStagSetUpBuildScatterPopulateIdx_3d(DM_Stag *stag,PetscI
       const PetscInt j = jg - startGhosty + starty;
       for (ig = startGhostx; ig<endGhostx; ++ig) {
         const PetscInt i = ig - startGhostx + startx;
-          for (d=0; d<stag->entriesPerElement; ++d,++c) {
-            idxGlobal[c] = globalOffset + k *eplNeighbor + j *eprNeighbor + i *stag->entriesPerElement + d;
-            idxLocal[c]  =                kg*eplGhost    + jg*eprGhost    + ig*stag->entriesPerElement + d;
-          }
+        for (d=0; d<stag->entriesPerElement; ++d,++c) {
+          idxGlobal[c] = globalOffset + k *eplNeighbor + j *eprNeighbor + i *stag->entriesPerElement + d;
+          idxLocal[c]  =                kg*eplGhost    + jg*eprGhost    + ig*stag->entriesPerElement + d;
+        }
       }
       if (extrax) {
-        ig = endGhostx;
         const PetscInt i = ig - startGhostx + startx;
         PetscInt dLocal;
+        ig = endGhostx;
         for (d=0,dLocal=0; d<stag->dof[0]; ++d, ++dLocal, ++c) { /* Vertex */
           idxGlobal[c] = globalOffset + k *eplNeighbor + j*eprNeighbor + i *stag->entriesPerElement + d;
           idxLocal[c]  =                kg*eplGhost    + jg*eprGhost   + ig*stag->entriesPerElement + dLocal;
@@ -758,8 +758,8 @@ static PetscErrorCode DMStagSetUpBuildScatterPopulateIdx_3d(DM_Stag *stag,PetscI
       }
     }
     if (extray) {
-      jg = endGhosty;
       const PetscInt j = jg - startGhosty + starty;
+      jg = endGhosty;
       for (ig = startGhostx; ig<endGhostx; ++ig) {
         const PetscInt i = ig - startGhostx + startx;
         /* Vertex and Back down edge */
@@ -778,37 +778,37 @@ static PetscErrorCode DMStagSetUpBuildScatterPopulateIdx_3d(DM_Stag *stag,PetscI
         /* Skip left face and element */
       }
       if (extrax) {
-        ig = endGhostx;
         const PetscInt i = ig - startGhostx + startx;
-          PetscInt dLocal;
-          for (d=0,dLocal=0; d<stag->dof[0]; ++d, ++dLocal, ++c) { /* Vertex */
-            idxGlobal[c] = globalOffset + k *eplNeighbor + j *eprNeighbor + i *entriesPerFace          + d; /* Note face increment in x */
-            idxLocal[c]  =                kg*eplGhost    + jg*eprGhost    + ig*stag->entriesPerElement + dLocal;
-          }
-          dLocal += 2*stag->dof[1]+stag->dof[2]; /* Skip back down edge, back face, and back left edge */
-          for (; dLocal<stag->dof[0]+3*stag->dof[1]+stag->dof[2]; ++d, ++dLocal, ++c) { /* Down left edge */
-            idxGlobal[c] = globalOffset + k *eplNeighbor + j *eprNeighbor + i *entriesPerFace          + d; /* Note face increment in x */
-            idxLocal[c]  =                kg*eplGhost    + jg*eprGhost    + ig*stag->entriesPerElement + dLocal;
-          }
-          /* Skip remaining entries */
+        ig = endGhostx;
+        PetscInt dLocal;
+        for (d=0,dLocal=0; d<stag->dof[0]; ++d, ++dLocal, ++c) { /* Vertex */
+          idxGlobal[c] = globalOffset + k *eplNeighbor + j *eprNeighbor + i *entriesPerFace          + d; /* Note face increment in x */
+          idxLocal[c]  =                kg*eplGhost    + jg*eprGhost    + ig*stag->entriesPerElement + dLocal;
+        }
+        dLocal += 2*stag->dof[1]+stag->dof[2]; /* Skip back down edge, back face, and back left edge */
+        for (; dLocal<stag->dof[0]+3*stag->dof[1]+stag->dof[2]; ++d, ++dLocal, ++c) { /* Down left edge */
+          idxGlobal[c] = globalOffset + k *eplNeighbor + j *eprNeighbor + i *entriesPerFace          + d; /* Note face increment in x */
+          idxLocal[c]  =                kg*eplGhost    + jg*eprGhost    + ig*stag->entriesPerElement + dLocal;
+        }
+        /* Skip remaining entries */
       }
     }
   }
   if (extraz) {
-    kg = endGhostz;
     const PetscInt k = kg - startGhostz + startz;
+    kg = endGhostz;
     for (jg = startGhosty; jg < endGhosty; ++jg) {
       const PetscInt j = jg - startGhosty + starty;
       for (ig = startGhostx; ig<endGhostx; ++ig) {
         const PetscInt i = ig - startGhostx + startx;
-          for (d=0; d<entriesPerFace; ++d, ++c) {
-            idxGlobal[c] = globalOffset + k*eplNeighbor  + j *epFaceRow + i *entriesPerFace          + d; /* Note face-based x and y increments */
-            idxLocal[c]  =                kg*eplGhost    + jg*eprGhost  + ig*stag->entriesPerElement + d;
-          }
+        for (d=0; d<entriesPerFace; ++d, ++c) {
+          idxGlobal[c] = globalOffset + k*eplNeighbor  + j *epFaceRow + i *entriesPerFace          + d; /* Note face-based x and y increments */
+          idxLocal[c]  =                kg*eplGhost    + jg*eprGhost  + ig*stag->entriesPerElement + d;
+        }
       }
       if (extrax) {
-        ig = endGhostx;
         const PetscInt i = ig - startGhostx + startx;
+        ig = endGhostx;
         PetscInt dLocal;
         for (d=0,dLocal=0; d<stag->dof[0]; ++d, ++dLocal, ++c) { /* Vertex */
           idxGlobal[c] = globalOffset + k*eplNeighbor + j *epFaceRow + i *entriesPerFace          + d; /* Note face-based x and y increments */
@@ -823,22 +823,22 @@ static PetscErrorCode DMStagSetUpBuildScatterPopulateIdx_3d(DM_Stag *stag,PetscI
       }
     }
     if (extray) {
-      jg = endGhosty;
       const PetscInt j = jg - startGhosty + starty;
+      jg = endGhosty;
       for (ig = startGhostx; ig<endGhostx; ++ig) {
         const PetscInt i = ig - startGhostx + startx;
-          for (d=0; d<entriesPerEdge; ++d,++c) {
-            idxGlobal[c] = globalOffset + k*eplNeighbor + j *epFaceRow + i *entriesPerEdge          + d; /* Note face-based y increment and edge-based x increment */
-            idxLocal[c]  =                kg*eplGhost   + jg*eprGhost  + ig*stag->entriesPerElement + d;
-          }
+        for (d=0; d<entriesPerEdge; ++d,++c) {
+          idxGlobal[c] = globalOffset + k*eplNeighbor + j *epFaceRow + i *entriesPerEdge          + d; /* Note face-based y increment and edge-based x increment */
+          idxLocal[c]  =                kg*eplGhost   + jg*eprGhost  + ig*stag->entriesPerElement + d;
+        }
       }
       if (extrax) {
-        ig = endGhostx;
         const PetscInt i = ig - startGhostx + startx;
-          for (d=0; d<stag->dof[0]; ++d, ++c) { /* Vertex (only) */
-            idxGlobal[c] = globalOffset + k*eplNeighbor + j *epFaceRow + i *entriesPerEdge          + d; /* Note face-based y increment and edge-based x increment */
-            idxLocal[c]  =                kg*eplGhost   + jg*eprGhost  + ig*stag->entriesPerElement + d;
-          }
+        ig = endGhostx;
+        for (d=0; d<stag->dof[0]; ++d, ++c) { /* Vertex (only) */
+          idxGlobal[c] = globalOffset + k*eplNeighbor + j *epFaceRow + i *entriesPerEdge          + d; /* Note face-based y increment and edge-based x increment */
+          idxLocal[c]  =                kg*eplGhost   + jg*eprGhost  + ig*stag->entriesPerElement + d;
+        }
       }
     }
   }
@@ -964,569 +964,569 @@ static PetscErrorCode DMStagSetUpBuildScatter_3d(DM dm,const PetscInt *globalOff
 
   /* LEFT DOWN BACK */
   if (!star && !dummyStart[0] && !dummyStart[1] && !dummyStart[2]) {
-    const PetscInt neighbor      = 0;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0];
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1];
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { nNeighbors[neighbor][0] - ghostOffsetStart[0],
-                                     nNeighbors[neighbor][1] - ghostOffsetStart[1],
-                                     nNeighbors[neighbor][2] - ghostOffsetStart[2] };
-    const PetscInt startGhost[3] = { 0,
-                                     0,
-                                     0 };
-    const PetscInt endGhost[3]   = { ghostOffsetStart[0],
-                                     ghostOffsetStart[1],
-                                     ghostOffsetStart[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 0;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0];
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1];
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = nNeighbors[neighbor][0] - ghostOffsetStart[0];
+    const PetscInt  start1       = nNeighbors[neighbor][1] - ghostOffsetStart[1];
+    const PetscInt  start2       = nNeighbors[neighbor][2] - ghostOffsetStart[2];
+    const PetscInt  startGhost0  = 0;
+    const PetscInt  startGhost1  = 0;
+    const PetscInt  startGhost2  = 0;
+    const PetscInt  endGhost0    = ghostOffsetStart[0];
+    const PetscInt  endGhost1    = ghostOffsetStart[1];
+    const PetscInt  endGhost2    = ghostOffsetStart[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* DOWN BACK */
   if (!star && !dummyStart[1] && !dummyStart[2]) {
-    const PetscInt neighbor      = 1;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1];
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     nNeighbors[neighbor][1] - ghostOffsetStart[1],
-                                     nNeighbors[neighbor][2] - ghostOffsetStart[2], };
-    const PetscInt startGhost[3] = { ghostOffsetStart[0],
-                                     0,
-                                     0 };
-    const PetscInt endGhost[3]   = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     ghostOffsetStart[1],
-                                     ghostOffsetStart[2] };
-    const PetscBool extra[3]     = { dummyEnd[0],
-                                     PETSC_FALSE,
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 1;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1];
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = nNeighbors[neighbor][1] - ghostOffsetStart[1];
+    const PetscInt  start2       = nNeighbors[neighbor][2] - ghostOffsetStart[2];
+    const PetscInt  startGhost0  = ghostOffsetStart[0];
+    const PetscInt  startGhost1  = 0;
+    const PetscInt  startGhost2  = 0;
+    const PetscInt  endGhost0    = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  endGhost1    = ghostOffsetStart[1];
+    const PetscInt  endGhost2    = ghostOffsetStart[2];
+    const PetscBool extra0       = dummyEnd[0];
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* RIGHT DOWN BACK */
   if (!star && !dummyEnd[0] && !dummyStart[1] && !dummyStart[2]) {
-    const PetscInt neighbor      = 2;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1];
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     nNeighbors[neighbor][1] - ghostOffsetStart[1],
-                                     nNeighbors[neighbor][2] - ghostOffsetStart[2] };
-    const PetscInt startGhost[3] = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     0,
-                                     0 };
-    const PetscInt endGhost[3]   = { stag->nGhost[0],
-                                     ghostOffsetStart[1],
-                                     ghostOffsetStart[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 2;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1];
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = nNeighbors[neighbor][1] - ghostOffsetStart[1];
+    const PetscInt  start2       = nNeighbors[neighbor][2] - ghostOffsetStart[2];
+    const PetscInt  startGhost0  = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  startGhost1  = 0;
+    const PetscInt  startGhost2  = 0;
+    const PetscInt  endGhost0    = stag->nGhost[0];
+    const PetscInt  endGhost1    = ghostOffsetStart[1];
+    const PetscInt  endGhost2    = ghostOffsetStart[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* LEFT BACK */
   if (!star && !dummyStart[0] && !dummyStart[2]) {
-    const PetscInt neighbor      = 3;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0];
-    const PetscInt eplNeighbor   = eprNeighbor  * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0);  /* May be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { nNeighbors[neighbor][0] - ghostOffsetStart[0],
-                                     0,
-                                     nNeighbors[neighbor][2] - ghostOffsetStart[2] };
-    const PetscInt startGhost[3] = { 0,
-                                     ghostOffsetStart[1],
-                                     0 };
-    const PetscInt endGhost[3]   = { ghostOffsetStart[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     ghostOffsetStart[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     dummyEnd[1],
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 3;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0];
+    const PetscInt  eplNeighbor  = eprNeighbor  * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0);  /* May be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = nNeighbors[neighbor][0] - ghostOffsetStart[0];
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = nNeighbors[neighbor][2] - ghostOffsetStart[2];
+    const PetscInt  startGhost0  = 0;
+    const PetscInt  startGhost1  = ghostOffsetStart[1];
+    const PetscInt  startGhost2  = 0;
+    const PetscInt  endGhost0    = ghostOffsetStart[0];
+    const PetscInt  endGhost1    = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  endGhost2    = ghostOffsetStart[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = dummyEnd[1];
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* BACK */
   if (!dummyStart[2]) {
-    const PetscInt neighbor      = 4;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may  be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* We+neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     nNeighbors[neighbor][2] - ghostOffsetStart[2] };
-    const PetscInt startGhost[3] = { ghostOffsetStart[0],
-                                     ghostOffsetStart[1],
-                                     0 };
-    const PetscInt endGhost[3]   = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     ghostOffsetStart[2] };
-    const PetscBool extra[3]     = { dummyEnd[0],
-                                     dummyEnd[1],
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 4;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may  be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* We+neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = nNeighbors[neighbor][2] - ghostOffsetStart[2];
+    const PetscInt  startGhost0  = ghostOffsetStart[0];
+    const PetscInt  startGhost1  = ghostOffsetStart[1];
+    const PetscInt  startGhost2  = 0;
+    const PetscInt  endGhost0    = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  endGhost1    = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  endGhost2    = ghostOffsetStart[2];
+    const PetscBool extra0       = dummyEnd[0];
+    const PetscBool extra1       = dummyEnd[1];
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* RIGHT BACK */
   if (!star && !dummyEnd[0] && !dummyStart[2]) {
-    const PetscInt neighbor      = 5;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor  * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* We and neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     nNeighbors[neighbor][2] - ghostOffsetStart[2] };
-    const PetscInt startGhost[3] = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     ghostOffsetStart[1],
-                                     0 };
-    const PetscInt endGhost[3]   = { stag->nGhost[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     ghostOffsetStart[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     dummyEnd[1],
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 5;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor  * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* We and neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = nNeighbors[neighbor][2] - ghostOffsetStart[2];
+    const PetscInt  startGhost0  = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  startGhost1  = ghostOffsetStart[1];
+    const PetscInt  startGhost2  = 0;
+    const PetscInt  endGhost0    = stag->nGhost[0];
+    const PetscInt  endGhost1    = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  endGhost2    = ghostOffsetStart[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = dummyEnd[1];
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* LEFT UP BACK */
   if (!star && !dummyStart[0] && !dummyEnd[1] && !dummyStart[2]) {
-    const PetscInt neighbor      = 6;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0];
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0); /* Neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { nNeighbors[neighbor][0] - ghostOffsetStart[0],
-                                     0,
-                                     nNeighbors[neighbor][2] - ghostOffsetStart[2] };
-    const PetscInt startGhost[3] = { 0,
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     0 };
-    const PetscInt endGhost[3]   = { ghostOffsetStart[0],
-                                     stag->nGhost[1],
-                                     ghostOffsetStart[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 6;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0];
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0); /* Neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = nNeighbors[neighbor][0] - ghostOffsetStart[0];
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = nNeighbors[neighbor][2] - ghostOffsetStart[2];
+    const PetscInt  startGhost0  = 0;
+    const PetscInt  startGhost1  = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  startGhost2  = 0;
+    const PetscInt  endGhost0    = ghostOffsetStart[0];
+    const PetscInt  endGhost1    = stag->nGhost[1];
+    const PetscInt  endGhost2    = ghostOffsetStart[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* UP BACK */
   if (!star && !dummyEnd[1] && !dummyStart[2]) {
-    const PetscInt neighbor      = 7;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor  * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     nNeighbors[neighbor][2] - ghostOffsetStart[2] };
-    const PetscInt startGhost[3] = { ghostOffsetStart[0],
-                                     stag->nGhost[1]-ghostOffsetEnd[1],
-                                     0 };
-    const PetscInt endGhost[3]   = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     stag->nGhost[1],
-                                     ghostOffsetStart[2] };
-    const PetscBool extra[3]     = { dummyEnd[0],
-                                     PETSC_FALSE,
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 7;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor  * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = nNeighbors[neighbor][2] - ghostOffsetStart[2];
+    const PetscInt  startGhost0  = ghostOffsetStart[0];
+    const PetscInt  startGhost1  = stag->nGhost[1]-ghostOffsetEnd[1];
+    const PetscInt  startGhost2  = 0;
+    const PetscInt  endGhost0    = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  endGhost1    = stag->nGhost[1];
+    const PetscInt  endGhost2    = ghostOffsetStart[2];
+    const PetscBool extra0       = dummyEnd[0];
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* RIGHT UP BACK */
   if (!star && !dummyEnd[0] && !dummyEnd[1] && !dummyStart[2]) {
-    const PetscInt neighbor      = 8;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor  * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     nNeighbors[neighbor][2] - ghostOffsetStart[2] };
-    const PetscInt startGhost[3] = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     0 };
-    const PetscInt endGhost[3]   = { stag->nGhost[0],
-                                     stag->nGhost[1],
-                                     ghostOffsetStart[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 8;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor  * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = nNeighbors[neighbor][2] - ghostOffsetStart[2];
+    const PetscInt  startGhost0  = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  startGhost1  = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  startGhost2  = 0;
+    const PetscInt  endGhost0    = stag->nGhost[0];
+    const PetscInt  endGhost1    = stag->nGhost[1];
+    const PetscInt  endGhost2    = ghostOffsetStart[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* LEFT DOWN */
   if (!star && !dummyStart[0] && !dummyStart[1]) {
-    const PetscInt neighbor      = 9;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0];
-    const PetscInt eplNeighbor   = eprNeighbor  * nNeighbors[neighbor][1];
-    const PetscInt epFaceRow     = entriesPerFace * nNeighbors[neighbor][0]; /* Note that we can't be a right boundary */
-    const PetscInt start[3]      = { nNeighbors[neighbor][0] - ghostOffsetStart[0],
-                                     nNeighbors[neighbor][1] - ghostOffsetStart[1],
-                                     0 };
-    const PetscInt startGhost[3] = { 0,
-                                     0,
-                                     ghostOffsetStart[2] };
-    const PetscInt endGhost[3]   = { ghostOffsetStart[0],
-                                     ghostOffsetStart[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2]};
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     dummyEnd[2] };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 9;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0];
+    const PetscInt  eplNeighbor  = eprNeighbor  * nNeighbors[neighbor][1];
+    const PetscInt  epFaceRow    = entriesPerFace * nNeighbors[neighbor][0]; /* Note that we can't be a right boundary */
+    const PetscInt  start0       = nNeighbors[neighbor][0] - ghostOffsetStart[0];
+    const PetscInt  start1       = nNeighbors[neighbor][1] - ghostOffsetStart[1];
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = 0;
+    const PetscInt  startGhost1  = 0;
+    const PetscInt  startGhost2  = ghostOffsetStart[2];
+    const PetscInt  endGhost0    = ghostOffsetStart[0];
+    const PetscInt  endGhost1    = ghostOffsetStart[1];
+    const PetscInt  endGhost2    = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = dummyEnd[2];
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* DOWN */
   if (!dummyStart[1]) {
-    const PetscInt neighbor      = 10;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1];
-    const PetscInt epFaceRow     = entriesPerFace * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerEdge : 0); /* We+neighbor may be a right boundary */
-    const PetscInt start[3]      = { 0,
-                                     nNeighbors[neighbor][1] - ghostOffsetStart[1],
-                                     0 };
-    const PetscInt startGhost[3] = { ghostOffsetStart[0],
-                                     0,
-                                     ghostOffsetStart[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     ghostOffsetStart[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2]};
-    const PetscBool extra[3]     = { dummyEnd[0],
-                                     PETSC_FALSE,
-                                     dummyEnd[2] };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 10;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1];
+    const PetscInt  epFaceRow    = entriesPerFace * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerEdge : 0); /* We+neighbor may be a right boundary */
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = nNeighbors[neighbor][1] - ghostOffsetStart[1];
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = ghostOffsetStart[0];
+    const PetscInt  startGhost1  = 0;
+    const PetscInt  startGhost2  = ghostOffsetStart[2];
+    const PetscInt  endGhost0    = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  endGhost1    = ghostOffsetStart[1];
+    const PetscInt  endGhost2    = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscBool extra0       = dummyEnd[0];
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = dummyEnd[2];
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* RIGHT DOWN */
   if (!star && !dummyEnd[0] && !dummyStart[1]) {
-    const PetscInt neighbor      = 11;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor  * nNeighbors[neighbor][1];
-    const PetscInt epFaceRow     = entriesPerFace * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerEdge : 0); /* Neighbor may be a right boundary */
-    const PetscInt start[3]      = { 0,
-                                     nNeighbors[neighbor][1] - ghostOffsetStart[1],
-                                     0 };
-    const PetscInt startGhost[3] = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     0,
-                                     ghostOffsetStart[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0],
-                                     ghostOffsetStart[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2]};
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     dummyEnd[2] };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 11;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor  * nNeighbors[neighbor][1];
+    const PetscInt  epFaceRow    = entriesPerFace * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerEdge : 0); /* Neighbor may be a right boundary */
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = nNeighbors[neighbor][1] - ghostOffsetStart[1];
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  startGhost1  = 0;
+    const PetscInt  startGhost2  = ghostOffsetStart[2];
+    const PetscInt  endGhost0    = stag->nGhost[0];
+    const PetscInt  endGhost1    = ghostOffsetStart[1];
+    const PetscInt  endGhost2    = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = dummyEnd[2];
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* LEFT */
   if (!dummyStart[0]) {
-    const PetscInt neighbor          = 12;
-    const PetscInt eprNeighbor       = stag->entriesPerElement * nNeighbors[neighbor][0];
-    const PetscInt eplNeighbor       = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0);  /* We+neighbor may be a top boundary */
-    const PetscInt epFaceRow = entriesPerFace * nNeighbors[neighbor][0];
-    const PetscInt start[3]      = { nNeighbors[neighbor][0] - ghostOffsetStart[0],
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { 0,
-                                     ghostOffsetStart[1],
-                                     ghostOffsetStart[2] };
-    const PetscInt endGhost[3]   = { ghostOffsetStart[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2]};
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     dummyEnd[1],
-                                     dummyEnd[2] };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 12;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0];
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0);  /* We+neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = entriesPerFace * nNeighbors[neighbor][0];
+    const PetscInt  start0       = nNeighbors[neighbor][0] - ghostOffsetStart[0];
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = 0;
+    const PetscInt  startGhost1  = ghostOffsetStart[1];
+    const PetscInt  startGhost2  = ghostOffsetStart[2];
+    const PetscInt  endGhost0    = ghostOffsetStart[0];
+    const PetscInt  endGhost1    = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  endGhost2    = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = dummyEnd[1];
+    const PetscBool extra2       = dummyEnd[2];
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* (HERE) */
   {
-    const PetscInt neighbor      = 13;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* We may be a top boundary */
-    const PetscInt epFaceRow     = entriesPerFace * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerEdge : 0); /* We may be a right boundary */
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { ghostOffsetStart[0],
-                                     ghostOffsetStart[1],
-                                     ghostOffsetStart[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2]};
-    const PetscBool extra[3]     = { dummyEnd[0],
-                                     dummyEnd[1],
-                                     dummyEnd[2] };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 13;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* We may be a top boundary */
+    const PetscInt  epFaceRow    = entriesPerFace * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerEdge : 0); /* We may be a right boundary */
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = ghostOffsetStart[0];
+    const PetscInt  startGhost1  = ghostOffsetStart[1];
+    const PetscInt  startGhost2  = ghostOffsetStart[2];
+    const PetscInt  endGhost0    = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  endGhost1    = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  endGhost2    = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscBool extra0       = dummyEnd[0];
+    const PetscBool extra1       = dummyEnd[1];
+    const PetscBool extra2       = dummyEnd[2];
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* RIGHT */
   if (!dummyEnd[0]) {
-    const PetscInt neighbor      = 14;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* We and neighbor may be a top boundary */
-    const PetscInt epFaceRow     = entriesPerFace * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerEdge : 0); /* Neighbor may be a right boundary */
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     ghostOffsetStart[1],
-                                     ghostOffsetStart[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2]};
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     dummyEnd[1],
-                                     dummyEnd[2] };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 14;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* We and neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = entriesPerFace * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerEdge : 0); /* Neighbor may be a right boundary */
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  startGhost1  = ghostOffsetStart[1];
+    const PetscInt  startGhost2  = ghostOffsetStart[2];
+    const PetscInt  endGhost0    = stag->nGhost[0];
+    const PetscInt  endGhost1    = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  endGhost2    = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = dummyEnd[1];
+    const PetscBool extra2       = dummyEnd[2];
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* LEFT UP */
   if (!star && !dummyStart[0] && !dummyEnd[1]) {
-    const PetscInt neighbor      = 15;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0];
-    const PetscInt eplNeighbor   = eprNeighbor  * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0); /* Neighbor may be a top boundary */
-    const PetscInt epFaceRow     = entriesPerFace * nNeighbors[neighbor][0];
-    const PetscInt start[3]      = { nNeighbors[neighbor][0] - ghostOffsetStart[0],
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { 0,
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     ghostOffsetStart[2] };
-    const PetscInt endGhost[3]   = { ghostOffsetStart[0],
-                                     stag->nGhost[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2]};
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     dummyEnd[2] };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 15;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0];
+    const PetscInt  eplNeighbor  = eprNeighbor  * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0); /* Neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = entriesPerFace * nNeighbors[neighbor][0];
+    const PetscInt  start0       = nNeighbors[neighbor][0] - ghostOffsetStart[0];
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = 0;
+    const PetscInt  startGhost1  = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  startGhost2  = ghostOffsetStart[2];
+    const PetscInt  endGhost0    = ghostOffsetStart[0];
+    const PetscInt  endGhost1    = stag->nGhost[1];
+    const PetscInt  endGhost2    = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = dummyEnd[2];
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* UP */
   if (!dummyEnd[1]) {
-    const PetscInt neighbor      = 16;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor  * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
-    const PetscInt epFaceRow     = entriesPerFace * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerEdge : 0); /* We+neighbor may be a right boundary */
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { ghostOffsetStart[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     ghostOffsetStart[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     stag->nGhost[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2]};
-    const PetscBool extra[3]     = { dummyEnd[0],
-                                     PETSC_FALSE,
-                                     dummyEnd[2] };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 16;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor  * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = entriesPerFace * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerEdge : 0); /* We+neighbor may be a right boundary */
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = ghostOffsetStart[0];
+    const PetscInt  startGhost1  = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  startGhost2  = ghostOffsetStart[2];
+    const PetscInt  endGhost0    = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  endGhost1    = stag->nGhost[1];
+    const PetscInt  endGhost2    = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscBool extra0       = dummyEnd[0];
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = dummyEnd[2];
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* RIGHT UP */
   if (!star && !dummyEnd[0] && !dummyEnd[1]) {
-    const PetscInt neighbor      = 17;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
-    const PetscInt epFaceRow     = entriesPerFace * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerEdge : 0); /* Neighbor may be a right boundary */
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     ghostOffsetStart[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0],
-                                     stag->nGhost[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2]};
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     dummyEnd[2] };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 17;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = entriesPerFace * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerEdge : 0); /* Neighbor may be a right boundary */
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  startGhost1  = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  startGhost2  = ghostOffsetStart[2];
+    const PetscInt  endGhost0    = stag->nGhost[0];
+    const PetscInt  endGhost1    = stag->nGhost[1];
+    const PetscInt  endGhost2    = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = dummyEnd[2];
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* LEFT DOWN FRONT */
   if (!star && !dummyStart[0] && !dummyStart[1] && !dummyEnd[2]) {
-    const PetscInt neighbor      = 18;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0];
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1];
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { nNeighbors[neighbor][0] - ghostOffsetStart[0],
-                                     nNeighbors[neighbor][1] - ghostOffsetStart[1],
-                                     0 };
-    const PetscInt startGhost[3] = { 0,
-                                     0,
-                                     stag->nGhost[2] - ghostOffsetEnd[2] };
-    const PetscInt endGhost[3]   = { ghostOffsetStart[0],
-                                     ghostOffsetStart[1],
-                                     stag->nGhost[2]};
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     PETSC_FALSE};
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 18;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0];
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1];
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = nNeighbors[neighbor][0] - ghostOffsetStart[0];
+    const PetscInt  start1       = nNeighbors[neighbor][1] - ghostOffsetStart[1];
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = 0;
+    const PetscInt  startGhost1  = 0;
+    const PetscInt  startGhost2  = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscInt  endGhost0    = ghostOffsetStart[0];
+    const PetscInt  endGhost1    = ghostOffsetStart[1];
+    const PetscInt  endGhost2    = stag->nGhost[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* DOWN FRONT */
   if (!star && !dummyStart[1] && !dummyEnd[2]) {
-    const PetscInt neighbor      = 19;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1];
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     nNeighbors[neighbor][1] - ghostOffsetStart[1],
-                                     0 };
-    const PetscInt startGhost[3] = { ghostOffsetStart[0],
-                                     0,
-                                     stag->nGhost[2] - ghostOffsetEnd[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     ghostOffsetStart[1],
-                                     stag->nGhost[2]};
-    const PetscBool extra[3]     = { dummyEnd[0],
-                                     PETSC_FALSE,
-                                     PETSC_FALSE};
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 19;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1];
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = nNeighbors[neighbor][1] - ghostOffsetStart[1];
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = ghostOffsetStart[0];
+    const PetscInt  startGhost1  = 0;
+    const PetscInt  startGhost2  = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscInt  endGhost0    = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  endGhost1    = ghostOffsetStart[1];
+    const PetscInt  endGhost2    = stag->nGhost[2];
+    const PetscBool extra0       = dummyEnd[0];
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* RIGHT DOWN FRONT */
   if (!star && !dummyEnd[0] && !dummyStart[1] && !dummyEnd[2]) {
-    const PetscInt neighbor      = 20;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1];
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     nNeighbors[neighbor][1] - ghostOffsetStart[1],
-                                     0 };
-    const PetscInt startGhost[3] = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     0,
-                                     stag->nGhost[2] - ghostOffsetEnd[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0],
-                                     ghostOffsetStart[1],
-                                     stag->nGhost[2]};
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     PETSC_FALSE};
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 20;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1];
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = nNeighbors[neighbor][1] - ghostOffsetStart[1];
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  startGhost1  = 0;
+    const PetscInt  startGhost2  = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscInt  endGhost0    = stag->nGhost[0];
+    const PetscInt  endGhost1    = ghostOffsetStart[1];
+    const PetscInt  endGhost2    = stag->nGhost[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* LEFT FRONT */
   if (!star && !dummyStart[0] && !dummyEnd[2]) {
-    const PetscInt neighbor      = 21;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0];
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0);  /* We+neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { nNeighbors[neighbor][0] - ghostOffsetStart[0],
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { 0,
-                                     ghostOffsetStart[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2] };
-    const PetscInt endGhost[3]   = { ghostOffsetStart[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     stag->nGhost[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     dummyEnd[1],
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 21;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0];
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0);  /* We+neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = nNeighbors[neighbor][0] - ghostOffsetStart[0];
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = 0;
+    const PetscInt  startGhost1  = ghostOffsetStart[1];
+    const PetscInt  startGhost2  = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscInt  endGhost0    = ghostOffsetStart[0];
+    const PetscInt  endGhost1    = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  endGhost2    = stag->nGhost[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = dummyEnd[1];
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* FRONT */
   if (!dummyEnd[2]) {
-    const PetscInt neighbor      = 22;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* neighbor is a right boundary if we are*/
-    const PetscInt eplNeighbor   = eprNeighbor  * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* May be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { ghostOffsetStart[0],
-                                     ghostOffsetStart[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     stag->nGhost[2] };
-    const PetscBool extra[3]     = { dummyEnd[0],
-                                     dummyEnd[1],
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 22;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* neighbor is a right boundary if we are*/
+    const PetscInt  eplNeighbor  = eprNeighbor  * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* May be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = ghostOffsetStart[0];
+    const PetscInt  startGhost1  = ghostOffsetStart[1];
+    const PetscInt  startGhost2  = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscInt  endGhost0    = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  endGhost1    = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  endGhost2    = stag->nGhost[2];
+    const PetscBool extra0       = dummyEnd[0];
+    const PetscBool extra1       = dummyEnd[1];
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* RIGHT FRONT */
   if (!star && !dummyEnd[0] && !dummyEnd[2]) {
-    const PetscInt neighbor      = 23;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* We and neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     ghostOffsetStart[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     stag->nGhost[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     dummyEnd[1],
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 23;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (dummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* We and neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  startGhost1  = ghostOffsetStart[1];
+    const PetscInt  startGhost2  = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscInt  endGhost0    = stag->nGhost[0];
+    const PetscInt  endGhost1    = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  endGhost2    = stag->nGhost[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = dummyEnd[1];
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* LEFT UP FRONT */
   if (!star && !dummyStart[0] && !dummyEnd[1] && !dummyEnd[2]) {
-    const PetscInt neighbor      = 24;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0];
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0); /* Neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { nNeighbors[neighbor][0] - ghostOffsetStart[0],
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { 0,
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2] };
-    const PetscInt endGhost[3]   = { ghostOffsetStart[0],
-                                     stag->nGhost[1],
-                                     stag->nGhost[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 24;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0];
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace : 0); /* Neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = nNeighbors[neighbor][0] - ghostOffsetStart[0];
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = 0;
+    const PetscInt  startGhost1  = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  startGhost2  = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscInt  endGhost0    = ghostOffsetStart[0];
+    const PetscInt  endGhost1    = stag->nGhost[1];
+    const PetscInt  endGhost2    = stag->nGhost[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* UP FRONT */
   if (!star && !dummyEnd[1] && !dummyEnd[2]) {
-    const PetscInt neighbor      = 25;
-    const PetscInt eprNeighbor   = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
-    const PetscInt eplNeighbor   = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { ghostOffsetStart[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     stag->nGhost[1],
-                                     stag->nGhost[2] };
-    const PetscBool extra[3]     = { dummyEnd[0],
-                                     PETSC_FALSE,
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 25;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (dummyEnd[0] ? entriesPerFace : 0); /* We+neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (dummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = ghostOffsetStart[0];
+    const PetscInt  startGhost1  = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  startGhost2  = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscInt  endGhost0    = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  endGhost1    = stag->nGhost[1];
+    const PetscInt  endGhost2    = stag->nGhost[2];
+    const PetscBool extra0       = dummyEnd[0];
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
   /* RIGHT UP FRONT */
   if (!star && !dummyEnd[0] && !dummyEnd[1] && !dummyEnd[2]) {
-    const PetscInt neighbor          = 26;
-    const PetscInt eprNeighbor       = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
-    const PetscInt eplNeighbor       = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
-    const PetscInt epFaceRow     = -1;
-    const PetscInt start[3]      = { 0,
-                                     0,
-                                     0 };
-    const PetscInt startGhost[3] = { stag->nGhost[0] - ghostOffsetEnd[0],
-                                     stag->nGhost[1] - ghostOffsetEnd[1],
-                                     stag->nGhost[2] - ghostOffsetEnd[2] };
-    const PetscInt endGhost[3]   = { stag->nGhost[0],
-                                     stag->nGhost[1],
-                                     stag->nGhost[2] };
-    const PetscBool extra[3]     = { PETSC_FALSE,
-                                     PETSC_FALSE,
-                                     PETSC_FALSE };
-    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start[0],start[1],start[2],startGhost[0],startGhost[1],startGhost[2],endGhost[0],endGhost[1],endGhost[2],extra[0],extra[1],extra[2]);CHKERRQ(ierr);
+    const PetscInt  neighbor     = 26;
+    const PetscInt  eprNeighbor  = stag->entriesPerElement * nNeighbors[neighbor][0] + (nextToDummyEnd[0] ? entriesPerFace : 0); /* Neighbor may be a right boundary */
+    const PetscInt  eplNeighbor  = eprNeighbor * nNeighbors[neighbor][1] + (nextToDummyEnd[1] ? nNeighbors[neighbor][0] * entriesPerFace + (nextToDummyEnd[0] ? entriesPerEdge : 0) : 0); /* Neighbor may be a top boundary */
+    const PetscInt  epFaceRow    = -1;
+    const PetscInt  start0       = 0;
+    const PetscInt  start1       = 0;
+    const PetscInt  start2       = 0;
+    const PetscInt  startGhost0  = stag->nGhost[0] - ghostOffsetEnd[0];
+    const PetscInt  startGhost1  = stag->nGhost[1] - ghostOffsetEnd[1];
+    const PetscInt  startGhost2  = stag->nGhost[2] - ghostOffsetEnd[2];
+    const PetscInt  endGhost0    = stag->nGhost[0];
+    const PetscInt  endGhost1    = stag->nGhost[1];
+    const PetscInt  endGhost2    = stag->nGhost[2];
+    const PetscBool extra0       = PETSC_FALSE;
+    const PetscBool extra1       = PETSC_FALSE;
+    const PetscBool extra2       = PETSC_FALSE;
+    ierr = DMStagSetUpBuildScatterPopulateIdx_3d(stag,&count,idxLocal,idxGlobal,entriesPerEdge,entriesPerFace,eprNeighbor,eplNeighbor,eprGhost,eplGhost,epFaceRow,globalOffsets[stag->neighbors[neighbor]],start0,start1,start2,startGhost0,startGhost1,startGhost2,endGhost0,endGhost1,endGhost2,extra0,extra1,extra2);CHKERRQ(ierr);
   }
 
 #if defined(PETSC_USE_DEBUG)
@@ -1596,7 +1596,9 @@ static PetscErrorCode DMStagSetUpBuildL2G_3d(DM dm,const PetscInt *globalOffsets
     }
   }
 
-  /* Precompute elements per row and layer on neighbor */
+  /* Precompute elements per row and layer on neighbor (zero unused) */
+  PetscMemzero(eprNeighbor,27*sizeof(PetscInt));
+  PetscMemzero(eplNeighbor,27*sizeof(PetscInt));
   if (stag->neighbors[0] >= 0) {
     eprNeighbor[0] = stag->entriesPerElement * nNeighbors[0][0];
     eplNeighbor[0] = eprNeighbor[0] * nNeighbors[0][1];
