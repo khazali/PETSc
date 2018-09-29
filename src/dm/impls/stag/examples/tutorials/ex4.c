@@ -72,7 +72,7 @@ int main(int argc,char **argv)
       DMSTAG_STENCIL_BOX,
       1,                                       /* elementwise stencil width */
       NULL,NULL,
-      &ctx->dmStokes);
+      &ctx->dmStokes);CHKERRQ(ierr);
   ierr = DMSetFromOptions(ctx->dmStokes);CHKERRQ(ierr);
   ierr = DMSetUp(ctx->dmStokes);CHKERRQ(ierr);
   ierr = DMStagSetUniformCoordinatesExplicit(ctx->dmStokes,0.0,ctx->xmax,0.0,ctx->ymax,0.0,0.0);CHKERRQ(ierr);
@@ -482,7 +482,7 @@ static PetscErrorCode DumpSolution(Ctx ctx,Vec x)
   /* For convenience, create a new DM and Vec which will hold averaged velocities
      Note that this could also be accomplished with direct array access, using
      DMStagVecGetArrayDOF() and related functions */
-  ierr = DMStagCreateCompatibleDMStag(ctx->dmStokes,0,0,2,0,&dmVelAvg); /* 2 dof per element */
+  ierr = DMStagCreateCompatibleDMStag(ctx->dmStokes,0,0,2,0,&dmVelAvg);CHKERRQ(ierr); /* 2 dof per element */
   ierr = DMSetUp(dmVelAvg);CHKERRQ(ierr);
   ierr = DMStagSetUniformCoordinatesExplicit(dmVelAvg,0.0,ctx->xmax,0.0,ctx->ymax,0.0,0.0);CHKERRQ(ierr);
   ierr = DMCreateGlobalVector(dmVelAvg,&velAvg);CHKERRQ(ierr);
@@ -568,13 +568,13 @@ static PetscErrorCode DumpSolution(Ctx ctx,Vec x)
 
    test:
       suffix: direct_umfpack
-      requires: suitesparse
+      requires: suitesparse !complex
       nsize: 1
       args: -stag_grid_x 12 -stag_grid_y 7 -pc_type lu -pc_factor_mat_solver_type umfpack
 
    test:
       suffix: direct_mumps
-      requires: mumps
+      requires: mumps !complex
       nsize: 9
       args: -stag_grid_x 13 -stag_grid_y 8 -pc_type lu -pc_factor_mat_solver_type mumps
 
