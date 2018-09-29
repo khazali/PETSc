@@ -21,7 +21,7 @@ static char help[] = "Solve a toy 3D problem on a staggered grid\n\n";
   a constant-pressure nullspace. This allows use of direct solvers, e.g. to
   use UMFPACK,
 
-     ./stag_ex4 -pinpressure 1 -pc_type lu -pc_factor_mat_solver_type umfpack
+     ./ex3 -pinpressure 1 -pc_type lu -pc_factor_mat_solver_type umfpack
 
 */
 #include <petscdm.h>
@@ -151,7 +151,7 @@ static PetscErrorCode CreateSystem(DM dmSol,Mat *pA,Vec *pRhs, PetscBool pinPres
   PetscBool         isLastRankx,isLastRanky,isLastRankz,isFirstRankx,isFirstRanky,isFirstRankz;
   PetscReal         hx,hy,hz;
   DM                dmCoord;
-  const PetscScalar ****arrCoord;
+  PetscScalar       ****arrCoord;
 
   PetscFunctionBeginUser;
   ierr = DMCreateMatrix(dmSol,pA);CHKERRQ(ierr);
@@ -568,7 +568,7 @@ static PetscErrorCode CreateSystem(DM dmSol,Mat *pA,Vec *pRhs, PetscBool pinPres
               col[0].i = ex  ; col[0].j = ey  ;  col[0].k = ez  ; col[0].loc = BACK;    col[0].c  = 0; valA[0] = -1.0 / (hx*hx) + -1.0 / (hy*hy) -2.0 / (hz*hz);
               col[1].i = ex  ; col[1].j = ey-1;  col[1].k = ez  ; col[1].loc = BACK;    col[1].c  = 0; valA[1] =  1.0 / (hy*hy);
               /* Up term missing */
-              col[3].i = ex-1; col[3].j = ey  ;  col[3].k = ez  ; col[3].loc = BACK;    col[3].c  = 0; valA[3] =  1.0 / (hx*hx);
+              col[2].i = ex-1; col[2].j = ey  ;  col[2].k = ez  ; col[2].loc = BACK;    col[2].c  = 0; valA[2] =  1.0 / (hx*hx);
               /* Right term missing */
               col[3].i = ex  ; col[3].j = ey  ;  col[3].k = ez-1; col[3].loc = BACK;    col[3].c  = 0; valA[3] =  1.0 / (hz*hz);
               col[4].i = ex  ; col[4].j = ey  ;  col[4].k = ez+1; col[4].loc = BACK;    col[4].c  = 0; valA[4] =  1.0 / (hz*hz);
@@ -714,8 +714,7 @@ static PetscErrorCode CreateReferenceSolution(DM dmSol,Vec *pSolRef)
   PetscInt          ip,iux,iuy,iuz,icp[3],icux[3],icuy[3],icuz[3];
   Vec               solRef,solRefLocal,coord,coordLocal;
   DM                dmCoord;
-  PetscScalar       ****arrSol;
-  const PetscScalar ****arrCoord;
+  PetscScalar       ****arrSol,****arrCoord;
 
   PetscFunctionBeginUser;
   ierr = DMCreateGlobalVector(dmSol,pSolRef);CHKERRQ(ierr);
