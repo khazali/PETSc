@@ -597,5 +597,5 @@ int main(int argc,char **argv)
 
     test:
       suffix: 4
-      args: -implicitform 0 -ts_rhs_jacobian_test_mult_transpose -mat_shell_test_mult_transpose_view -tao_max_it 2 -ts_rhs_jacobian_test_mult -mat_shell_test_mult_view
+      args: -implicitform 0 -ts_dt 0.01 -ts_max_steps 2 -ts_rhs_jacobian_test_mult_transpose -mat_shell_test_mult_transpose_view -ts_rhs_jacobian_test_mult -mat_shell_test_mult_view -mode 1 -my_tao_mf
 TEST*/
