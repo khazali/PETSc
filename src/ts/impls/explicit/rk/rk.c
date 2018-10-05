@@ -759,14 +759,10 @@ static PetscErrorCode TSAdjointStep_RK(TS ts)
     zero = PETSC_FALSE;
     ierr = TSGetRHSJacobian(ts,&J,NULL,NULL,NULL);CHKERRQ(ierr);
     ierr = TSComputeRHSJacobian(ts,stage_time,Y[i],J,J);CHKERRQ(ierr);
-    if (ts->vec_costintegral) {
-      ierr = TSComputeDRDUFunction(ts,stage_time,Y[i],ts->vecs_drdu);CHKERRQ(ierr);
-    }
+    ierr = TSComputeDRDUFunction(ts,stage_time,Y[i],ts->vecs_drdu);CHKERRQ(ierr);
     if (ts->vecs_sensip) {
       ierr = TSComputeRHSJacobianP(ts,stage_time,Y[i],ts->Jacp);CHKERRQ(ierr); /* get f_p */
-      if (ts->vec_costintegral) {
-        ierr = TSComputeDRDPFunction(ts,stage_time,Y[i],ts->vecs_drdp);CHKERRQ(ierr);
-      }
+      ierr = TSComputeDRDPFunction(ts,stage_time,Y[i],ts->vecs_drdp);CHKERRQ(ierr);
     }
 
     if (b[i] == 0 && i == s-1) zero = PETSC_TRUE;
@@ -808,19 +804,13 @@ static PetscErrorCode TSAdjointStep_RK(TS ts)
       ierr = VecPlaceArray(ts->vec_sensip_col,xarr);CHKERRQ(ierr);
       /* lambda_s^T F_UU w_1 */
       ierr = TSComputeRHSHessianProductFunction1(ts,stage_time,Y[i],VecsSensiTemp,ts->vec_sensip_col,ts->vecs_guu);CHKERRQ(ierr);
-      if (ts->vecs_gup) {
-        /* lambda_s^T F_UP w_2 */
-        ierr = TSComputeRHSHessianProductFunction2(ts,stage_time,Y[i],VecsSensiTemp,ts->vec_dir,ts->vecs_gup);CHKERRQ(ierr);
-      }
+      /* lambda_s^T F_UP w_2 */
+      ierr = TSComputeRHSHessianProductFunction2(ts,stage_time,Y[i],VecsSensiTemp,ts->vec_dir,ts->vecs_gup);CHKERRQ(ierr);
       if (ts->vecs_sensi2p) {
-        if (ts->vecs_gpu) {
-          /* lambda_s^T F_PU w_1 */
-          ierr = TSComputeRHSHessianProductFunction3(ts,stage_time,Y[i],VecsSensiTemp,ts->vec_sensip_col,ts->vecs_gpu);CHKERRQ(ierr);
-        }
-        if (ts->vecs_gpp) {
-          /* lambda_s^T F_PU w_2 */
-          ierr = TSComputeRHSHessianProductFunction4(ts,stage_time,Y[i],VecsSensiTemp,ts->vec_dir,ts->vecs_gpp);CHKERRQ(ierr);
-        }
+        /* lambda_s^T F_PU w_1 */
+        ierr = TSComputeRHSHessianProductFunction3(ts,stage_time,Y[i],VecsSensiTemp,ts->vec_sensip_col,ts->vecs_gpu);CHKERRQ(ierr);
+        /* lambda_s^T F_PU w_2 */
+        ierr = TSComputeRHSHessianProductFunction4(ts,stage_time,Y[i],VecsSensiTemp,ts->vec_dir,ts->vecs_gpp);CHKERRQ(ierr);
       }
       ierr = VecResetArray(ts->vec_sensip_col);CHKERRQ(ierr);
       ierr = MatDenseRestoreColumn(ts->mat_sensip,&xarr);CHKERRQ(ierr);

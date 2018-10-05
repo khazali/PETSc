@@ -66,9 +66,9 @@ PetscErrorCode TSComputeRHSJacobianP(TS ts,PetscReal t,Vec U,Mat Amat)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!Amat) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
-  PetscValidPointer(Amat,4);
 
   PetscStackPush("TS user JacobianP function for sensitivity analysis");
   ierr = (*ts->rhsjacobianp)(ts,t,U,Amat,ts->rhsjacobianpctx);CHKERRQ(ierr);
@@ -147,10 +147,10 @@ PetscErrorCode TSComputeIJacobianP(TS ts,PetscReal t,Vec U,Vec Udot,PetscReal sh
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!Amat) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
   PetscValidHeaderSpecific(Udot,VEC_CLASSID,4);
-  PetscValidPointer(Amat,5);
 
   ierr = PetscLogEventBegin(TS_JacobianPEval,ts,U,Amat,0);CHKERRQ(ierr);
   if (ts->ijacobianp) {
@@ -353,6 +353,7 @@ PetscErrorCode TSComputeDRDUFunction(TS ts,PetscReal t,Vec U,Vec *DRDU)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!DRDU) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
@@ -389,6 +390,7 @@ PetscErrorCode TSComputeDRDPFunction(TS ts,PetscReal t,Vec U,Vec *DRDP)
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!DRDP) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
@@ -477,6 +479,7 @@ PetscErrorCode TSComputeIHessianProductFunction1(TS ts,PetscReal t,Vec U,Vec *Vl
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!VHV) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
@@ -509,6 +512,7 @@ PetscErrorCode TSComputeIHessianProductFunction2(TS ts,PetscReal t,Vec U,Vec *Vl
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!VHV) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
@@ -541,6 +545,7 @@ PetscErrorCode TSComputeIHessianProductFunction3(TS ts,PetscReal t,Vec U,Vec *Vl
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!VHV) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
@@ -573,6 +578,7 @@ PetscErrorCode TSComputeIHessianProductFunction4(TS ts,PetscReal t,Vec U,Vec *Vl
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!VHV) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
@@ -661,6 +667,7 @@ PetscErrorCode TSComputeRHSHessianProductFunction1(TS ts,PetscReal t,Vec U,Vec *
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!VHV) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
@@ -693,6 +700,7 @@ PetscErrorCode TSComputeRHSHessianProductFunction2(TS ts,PetscReal t,Vec U,Vec *
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!VHV) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
@@ -725,6 +733,7 @@ PetscErrorCode TSComputeRHSHessianProductFunction3(TS ts,PetscReal t,Vec U,Vec *
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!VHV) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
@@ -757,6 +766,7 @@ PetscErrorCode TSComputeRHSHessianProductFunction4(TS ts,PetscReal t,Vec U,Vec *
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
+  if (!VHV) PetscFunctionReturn(0);
   PetscValidHeaderSpecific(ts,TS_CLASSID,1);
   PetscValidHeaderSpecific(U,VEC_CLASSID,3);
 
