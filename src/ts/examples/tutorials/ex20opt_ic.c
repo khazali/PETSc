@@ -263,7 +263,6 @@ static PetscErrorCode FormHessian(Tao tao,Vec U,Mat H,Mat Hpre,void *ctx)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  ierr     = VecView(U,0);CHKERRQ(ierr);
   ierr     = VecCopy(U,user_ptr->U);CHKERRQ(ierr);
   ierr     = VecGetArray(user_ptr->Dir,&x_ptr);CHKERRQ(ierr);
   x_ptr[0] = 1.;
@@ -545,7 +544,6 @@ int main(int argc,char **argv)
         ierr = MatCreate(PETSC_COMM_WORLD,&user.H);CHKERRQ(ierr);
         ierr = MatSetSizes(user.H,PETSC_DECIDE,PETSC_DECIDE,2,2);CHKERRQ(ierr);
         ierr = MatSetUp(user.H);CHKERRQ(ierr);
-//      ierr = MatSetOption(user.H,MAT_SYMMETRIC,PETSC_TRUE);CHKERRQ(ierr);
         ierr = TaoSetHessianRoutine(tao,user.H,user.H,FormHessian,(void *)&user);CHKERRQ(ierr);
       }
 

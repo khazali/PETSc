@@ -606,7 +606,6 @@ PetscErrorCode FormHessian(Tao tao,Vec P,Mat H,Mat Hpre,void *ctx)
 {
   User           user_ptr = (User)ctx;
   PetscScalar    harr[1];
-  PetscScalar    *x_ptr;
   const PetscInt rows[1] = {0};
   PetscInt       col = 0;
   PetscErrorCode ierr;
