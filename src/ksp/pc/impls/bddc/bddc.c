@@ -1576,7 +1576,7 @@ PetscErrorCode PCSetUp_BDDC(PC pc)
   PetscMPIInt     size;
   PetscBool       computesubschurs;
   PetscBool       computeconstraintsmatrix;
-  PetscBool       new_nearnullspace_provided,ismatis,rl;
+  PetscBool       new_nearnullspace_provided,ismatis;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -1590,9 +1590,7 @@ PetscErrorCode PCSetUp_BDDC(PC pc)
   /* the following lines of code should be replaced by a better logic between PCIS, PCNN, PCBDDC and other future nonoverlapping preconditioners */
   /* For BDDC we need to define a local "Neumann" problem different to that defined in PCISSetup
      Also, BDDC builds its own KSP for the Dirichlet problem */
-  rl = pcbddc->recompute_topography;
-  if (!pc->setupcalled || pc->flag == DIFFERENT_NONZERO_PATTERN) rl = PETSC_TRUE;
-  ierr = MPIU_Allreduce(&rl,&pcbddc->recompute_topography,1,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)pc));CHKERRQ(ierr);
+  if (!pc->setupcalled || pc->flag == DIFFERENT_NONZERO_PATTERN) pcbddc->recompute_topography = PETSC_TRUE;
   if (pcbddc->recompute_topography) {
     pcbddc->graphanalyzed    = PETSC_FALSE;
     computeconstraintsmatrix = PETSC_TRUE;
@@ -1661,8 +1659,8 @@ PetscErrorCode PCSetUp_BDDC(PC pc)
     PC_IS* pcis = (PC_IS*)pc->data;
 
     if (pcbddc->user_ChangeOfBasisMatrix || pcbddc->use_change_of_basis || !computesubschurs) pcbddc->benign_change_explicit = PETSC_TRUE;
-    /* detect local saddle point and change the basis in pcbddc->local_mat */
-    ierr = PCBDDCBenignDetectSaddlePoint(pc,!pcbddc->recompute_topography,&zerodiag);CHKERRQ(ierr);
+    /* detect local saddle point and change the basis in pcbddc->local_mat (TODO: reuse case) */
+    ierr = PCBDDCBenignDetectSaddlePoint(pc,&zerodiag);CHKERRQ(ierr);
     /* pop B0 mat from local mat */
     ierr = PCBDDCBenignPopOrPushB0(pc,PETSC_TRUE);CHKERRQ(ierr);
     /* give pcis a hint to not reuse submatrices during PCISCreate */

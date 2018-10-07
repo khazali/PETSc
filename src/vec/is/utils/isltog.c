@@ -644,7 +644,7 @@ PetscErrorCode  ISLocalToGlobalMappingDestroy(ISLocalToGlobalMapping *mapping)
     a new index set using the global numbering defined in an ISLocalToGlobalMapping
     context.
 
-    Collective on is
+    Not collective
 
     Input Parameters:
 +   mapping - mapping between local and global numbering
@@ -652,9 +652,6 @@ PetscErrorCode  ISLocalToGlobalMappingDestroy(ISLocalToGlobalMapping *mapping)
 
     Output Parameters:
 .   newis - index set in global numbering
-
-    Notes:
-    The output IS will have the same communicator of the input IS.
 
     Level: advanced
 
@@ -856,9 +853,6 @@ PetscErrorCode  ISGlobalToLocalMappingApply(ISLocalToGlobalMapping mapping,ISGlo
     Output Parameters:
 .   newis - index set in local numbering
 
-    Notes:
-    The output IS will be sequential, as it encodes a purely local operation
-
     Level: advanced
 
     Concepts: mapping^local to global
@@ -887,7 +881,7 @@ PetscErrorCode  ISGlobalToLocalMappingApplyIS(ISLocalToGlobalMapping mapping,ISG
   }
   ierr = ISGlobalToLocalMappingApply(mapping,type,n,idxin,&nout,idxout);CHKERRQ(ierr);
   ierr = ISRestoreIndices(is,&idxin);CHKERRQ(ierr);
-  ierr = ISCreateGeneral(PETSC_COMM_SELF,nout,idxout,PETSC_OWN_POINTER,newis);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(PetscObjectComm((PetscObject)is),nout,idxout,PETSC_OWN_POINTER,newis);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
