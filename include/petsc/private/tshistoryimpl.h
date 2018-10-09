@@ -3,7 +3,7 @@
 
 #include <petsc/private/tsimpl.h>
 
-struct _n_TSHistory {
+struct _p_TSHistory {
   PETSCHEADER(PetscOps);
 
   PetscReal *hist;    /* time history */

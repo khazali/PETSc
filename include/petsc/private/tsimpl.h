@@ -81,7 +81,7 @@ struct _TSTrajectoryOps {
 /* TSHistory is an helper object that allows inquiring
    the TSTrajectory by time and not by the step number only */
 PETSC_EXTERN PetscClassId TSHISTORY_CLASSID;
-typedef struct _n_TSHistory* TSHistory;
+typedef struct _p_TSHistory* TSHistory;
 
 struct _p_TSTrajectory {
   PETSCHEADER(struct _TSTrajectoryOps);
