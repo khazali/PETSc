@@ -18,6 +18,17 @@ Tao Object: 1 MPI processes
       Number of updates: 3
       Number of rejects: 0
       Number of resets: 1
+      Mat Object: (J0_) 1 MPI processes
+        type: lmvmdiagbrdn
+        rows=1, cols=1
+          Scale history: 1
+          Scale params: alpha=1., beta=0.5, rho=1.
+          Convex factor: theta=0.125
+          Max. storage: 1
+          Used storage: 1
+          Number of updates: 3
+          Number of rejects: 0
+          Number of resets: 1
   TaoLineSearch Object: 1 MPI processes
     type: more-thuente
     maximum function evaluations=30
