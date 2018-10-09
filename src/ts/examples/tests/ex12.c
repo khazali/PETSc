@@ -148,3 +148,15 @@ int main(int argc,char **argv)
   ierr = PetscFinalize();
   return ierr;
 }
+
+/*TEST
+
+test:
+  suffix: 1
+  args: -ts_trajectory_monitor -p 3 -ts_trajectory_reconstruction_order 3 -interptimes 0.1,0.99,0.3,0.11,0.11,0.56
+
+test:
+  suffix: 2
+  args: -sortkeys -ts_trajectory_monitor -ts_trajectory_type memory -p 3 -ts_trajectory_reconstruction_order 3 -ts_trajectory_adjointmode 0 -interptimes 0.1,0.99,0.3,0.11,0.11,0.56
+
+TEST*/
