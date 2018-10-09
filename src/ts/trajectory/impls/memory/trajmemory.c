@@ -244,6 +244,7 @@ static PetscErrorCode StackDestroy(Stack *stack)
 static PetscErrorCode StackFind(Stack *stack,StackElement *e,PetscInt index)
 {
   PetscFunctionBegin;
+  *e = NULL;
   if (index < 0 || index > stack->top) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Invalid index %D",index);
   *e = stack->container[index];
   PetscFunctionReturn(0);
