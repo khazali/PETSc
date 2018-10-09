@@ -45,6 +45,9 @@ typedef const char* MatType;
 #define MATAIJPERM         "aijperm"
 #define MATSEQAIJPERM      "seqaijperm"
 #define MATMPIAIJPERM      "mpiaijperm"
+#define MATAIJSELL         "aijsell"
+#define MATSEQAIJSELL      "seqaijsell"
+#define MATMPIAIJSELL      "mpiaijsell"
 #define MATAIJMKL          "aijmkl"
 #define MATSEQAIJMKL       "seqaijmkl"
 #define MATMPIAIJMKL       "mpiaijmkl"
@@ -95,6 +98,7 @@ typedef const char* MatType;
 #define MATLMVMBRDN        "lmvmbrdn"
 #define MATLMVMBADBRDN     "lmvmbadbrdn"
 #define MATLMVMSYMBRDN     "lmvmsymbrdn"
+#define MATLMVMSYMBADBRDN  "lmvmsymbadbrdn"
 #define MATLMVMDIAGBRDN    "lmvmdiagbrdn"
 
 /*J
@@ -196,7 +200,7 @@ PETSC_EXTERN PetscErrorCode MatSetType(Mat,MatType);
 PETSC_EXTERN PetscErrorCode MatSetFromOptions(Mat);
 PETSC_STATIC_INLINE PetscErrorCode MatViewFromOptions(Mat A,PetscObject obj,const char name[]) {return PetscObjectViewFromOptions((PetscObject)A,obj,name);}
 PETSC_EXTERN PetscErrorCode MatRegister(const char[],PetscErrorCode(*)(Mat));
-PETSC_EXTERN PetscErrorCode MatRegisterBaseName(const char[],const char[],const char[]);
+PETSC_EXTERN PetscErrorCode MatRegisterRootName(const char[],const char[],const char[]);
 PETSC_EXTERN PetscErrorCode MatSetOptionsPrefix(Mat,const char[]);
 PETSC_EXTERN PetscErrorCode MatAppendOptionsPrefix(Mat,const char[]);
 PETSC_EXTERN PetscErrorCode MatGetOptionsPrefix(Mat,const char*[]);
@@ -1593,6 +1597,7 @@ PETSC_EXTERN PetscErrorCode MatShellSetManageScalingShifts(Mat);
 
 PETSC_EXTERN PetscErrorCode MatMPIBAIJSetHashTableFactor(Mat,PetscReal);
 
+PETSC_EXTERN PetscErrorCode MatISSetLocalMatType(Mat,MatType);
 PETSC_EXTERN PetscErrorCode MatISSetPreallocation(Mat,PetscInt,const PetscInt[],PetscInt,const PetscInt[]);
 PETSC_EXTERN PetscErrorCode MatISSetUpSF(Mat);
 PETSC_EXTERN PetscErrorCode MatISStoreL2L(Mat,PetscBool);

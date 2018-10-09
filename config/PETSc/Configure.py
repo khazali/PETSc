@@ -117,7 +117,6 @@ class Configure(config.base.Configure):
     framework.require('PETSc.options.scalarTypes', self.fblaslapack)
     framework.require('PETSc.options.scalarTypes', self.blaslapack)
     framework.require('PETSc.options.scalarTypes', self.opencl)
-    framework.require('PETSc.Regression', self)
 
     self.programs.headerPrefix   = self.headerPrefix
     self.compilers.headerPrefix  = self.headerPrefix
@@ -165,8 +164,8 @@ class Configure(config.base.Configure):
     if self.framework.argDB['prefix']:
       fd.write('prefix='+self.installdir.dir+'\n')
     else:
-      fd.write('prefix='+self.petscdir.dir+'\n')
-      cflags_inc.append('-I' + os.path.join('${prefix}', self.arch.arch, 'include'))
+      fd.write('prefix='+os.path.join(self.petscdir.dir, self.arch.arch)+'\n')
+      cflags_inc.append('-I' + os.path.join(self.petscdir.dir, 'include'))
     fd.write('exec_prefix=${prefix}\n')
     fd.write('includedir=${prefix}/include\n')
     fd.write('libdir=${prefix}/lib\n')

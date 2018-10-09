@@ -50,6 +50,7 @@ PetscErrorCode  TSInitializePackage(void)
   ierr = TSRosWInitializePackage();CHKERRQ(ierr);
   ierr = TSSSPInitializePackage();CHKERRQ(ierr);
   ierr = TSGLLEAdaptInitializePackage();CHKERRQ(ierr);
+  ierr = TSBasicSymplecticInitializePackage();CHKERRQ(ierr);
   /* Register Classes */
   ierr = PetscClassIdRegister("TS",&TS_CLASSID);CHKERRQ(ierr);
   ierr = PetscClassIdRegister("DMTS",&DMTS_CLASSID);CHKERRQ(ierr);
