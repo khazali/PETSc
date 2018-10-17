@@ -455,6 +455,7 @@ static PetscErrorCode _ComputeLocalCoordinateAffine2d(PetscReal xp[],PetscReal c
 }
 */
 
+/* see https://en.wikipedia.org/wiki/Barycentric_coordinate_system#Barycentric_coordinates_on_triangles */
 static PetscErrorCode ComputeLocalCoordinateAffine2d(PetscReal xp[],PetscScalar coords[],PetscReal xip[],PetscReal *dJ)
 {
   PetscReal x1,y1,x2,y2,x3,y3;
@@ -631,6 +632,333 @@ PetscErrorCode DMSwarmProjectField_ApproxP1_PLEX_2D(DM swarm,PetscReal *swarm_fi
   PetscFunctionReturn(0);
 }
 
+static inline PetscReal MatrixDeterminant3(const PetscReal *inmat)
+{
+  return inmat[0] * (inmat[8] * inmat[4] - inmat[7] * inmat[5])
+       - inmat[3] * (inmat[8] * inmat[1] - inmat[7] * inmat[2])
+       + inmat[6] * (inmat[5] * inmat[1] - inmat[4] * inmat[2]);
+}
+
+static inline PetscErrorCode MatrixInvert3(const PetscReal *inmat,
+  PetscReal *outmat, PetscScalar *determinant)
+{
+  if (!inmat)
+  {
+    SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_POINTER,
+      "Invalid input matrix specified for 3x3 inversion.");
+  }
+
+  /* compute the determinant */
+  PetscReal det = MatrixDeterminant3(inmat);
+  if (determinant) *determinant = det;
+
+  /* invert the matrix */
+  if (outmat)
+  {
+    outmat[0] =  (inmat[8] * inmat[4] - inmat[7] * inmat[5]) / det;
+    outmat[1] = -(inmat[8] * inmat[1] - inmat[7] * inmat[2]) / det;
+    outmat[2] =  (inmat[5] * inmat[1] - inmat[4] * inmat[2]) / det;
+    outmat[3] = -(inmat[8] * inmat[3] - inmat[6] * inmat[5]) / det;
+    outmat[4] =  (inmat[8] * inmat[0] - inmat[6] * inmat[2]) / det;
+    outmat[5] = -(inmat[5] * inmat[0] - inmat[3] * inmat[2]) / det;
+    outmat[6] =  (inmat[7] * inmat[3] - inmat[6] * inmat[4]) / det;
+    outmat[7] = -(inmat[7] * inmat[0] - inmat[6] * inmat[1]) / det;
+    outmat[8] =  (inmat[4] * inmat[0] - inmat[3] * inmat[1]) / det;
+  }
+
+  PetscFunctionReturn(0);
+}
+
+/*@
+Computes the function
+
+    x(xi, eta, mu) = phi000(xi, eta, mu) x0 + phi001(xi, eta, mu) x1 + ...
+    y(xi, eta, mu) = phi000(xi, eta, mu) y0 + phi001(xi, eta, mu) y1 + ...
+    z(xi, eta, mu) = phi000(xi, eta, mu) z0 + phi001(xi, eta, mu) z1 + ...
+
+and its Jacobian for the purpose of solving for the natural coordinates
+xi, eta, and mu, which each lie in [0,1].
+
+      5------6        mu
+     /|     /|        |  eta
+    4------7 |        | /
+    | |    | |        |/
+    | 3----|-2        0-------xi
+    |/     |/
+    0------1
+
+Input parameters:
+
+  . PetscReal phycoords[24]  physical space coordinates of the hex vertices
+  . PetscReal natquad[3]     natural coordinates of the quadrature point
+
+Output parameters:
+
+  . PetscReal phyquad[3]     physical coordinates of the quadrature point
+  . PetscReal phi[8]         bases evaluated at the quadrature point
+  . PetscReal jacobian[9]    Jacobian matrix d(x,y,z)/d(xi,eta,mu)
+  . PetscReal ijacobian[9]   inverted Jacobian matrix
+  . PetscReal volume         volume of the hexahedral element
+*/
+static PetscErrorCode ComputeFunctionAndJacobianHEX8(const PetscReal *phycoords,
+  const PetscReal *natquad, PetscReal *phyquad, PetscReal *phi,
+  PetscReal *jacobian, PetscReal *ijacobian, PetscReal *volume)
+{
+  PetscInt i;
+  PetscErrorCode ierr;
+  PetscScalar detJ;
+
+  PetscFunctionBegin;
+
+  /* check for valid inputs; first argument is the pointer to check, second
+   * is the parameter number to use in any error message generated */
+  PetscValidPointer(jacobian, 4);
+  PetscValidPointer(ijacobian, 5);
+  PetscValidPointer(volume, 6);
+
+  /* reset arrays */
+  ierr = PetscMemzero(phyquad, 3 * sizeof(PetscReal)); CHKERRQ(ierr);
+  ierr = PetscMemzero(jacobian, 9 * sizeof(PetscReal)); CHKERRQ(ierr);
+  ierr = PetscMemzero(ijacobian, 9 * sizeof(PetscReal)); CHKERRQ(ierr);
+
+  /* extract the natural coordinates */
+  const PetscReal xi  = natquad[0];
+  const PetscReal eta = natquad[1];
+  const PetscReal mu  = natquad[2];
+
+  phi[0] = (1. - xi) * (1. - eta) * (1. - mu);  /* 0,0,0 */
+  phi[1] = (     xi) * (1. - eta) * (1. - mu);  /* 1,0,0 */
+  phi[2] = (     xi) * (     eta) * (1. - mu);  /* 1,1,0 */
+  phi[3] = (1. - xi) * (     eta) * (1. - mu);  /* 0,1,0 */
+  phi[4] = (1. - xi) * (1. - eta) * (     mu);  /* 0,0,1 */
+  phi[5] = (1. - xi) * (     eta) * (     mu);  /* 0,1,1 */
+  phi[6] = (     xi) * (     eta) * (     mu);  /* 1,1,1 */
+  phi[7] = (     xi) * (1. - eta) * (     mu);  /* 1,0,1 */
+
+  /* derivative of phi w.r.t. xi */
+  const PetscReal dphi_dxi[8]  = { -(1. - eta) * (1. - mu),
+                                    (1. - eta) * (1. - mu),
+                                    (     eta) * (1. - mu),
+                                   -(     eta) * (1. - mu),
+                                   -(1. - eta) * (     mu),
+                                   -(     eta) * (     mu),
+                                    (     eta) * (     mu),
+                                    (1. - eta) * (     mu) };
+
+  /* derivative of phi w.r.t. eta */
+  const PetscReal dphi_deta[8] = { -(1. - xi) * (1. - mu),
+                                   -(     xi) * (1. - mu),
+                                    (     xi) * (1. - mu),
+                                    (1. - xi) * (1. - mu),
+                                   -(1. - xi) * (     mu),
+                                    (1. - xi) * (     mu),
+                                    (     xi) * (     mu),
+                                   -(     xi) * (     mu) };
+
+  /* derivative of phi w.r.t. mu */
+  const PetscReal dphi_dmu[8]  = { -(1. - xi) * (1. - eta),
+                                   -(     xi) * (1. - eta),
+                                   -(     xi) * (     eta),
+                                   -(1. - xi) * (     eta),
+                                    (1. - xi) * (1. - eta),
+                                    (1. - xi) * (     eta),
+                                    (     xi) * (     eta),
+                                    (     xi) * (1. - eta) };
+
+  for (i = 0; i < 8; ++i)
+  {
+    jacobian[0] += dphi_dxi[i]  * phycoords[3*i+0];
+    jacobian[3] += dphi_dxi[i]  * phycoords[3*i+1];
+    jacobian[6] += dphi_dxi[i]  * phycoords[3*i+2];
+    jacobian[1] += dphi_deta[i] * phycoords[3*i+0];
+    jacobian[4] += dphi_deta[i] * phycoords[3*i+1];
+    jacobian[7] += dphi_deta[i] * phycoords[3*i+2];
+    jacobian[2] += dphi_dmu[i]  * phycoords[3*i+0];
+    jacobian[5] += dphi_dmu[i]  * phycoords[3*i+1];
+    jacobian[8] += dphi_dmu[i]  * phycoords[3*i+2];
+
+    phyquad[0] += phi[i] * phycoords[3*i+0];
+    phyquad[1] += phi[i] * phycoords[3*i+1];
+    phyquad[2] += phi[i] * phycoords[3*i+2];
+  }
+
+  /* invert the jacobian */
+  ierr = MatrixInvert3(jacobian, ijacobian, &detJ); CHKERRQ(ierr);
+  *volume = PetscAbsReal(detJ);
+
+  /* TODO: sanity check: is the volume zero? */
+
+  PetscFunctionReturn(0);
+}
+
+
+static PetscErrorCode ComputeLocalCoordinateAffine3dHEX8(PetscReal xp[],
+    PetscScalar coords[], PetscReal xip[], PetscReal phibasis[],
+    PetscScalar *volume)
+{
+  const PetscReal tol = 1.e-10;
+  const PetscInt max_iterations = 100;
+  const PetscReal error_tol_sqr = tol * tol;
+  PetscReal jacobian[9] = { 0. }, ijacobian[9] = { 0. };
+  PetscReal xp1[3] = { 0., 0., 0. };
+  PetscReal delta[3] = { 0., 0., 0. };
+  PetscInt iters = 0, d;
+  PetscReal error;
+
+  PetscFunctionBegin;
+
+  /* check for valid inputs; first argument is the pointer to check, second
+   * is the parameter number to use in any error message generated */
+  PetscValidPointer(xp, 1);
+  PetscValidPointer(coords, 2);
+  PetscValidPointer(xip, 3);
+  PetscValidPointer(phibasis, 4);
+  PetscValidPointer(volume, 5);
+
+  /* set initial guess */
+  xip[0] = xip[1] = xip[2] = 0.5;
+
+  do
+  {
+    /* compute the the physical coordinates corresponding to the
+     * current guess natural coordinates and the jacobian */
+    ComputeFunctionAndJacobianHEX8(coords, xip, xp1,
+        phibasis, jacobian, ijacobian, volume);
+
+    /* compute the squared error between known physical coordinates
+     * and the computed physical coordinates */
+    error = 0.;
+    for (d = 0; d < 3; ++d)
+    {
+      delta[d] = xp1[d] - xp[d];
+      error += delta[d] * delta[d];
+    }
+
+    /* have we found the solution? if so, we're done */
+    if (error < error_tol_sqr) break;
+
+    /* sanity check for singular matrix */
+    if (*volume == 0.)
+    {
+      SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_ARG_OUTOFRANGE,
+        "Zero volume found; suspect singular Jacobian", *volume);
+    }
+
+    /* have we exceeded the maximum number of iterations? */
+    if (++iters > max_iterations)
+    {
+      SETERRQ4(PETSC_COMM_WORLD, PETSC_ERR_ARG_OUTOFRANGE,
+        "Maximum Newton iterations (%d) reached. Current point in reference "
+        "space : (%g, %g, %g)", max_iterations, xip[0], xip[1], xip[2]);
+    }
+
+    /* compute xip -= Jinv * delta */
+    xip[0] -= ijacobian[0] * delta[0] +
+              ijacobian[1] * delta[1] +
+              ijacobian[2] * delta[2];
+    xip[1] -= ijacobian[3] * delta[0] +
+              ijacobian[4] * delta[1] +
+              ijacobian[5] * delta[2];
+    xip[2] -= ijacobian[6] * delta[0] +
+              ijacobian[7] * delta[1] +
+              ijacobian[8] * delta[2];
+  }
+  while (1);
+
+  PetscFunctionReturn(0);
+}
+
+
+PetscErrorCode DMSwarmProjectField_ApproxP1_PLEX_3D(DM swarm,
+    PetscReal *swarm_field, DM dm, Vec v_field)
+{
+  PetscErrorCode ierr;
+  Vec v_field_l, coor_l, denom, denom_l;
+  PetscInt k, p, e, npoints;
+  PetscInt *mpfield_cell;
+  PetscReal *mpfield_coor;
+  PetscReal xi_p[3];
+  PetscSection coordSection;
+  PetscScalar *elcoor = NULL;
+
+  PetscFunctionBegin;
+
+  ierr = DMGetLocalVector(dm, &v_field_l); CHKERRQ(ierr);
+  ierr = DMGetGlobalVector(dm, &denom); CHKERRQ(ierr);
+  ierr = DMGetLocalVector(dm, &denom_l); CHKERRQ(ierr);
+
+  ierr = VecZeroEntries(v_field);  CHKERRQ(ierr);
+  ierr = VecZeroEntries(v_field_l); CHKERRQ(ierr);
+  ierr = VecZeroEntries(denom); CHKERRQ(ierr);
+  ierr = VecZeroEntries(denom_l); CHKERRQ(ierr);
+
+  ierr = DMGetCoordinatesLocal(dm, &coor_l); CHKERRQ(ierr);
+  ierr = DMGetCoordinateSection(dm, &coordSection); CHKERRQ(ierr);
+
+  ierr = DMSwarmGetLocalSize(swarm, &npoints); CHKERRQ(ierr);
+  ierr = DMSwarmGetField(swarm, DMSwarmPICField_coor,
+    NULL, NULL, (void**) &mpfield_coor); CHKERRQ(ierr);
+  ierr = DMSwarmGetField(swarm, DMSwarmPICField_cellid,
+    NULL, NULL, (void**) &mpfield_cell); CHKERRQ(ierr);
+
+  for (p = 0; p < npoints; p++)
+  {
+    PetscInt csize;
+    PetscReal *coor_p, dJ;
+    PetscScalar elfield[8];
+    PetscScalar Ni[8];
+
+    e = mpfield_cell[p];
+    coor_p = &mpfield_coor[3*p];
+
+    ierr = DMPlexVecGetClosure(dm, coordSection,
+      coor_l, e, &csize, &elcoor); CHKERRQ(ierr);
+
+    switch (csize)
+    {
+      case 24:    /* 24 = 8 vertices * 3 dimensions */
+        ierr = ComputeLocalCoordinateAffine3dHEX8(coor_p,
+          elcoor, xi_p, Ni, &dJ); CHKERRQ(ierr);
+        break;
+
+      default:
+        SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_SUP,
+          "Only hexahedral elements are currently supported");
+    }
+
+    for (k = 0; k < 8; ++k)
+    {
+      Ni[k] = Ni[k] * dJ;
+      elfield[k] = Ni[k] * swarm_field[p];
+    }
+
+    ierr = DMPlexVecRestoreClosure(dm, coordSection,
+      coor_l, e, NULL, &elcoor); CHKERRQ(ierr);
+    ierr = DMPlexVecSetClosure(dm, NULL, v_field_l,
+      e, elfield, ADD_VALUES); CHKERRQ(ierr);
+    ierr = DMPlexVecSetClosure(dm, NULL, denom_l,
+      e, Ni, ADD_VALUES); CHKERRQ(ierr);
+  }
+
+  ierr = DMSwarmRestoreField(swarm, DMSwarmPICField_cellid,
+    NULL, NULL, (void**) &mpfield_cell); CHKERRQ(ierr);
+  ierr = DMSwarmRestoreField(swarm, DMSwarmPICField_coor,
+    NULL, NULL, (void**) &mpfield_coor); CHKERRQ(ierr);
+
+  ierr = DMLocalToGlobalBegin(dm, v_field_l, ADD_VALUES, v_field); CHKERRQ(ierr);
+  ierr = DMLocalToGlobalEnd(dm, v_field_l, ADD_VALUES, v_field); CHKERRQ(ierr);
+  ierr = DMLocalToGlobalBegin(dm, denom_l, ADD_VALUES, denom); CHKERRQ(ierr);
+  ierr = DMLocalToGlobalEnd(dm, denom_l, ADD_VALUES, denom); CHKERRQ(ierr);
+
+  ierr = VecPointwiseDivide(v_field, v_field, denom); CHKERRQ(ierr);
+
+  ierr = DMRestoreLocalVector(dm, &v_field_l); CHKERRQ(ierr);
+  ierr = DMRestoreLocalVector(dm, &denom_l); CHKERRQ(ierr);
+  ierr = DMRestoreGlobalVector(dm, &denom); CHKERRQ(ierr);
+
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode private_DMSwarmProjectFields_PLEX(DM swarm,DM celldm,PetscInt project_type,PetscInt nfields,DataField dfield[],Vec vecs[])
 {
   PetscErrorCode ierr;
@@ -648,7 +976,15 @@ PetscErrorCode private_DMSwarmProjectFields_PLEX(DM swarm,DM celldm,PetscInt pro
       }
       break;
     case 3:
-      SETERRQ(PetscObjectComm((PetscObject)swarm),PETSC_ERR_SUP,"No support for 3D");
+      for (f = 0; f < nfields; ++f)
+      {
+        PetscReal *swarm_field;
+
+        ierr = DataFieldGetEntries(dfield[f],
+          (void**) &swarm_field); CHKERRQ(ierr);
+        ierr = DMSwarmProjectField_ApproxP1_PLEX_3D(swarm,
+          swarm_field, celldm, vecs[f]); CHKERRQ(ierr);
+      }
       break;
     default:
       break;
