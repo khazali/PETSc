@@ -8,7 +8,8 @@ def noCheck(command, status, output, error):
 class Configure(config.package.GNUPackage):
   def __init__(self, framework):
     config.package.GNUPackage.__init__(self, framework)
-    self.gitcommit         = 'v1.1.25-p1'
+    self.gitcommit         = 'origin/barry/fix-sys-utsname'
+#    self.gitcommit         = 'v1.1.25-p1'
     self.download          = ['git://https://bitbucket.org/petsc/pkg-sowing.git','https://bitbucket.org/petsc/pkg-sowing/get/'+self.gitcommit+'.tar.gz']
     self.downloaddirnames  = ['petsc-pkg-sowing']
     self.complex           = 1
