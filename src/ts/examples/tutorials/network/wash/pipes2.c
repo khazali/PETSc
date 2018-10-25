@@ -543,7 +543,7 @@ int main(int argc,char ** argv)
   PetscReal         ftime = 1.0;
   Vec               X;
   TS                ts;
-  PetscInt          steps;
+  PetscInt          steps=1;
   TSConvergedReason reason;
   PetscBool         viewpipes,monipipes=PETSC_FALSE,userJac=PETSC_TRUE;
   PetscInt          pipesCase;
@@ -575,13 +575,18 @@ int main(int argc,char ** argv)
   pipesCase = 0;
   ierr = PetscOptionsGetInt(NULL,NULL, "-case", &pipesCase, NULL);CHKERRQ(ierr);
 
+  /* Create sequential wash and edgelist */
   ierr = WashNetworkCreate(PETSC_COMM_WORLD,pipesCase,&wash,&edgelist);CHKERRQ(ierr);
   numEdges    = wash->nedge;
   numVertices = wash->nvertex;
   junctions   = wash->junction;
   pipes       = wash->pipe;
 
-  //------------ new ----------------------
+  nvertices = numVertices;
+  nedges    = numEdges;
+  printf("[%d] old: nvertices %d, nedges %d\n",rank,nvertices,nedges);
+
+  // New: Distribute edgelist to other processors ---------------------
   if (rank == 10) {
     for (e=0; e<numEdges; e++) {
       printf(" e[%d] %d -> %d \n",e,edgelist[2*e],edgelist[2*e+1]);
@@ -609,7 +614,7 @@ int main(int argc,char ** argv)
 
   /* distribute row block edgelist to all processors */
   if (rank) {
-    ierr = PetscMalloc(eend-estart,&edgelist);CHKERRQ(ierr);
+    ierr = PetscMalloc1(2*(eend-estart),&edgelist);CHKERRQ(ierr);
   }
   if (!rank) {
     for (i=1; i<size; i++) {
@@ -650,14 +655,12 @@ int main(int argc,char ** argv)
   ierr = PetscFree(eowners);CHKERRQ(ierr);
 
   if (rank) {
-    ierr = PetscCalloc2(nvertices,&junctions,nedges,&pipes);CHKERRQ(ierr);
     wash->nedge   = nedges;
     wash->nvertex = nvertices;
-
-    
   }
 
   //------------ end of new ----------------------
+  printf("[%d] New: nvertices %d, nedges %d\n",rank,nvertices,nedges);
   ierr = DMNetworkSetSizes(networkdm,1,0,&nvertices,&nedges,NULL,NULL);CHKERRQ(ierr);
 
   /* Add local edge connectivity */
@@ -673,6 +676,18 @@ int main(int argc,char ** argv)
   ierr = DMNetworkGetVertexRange(networkdm,&vStart,&vEnd);CHKERRQ(ierr);
   printf("[%d] eStart/End: %d - %d; vStart/End: %d - %d\n",rank,eStart,eEnd,vStart,vEnd);
 
+  if (rank) {
+    /* vEnd - vStart = nvertices + num of ghost vertices! */
+    ierr = PetscCalloc2(vEnd - vStart,&junctions,nedges,&pipes);CHKERRQ(ierr);
+  }
+
+  /* Set pipes->nnodes and global id -- temp work! */
+  PetscInt nnodes = 6;
+  ierr = PetscOptionsGetInt(NULL,NULL, "-npipenodes", &nnodes, NULL);CHKERRQ(ierr);
+  for (e=0; e<nedges; e++) {
+    pipes[e].nnodes = nnodes;
+  }
+
   for (e = eStart; e < eEnd; e++) {
     /* Add Pipe component to all edges -- create pipe here */
     ierr = DMNetworkAddComponent(networkdm,e,KeyPipe,&pipes[e-eStart]);CHKERRQ(ierr);
@@ -686,8 +701,11 @@ int main(int argc,char ** argv)
     }
   }
 
-  /* Add Junction component to all vertices */
+  /* Add Junction component to all vertices, including ghost vertices! */
+  PetscBool ghost;
   for (v = vStart; v < vEnd; v++) {
+    ierr = DMNetworkIsGhostVertex(networkdm,v,&ghost);CHKERRQ(ierr);
+    if (ghost) printf("[%d] v %d is ghost\n",rank,v);
     ierr = DMNetworkAddComponent(networkdm,v,KeyJunction,&junctions[v-vStart]);CHKERRQ(ierr);
 
     /* Add number of variables to vertex */
@@ -703,6 +721,7 @@ int main(int argc,char ** argv)
 
   /* PipeSetUp -- each process only sets its own pipes */
   /*---------------------------------------------------*/
+  userJac=PETSC_FALSE; //rm!!!
   ierr = DMNetworkHasJacobian(networkdm,userJac,userJac);CHKERRQ(ierr);
   ierr = DMNetworkGetEdgeRange(networkdm,&eStart,&eEnd);CHKERRQ(ierr);
   for (e=eStart; e<eEnd; e++) { /* each edge has only one component, pipe */
@@ -794,6 +813,7 @@ int main(int argc,char ** argv)
   ierr = TSSetDM(ts,(DM)networkdm);CHKERRQ(ierr);
   ierr = TSSetIFunction(ts,NULL,WASHIFunction,wash);CHKERRQ(ierr);
 
+  ierr = TSSetMaxSteps(ts,steps);CHKERRQ(ierr);
   ierr = TSSetMaxTime(ts,ftime);CHKERRQ(ierr);
   ierr = TSSetExactFinalTime(ts,TS_EXACTFINALTIME_STEPOVER);CHKERRQ(ierr);
   ierr = TSSetTimeStep(ts,0.1);CHKERRQ(ierr);
@@ -811,7 +831,7 @@ int main(int argc,char ** argv)
   ierr = TSGetStepNumber(ts,&steps);CHKERRQ(ierr);
   ierr = TSGetConvergedReason(ts,&reason);CHKERRQ(ierr);
   ierr = PetscPrintf(PETSC_COMM_WORLD,"%s at time %g after %D steps\n",TSConvergedReasons[reason],(double)ftime,steps);CHKERRQ(ierr);
-  /* ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr); */
+  ierr = VecView(X,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
 
   viewpipes = PETSC_FALSE;
   ierr = PetscOptionsGetBool(NULL,NULL, "-Jac_view", &viewpipes,NULL);CHKERRQ(ierr);
