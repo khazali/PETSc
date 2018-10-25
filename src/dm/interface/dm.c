@@ -4539,8 +4539,6 @@ PetscErrorCode DMGetCoordinatesLocalSetUp(DM dm)
     ierr = PetscObjectSetName((PetscObject) dm->coordinatesLocal, "coordinates");CHKERRQ(ierr);
     ierr = DMGlobalToLocalBegin(cdm, dm->coordinates, INSERT_VALUES, dm->coordinatesLocal);CHKERRQ(ierr);
     ierr = DMGlobalToLocalEnd(cdm, dm->coordinates, INSERT_VALUES, dm->coordinatesLocal);CHKERRQ(ierr);
-    /* call this just to make sure dm->defaultSection is created */
-    ierr = DMGetSection(cdm, &dm->defaultSection);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
