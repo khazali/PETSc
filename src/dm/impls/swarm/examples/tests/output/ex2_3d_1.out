@@ -1,0 +1,58 @@
+  DMSWARM_PIC: Using method CellDM->LocatePoints
+  DMSWARM_PIC: Using method CellDM->GetNeigbors
+DM Object: 1 MPI processes
+  type: swarm
+DMSwarmDataBucketView: 
+  L                  = 782 
+  buffer             = 0 
+  allocated          = 782 
+  nfields registered = 6 
+    [  0]     DMSwarm_pid : Mem. usage       = 6.26e-03 (MB) [rank0]
+                            blocksize        = 1 
+                            atomic size      = 8 
+    [  1]    DMSwarm_rank : Mem. usage       = 3.13e-03 (MB) [rank0]
+                            blocksize        = 1 
+                            atomic size      = 4 
+    [  2] DMSwarmPIC_coor : Mem. usage       = 1.88e-02 (MB) [rank0]
+                            blocksize        = 3 
+                            atomic size      = 24 [full block, bs=3]
+                            atomic size/item = 8 
+    [  3]  DMSwarm_cellid : Mem. usage       = 3.13e-03 (MB) [rank0]
+                            blocksize        = 1 
+                            atomic size      = 4 
+    [  4]        pressure : Mem. usage       = 6.26e-03 (MB) [rank0]
+                            blocksize        = 1 
+                            atomic size      = 8 
+    [  5]         density : Mem. usage       = 6.26e-03 (MB) [rank0]
+                            blocksize        = 1 
+                            atomic size      = 8 
+  Total mem. usage                           = 4.38e-02 (MB) (collective)
+DM Object: 1 MPI processes
+  type: swarm
+DMSwarmDataBucketView: 
+  L                  = 2560 
+  buffer             = 0 
+  allocated          = 2560 
+  nfields registered = 4 
+    [  0]     DMSwarm_pid : Mem. usage       = 2.05e-02 (MB) [rank0]
+                            blocksize        = 1 
+                            atomic size      = 8 
+    [  1]    DMSwarm_rank : Mem. usage       = 1.02e-02 (MB) [rank0]
+                            blocksize        = 1 
+                            atomic size      = 4 
+    [  2]      pressure_q : Mem. usage       = 2.05e-02 (MB) [rank0]
+                            blocksize        = 1 
+                            atomic size      = 8 
+    [  3]       density_q : Mem. usage       = 2.05e-02 (MB) [rank0]
+                            blocksize        = 1 
+                            atomic size      = 8 
+  Total mem. usage                           = 7.17e-02 (MB) (collective)
+DM Object: MySwarm 1 MPI processes
+  type: plex
+MySwarm in 3 dimensions:
+  0-cells: 445
+  1-cells: 1196
+  2-cells: 1072
+  3-cells: 320
+Labels:
+  depth: 4 strata with value/size (0 (445), 1 (1196), 2 (1072), 3 (320))
