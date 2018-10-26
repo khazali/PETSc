@@ -13,7 +13,7 @@ Viewing:
 
 To produce nice output, use
 
-  -dm_refine 3 -show_error -dm_view hdf5:sol1.h5 -error_vec_view hdf5:sol1.h5::append -sol_vec_view hdf5:sol1.h5::append -exact_vec_view hdf5:sol1.h5::append
+  -dm_refine 3 -dm_view hdf5:sol1.h5 -error_vec_view hdf5:sol1.h5::append -sol_vec_view hdf5:sol1.h5::append -exact_vec_view hdf5:sol1.h5::append
 
 You can get a LaTeX view of the mesh, with point numbering using
 
@@ -72,7 +72,6 @@ const char *solTypes[NUM_SOL_TYPES+1] = {"quadratic", "cubic", "trig", "unknown"
 typedef struct {
   RunType       runType;           /* Whether to run tests, or solve the full problem */
   PetscLogEvent createMeshEvent;
-  PetscBool     showInitial, showError;
   /* Domain and mesh definition */
   PetscInt      dim;               /* The topological mesh dimension */
   PetscBool     interpolate;       /* Generate intermediate mesh elements */
@@ -338,8 +337,6 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->testPartition   = PETSC_FALSE;
   options->bcType          = DIRICHLET;
   options->solType         = SOL_QUADRATIC;
-  options->showInitial     = PETSC_FALSE;
-  options->showError       = PETSC_FALSE;
 
   ierr = PetscOptionsBegin(comm, "", "Stokes Problem Options", "DMPLEX");CHKERRQ(ierr);
   run  = options->runType;
@@ -669,9 +666,6 @@ int main(int argc, char **argv)
   ierr = DMProjectFunction(dm, 0.0, user.exactFuncs, NULL, INSERT_ALL_VALUES, u);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) u, "Exact Solution");CHKERRQ(ierr);
   ierr = VecViewFromOptions(u, NULL, "-exact_vec_view");CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject) u, "Solution");CHKERRQ(ierr);
-  if (user.showInitial) {ierr = DMVecViewLocal(dm, u);CHKERRQ(ierr);}
-  ierr = PetscObjectSetName((PetscObject) u, "Solution");CHKERRQ(ierr);
   if (user.runType == RUN_FULL) {
     PetscErrorCode (*initialGuess[2])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void* ctx) = {zero_vector, zero_scalar};
 
@@ -683,7 +677,7 @@ int main(int argc, char **argv)
     ierr = DMComputeL2Diff(dm, 0.0, user.exactFuncs, NULL, u, &error);CHKERRQ(ierr);
     ierr = DMComputeL2FieldDiff(dm, 0.0, user.exactFuncs, NULL, u, ferrors);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: %g [%g, %g]\n", error, ferrors[0], ferrors[1]);CHKERRQ(ierr);
-    if (user.showError) {
+    {
       Vec r;
 
       ierr = DMGetGlobalVector(dm, &r);CHKERRQ(ierr);
