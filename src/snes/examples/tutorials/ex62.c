@@ -77,7 +77,6 @@ typedef struct {
   PetscBool     simplex;           /* Use simplices or tensor product cells */
   PetscInt      cells[3];          /* The initial domain division */
   PetscReal     refinementLimit;   /* The largest allowable cell volume */
-  PetscBool     testPartition;     /* Use a fixed partitioning for testing */
   /* Problem definition */
   BCType        bcType;
   SolType       solType;
@@ -332,7 +331,6 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->cells[1]        = 3;
   options->cells[2]        = 3;
   options->refinementLimit = 0.0;
-  options->testPartition   = PETSC_FALSE;
   options->bcType          = DIRICHLET;
   options->solType         = SOL_QUADRATIC;
 
@@ -351,7 +349,6 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   n = 3;
   ierr = PetscOptionsIntArray("-cells", "The initial mesh division", "ex62.c", options->cells, &n, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-refinement_limit", "The largest allowable cell volume", "ex62.c", options->refinementLimit, &options->refinementLimit, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-test_partition", "Use a fixed partition for testing", "ex62.c", options->testPartition, &options->testPartition, NULL);CHKERRQ(ierr);
   bc   = options->bcType;
   ierr = PetscOptionsEList("-bc_type","Type of boundary condition","ex62.c", bcTypes, NUM_BC_TYPES, bcTypes[options->bcType], &bc, NULL);CHKERRQ(ierr);
   options->bcType = (BCType) bc;
@@ -374,72 +371,24 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = PetscLogEventBegin(user->createMeshEvent,0,0,0,0);CHKERRQ(ierr);
   ierr = DMPlexCreateBoxMesh(comm, dim, user->simplex, user->cells, NULL, NULL, NULL, PETSC_TRUE, dm);CHKERRQ(ierr);
   {
-    DM refinedMesh     = NULL;
-    DM distributedMesh = NULL;
+    DM rdm = NULL;
+    DM pdm = NULL;
+    PetscPartitioner part;
 
     /* Refine mesh using a volume constraint */
     ierr = DMPlexSetRefinementLimit(*dm, refinementLimit);CHKERRQ(ierr);
-    if (user->simplex) {ierr = DMRefine(*dm, comm, &refinedMesh);CHKERRQ(ierr);}
-    if (refinedMesh) {
+    if (user->simplex) {ierr = DMRefine(*dm, comm, &rdm);CHKERRQ(ierr);}
+    if (rdm) {
       ierr = DMDestroy(dm);CHKERRQ(ierr);
-      *dm  = refinedMesh;
+      *dm  = rdm;
     }
-    /* Setup test partitioning */
-    if (user->testPartition) {
-      PetscInt         triSizes_n2[2]         = {4, 4};
-      PetscInt         triPoints_n2[8]        = {3, 5, 6, 7, 0, 1, 2, 4};
-      PetscInt         triSizes_n3[3]         = {2, 3, 3};
-      PetscInt         triPoints_n3[8]        = {3, 5, 1, 6, 7, 0, 2, 4};
-      PetscInt         triSizes_n5[5]         = {1, 2, 2, 1, 2};
-      PetscInt         triPoints_n5[8]        = {3, 5, 6, 4, 7, 0, 1, 2};
-      PetscInt         triSizes_ref_n2[2]     = {8, 8};
-      PetscInt         triPoints_ref_n2[16]   = {1, 5, 6, 7, 10, 11, 14, 15, 0, 2, 3, 4, 8, 9, 12, 13};
-      PetscInt         triSizes_ref_n3[3]     = {5, 6, 5};
-      PetscInt         triPoints_ref_n3[16]   = {1, 7, 10, 14, 15, 2, 6, 8, 11, 12, 13, 0, 3, 4, 5, 9};
-      PetscInt         triSizes_ref_n5[5]     = {3, 4, 3, 3, 3};
-      PetscInt         triPoints_ref_n5[16]   = {1, 7, 10, 2, 11, 13, 14, 5, 6, 15, 0, 8, 9, 3, 4, 12};
-      PetscInt         triSizes_ref_n5_d3[5]  = {1, 1, 1, 1, 2};
-      PetscInt         triPoints_ref_n5_d3[6] = {0, 1, 2, 3, 4, 5};
-      const PetscInt  *sizes = NULL;
-      const PetscInt  *points = NULL;
-      PetscPartitioner part;
-      PetscInt         cEnd;
-      PetscMPIInt      rank, size;
-
-      ierr = MPI_Comm_rank(comm, &rank);CHKERRQ(ierr);
-      ierr = MPI_Comm_size(comm, &size);CHKERRQ(ierr);
-      ierr = DMPlexGetHeightStratum(*dm, 0, NULL, &cEnd);CHKERRQ(ierr);
-      if (!rank) {
-        if (dim == 2 && user->simplex && size == 2 && cEnd == 8) {
-           sizes = triSizes_n2; points = triPoints_n2;
-        } else if (dim == 2 && user->simplex && size == 3 && cEnd == 8) {
-          sizes = triSizes_n3; points = triPoints_n3;
-        } else if (dim == 2 && user->simplex && size == 5 && cEnd == 8) {
-          sizes = triSizes_n5; points = triPoints_n5;
-        } else if (dim == 2 && user->simplex && size == 2 && cEnd == 16) {
-           sizes = triSizes_ref_n2; points = triPoints_ref_n2;
-        } else if (dim == 2 && user->simplex && size == 3 && cEnd == 16) {
-          sizes = triSizes_ref_n3; points = triPoints_ref_n3;
-        } else if (dim == 2 && user->simplex && size == 5 && cEnd == 16) {
-          sizes = triSizes_ref_n5; points = triPoints_ref_n5;
-        } else if (dim == 3 && user->simplex && size == 5 && cEnd == 6) {
-          sizes = triSizes_ref_n5_d3; points = triPoints_ref_n5_d3;
-        } else SETERRQ(comm, PETSC_ERR_ARG_WRONG, "No stored partition matching run parameters");
-      }
-      ierr = DMPlexGetPartitioner(*dm, &part);CHKERRQ(ierr);
-      ierr = PetscPartitionerSetType(part, PETSCPARTITIONERSHELL);CHKERRQ(ierr);
-      ierr = PetscPartitionerShellSetPartition(part, size, sizes, points);CHKERRQ(ierr);
-    } else {
-      PetscPartitioner part;
-
-      ierr = DMPlexGetPartitioner(*dm, &part);CHKERRQ(ierr);
-      ierr = PetscPartitionerSetFromOptions(part);CHKERRQ(ierr);
-    }
+    ierr = DMPlexGetPartitioner(*dm, &part);CHKERRQ(ierr);
+    ierr = PetscPartitionerSetFromOptions(part);CHKERRQ(ierr);
     /* Distribute mesh over processes */
-    ierr = DMPlexDistribute(*dm, 0, NULL, &distributedMesh);CHKERRQ(ierr);
-    if (distributedMesh) {
+    ierr = DMPlexDistribute(*dm, 0, NULL, &pdm);CHKERRQ(ierr);
+    if (pdm) {
       ierr = DMDestroy(dm);CHKERRQ(ierr);
-      *dm  = distributedMesh;
+      *dm  = pdm;
     }
   }
   ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
@@ -754,32 +703,32 @@ int main(int argc, char **argv)
     suffix: 9
     requires: triangle
     nsize: 2
-    args: -run_type test -refinement_limit 0.0    -test_partition -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0    -petscpartition_type simple -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
   test:
     suffix: 10
     requires: triangle
     nsize: 3
-    args: -run_type test -refinement_limit 0.0    -test_partition -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0    -petscpartition_type simple -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
   test:
     suffix: 11
     requires: triangle
     nsize: 5
-    args: -run_type test -refinement_limit 0.0    -test_partition -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0    -petscpartition_type simple -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
   test:
     suffix: 15
     requires: triangle
     nsize: 2
-    args: -run_type test -refinement_limit 0.0625 -test_partition -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0625 -petscpartition_type simple -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
   test:
     suffix: 16
     requires: triangle
     nsize: 3
-    args: -run_type test -refinement_limit 0.0625 -test_partition -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0625 -petscpartition_type simple -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
   test:
     suffix: 17
     requires: triangle
     nsize: 5
-    args: -run_type test -refinement_limit 0.0625 -test_partition -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0625 -petscpartition_type simple -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -dm_plex_print_fem 1
   # 3D serial P1 tests 43-46
   test:
     suffix: 44
