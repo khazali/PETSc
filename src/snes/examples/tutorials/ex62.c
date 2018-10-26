@@ -364,20 +364,6 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode DMVecViewLocal(DM dm, Vec v)
-{
-  Vec            lv;
-  PetscErrorCode ierr;
-
-  PetscFunctionBeginUser;
-  ierr = DMGetLocalVector(dm, &lv);CHKERRQ(ierr);
-  ierr = DMGlobalToLocalBegin(dm, v, INSERT_VALUES, lv);CHKERRQ(ierr);
-  ierr = DMGlobalToLocalEnd(dm, v, INSERT_VALUES, lv);CHKERRQ(ierr);
-  ierr = DMPrintLocalVec(dm, "Local function", 0.0, lv);CHKERRQ(ierr);
-  ierr = DMRestoreLocalVector(dm, &lv);CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
 PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim             = user->dim;
@@ -740,20 +726,20 @@ int main(int argc, char **argv)
   test:
     suffix: 1
     requires: triangle
-    args: -run_type test -refinement_limit 0.0    -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -show_initial -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0    -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -initial_vec_view -dm_plex_print_fem 1
   test:
     suffix: 3
     requires: triangle
-    args: -run_type test -refinement_limit 0.0625 -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -show_initial -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0625 -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -initial_vec_view -dm_plex_print_fem 1
   # 2D serial P2 tests 4-5
   test:
     suffix: 4
     requires: triangle
-    args: -run_type test -refinement_limit 0.0    -bc_type dirichlet -vel_petscspace_degree 2 -pres_petscspace_degree 1 -show_initial -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0    -bc_type dirichlet -vel_petscspace_degree 2 -pres_petscspace_degree 1 -initial_vec_view -dm_plex_print_fem 1
   test:
     suffix: 5
     requires: triangle
-    args: -run_type test -refinement_limit 0.0625 -bc_type dirichlet -vel_petscspace_degree 2 -pres_petscspace_degree 1 -show_initial -dm_plex_print_fem 1
+    args: -run_type test -refinement_limit 0.0625 -bc_type dirichlet -vel_petscspace_degree 2 -pres_petscspace_degree 1 -initial_vec_view -dm_plex_print_fem 1
   # 2D serial P3 tests
   test:
     suffix: 2d_p3_0
@@ -798,11 +784,11 @@ int main(int argc, char **argv)
   test:
     suffix: 44
     requires: ctetgen
-    args: -run_type test -dim 3 -refinement_limit 0.0    -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -show_initial -dm_plex_print_fem 1
+    args: -run_type test -dim 3 -refinement_limit 0.0    -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -initial_vec_view -dm_plex_print_fem 1
   test:
     suffix: 46
     requires: ctetgen
-    args: -run_type test -dim 3 -refinement_limit 0.0125 -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -show_initial -dm_plex_print_fem 1
+    args: -run_type test -dim 3 -refinement_limit 0.0125 -bc_type dirichlet -vel_petscspace_degree 1 -pres_petscspace_degree 1 -initial_vec_view -dm_plex_print_fem 1
   # Full solutions 18-29
   test:
     suffix: 22
