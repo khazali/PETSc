@@ -70,7 +70,6 @@ typedef enum {SOL_QUADRATIC, SOL_CUBIC, SOL_TRIG, NUM_SOL_TYPES} SolType;
 const char *solTypes[NUM_SOL_TYPES+1] = {"quadratic", "cubic", "trig", "unknown"};
 
 typedef struct {
-  PetscInt      debug;             /* The debugging level */
   RunType       runType;           /* Whether to run tests, or solve the full problem */
   PetscLogEvent createMeshEvent;
   PetscBool     showInitial, showError;
@@ -328,7 +327,6 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
-  options->debug           = 0;
   options->runType         = RUN_FULL;
   options->dim             = 2;
   options->interpolate     = PETSC_FALSE;
@@ -344,7 +342,6 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   options->showError       = PETSC_FALSE;
 
   ierr = PetscOptionsBegin(comm, "", "Stokes Problem Options", "DMPLEX");CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-debug", "The debugging level", "ex62.c", options->debug, &options->debug, NULL);CHKERRQ(ierr);
   run  = options->runType;
   ierr = PetscOptionsEList("-run_type", "The run type", "ex62.c", runTypes, NUM_RUN_TYPES, runTypes[options->runType], &run, NULL);CHKERRQ(ierr);
   options->runType = (RunType) run;
@@ -679,10 +676,9 @@ int main(int argc, char **argv)
     PetscErrorCode (*initialGuess[2])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void* ctx) = {zero_vector, zero_scalar};
 
     ierr = DMProjectFunction(dm, 0.0, initialGuess, NULL, INSERT_VALUES, u);CHKERRQ(ierr);
-    if (user.debug) {
-      ierr = PetscPrintf(PETSC_COMM_WORLD, "Initial guess\n");CHKERRQ(ierr);
-      ierr = VecView(u, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
-    }
+    ierr = PetscObjectSetName((PetscObject) u, "Initial guess");CHKERRQ(ierr);
+    ierr = VecViewFromOptions(u, NULL, "-initial_vec_view");CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) u, "Solution");CHKERRQ(ierr);
     ierr = SNESSolve(snes, NULL, u);CHKERRQ(ierr);
     ierr = DMComputeL2Diff(dm, 0.0, user.exactFuncs, NULL, u, &error);CHKERRQ(ierr);
     ierr = DMComputeL2FieldDiff(dm, 0.0, user.exactFuncs, NULL, u, ferrors);CHKERRQ(ierr);
@@ -701,8 +697,9 @@ int main(int argc, char **argv)
     PetscReal res = 0.0;
 
     /* Check discretization error */
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "Initial guess\n");CHKERRQ(ierr);
-    ierr = VecView(u, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) u, "Initial guess");CHKERRQ(ierr);
+    ierr = VecViewFromOptions(u, NULL, "-initial_vec_view");CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject) u, "Solution");CHKERRQ(ierr);
     ierr = DMComputeL2Diff(dm, 0.0, user.exactFuncs, NULL, u, &error);CHKERRQ(ierr);
     if (error >= 1.0e-11) {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: %g\n", error);CHKERRQ(ierr);}
     else                  {ierr = PetscPrintf(PETSC_COMM_WORLD, "L_2 Error: < 1.0e-11\n");CHKERRQ(ierr);}
