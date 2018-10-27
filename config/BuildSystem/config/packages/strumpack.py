@@ -4,12 +4,13 @@ import os
 class Configure(config.package.CMakePackage):
   def __init__(self, framework):
     config.package.CMakePackage.__init__(self, framework)
-    self.gitcommit        = 'v3.0.3'
-    self.download         = ['git://https://github.com/pghysels/STRUMPACK','https://github.com/pghysels/STRUMPACK/archive/v3.0.3.tar.gz']
+    self.gitcommit        = 'v3.1.1'
+    self.download         = ['git://https://github.com/pghysels/STRUMPACK','https://github.com/pghysels/STRUMPACK/archive/v3.1.1.tar.gz']
     self.functions        = ['STRUMPACK_init']
     self.includes         = ['StrumpackSparseSolver.h']
     self.liblist          = [['libstrumpack.a']]
     self.cxx              = 1
+    self.requirescxx11    = 1
     self.fc               = 1
     self.hastests         = 1
     return
@@ -32,28 +33,26 @@ class Configure(config.package.CMakePackage):
   def formCMakeConfigureArgs(self):
     args = config.package.CMakePackage.formCMakeConfigureArgs(self)
 
-    args.append('-DBLAS_LIBRARIES="'+self.libraries.toString(self.blasLapack.dlib)+'"')
-    args.append('-DLAPACK_LIBRARIES="'+self.libraries.toString(self.blasLapack.dlib)+'"')
-    args.append('-DSCALAPACK_LIBRARIES="'+self.libraries.toString(self.scalapack.lib)+'"')
-    args.append('-DSCALAPACK_LIBRARY="'+self.libraries.toString(self.scalapack.lib)+'"')
-    args.append('-DBLACS_LIBRARY="'+self.libraries.toString(self.scalapack.lib)+'"')
+    args.append('-DTPL_BLAS_LIBRARIES="'+self.libraries.toString(self.blasLapack.dlib)+'"')
+    args.append('-DTPL_LAPACK_LIBRARIES="'+self.libraries.toString(self.blasLapack.dlib)+'"')
+    args.append('-DTPL_SCALAPACK_LIBRARIES="'+self.libraries.toString(self.scalapack.lib)+'"')
 
-    args.append('-DMETIS_LIBRARIES="'+self.libraries.toString(self.metis.lib)+'"')
-    args.append('-DMETIS_INCLUDES="'+self.headers.toStringNoDupes(self.metis.include)[2:]+'"')
+    args.append('-DTPL_METIS_LIBRARIES="'+self.libraries.toString(self.metis.lib)+'"')
+    args.append('-DTPL_METIS_INCLUDE_DIRS="'+self.headers.toStringNoDupes(self.metis.include)[2:]+'"')
 
     if self.parmetis.found:
-      args.append('-DSTRUMPACK_USE_PARMETIS=ON')
-      args.append('-DPARMETIS_LIBRARIES="'+self.libraries.toString(self.parmetis.lib)+'"')
-      args.append('-DPARMETIS_INCLUDES="'+self.headers.toStringNoDupes(self.parmetis.include)[2:]+'"')
+      args.append('-DTPL_ENABLE_PARMETIS=ON')
+      args.append('-DTPL_PARMETIS_LIBRARIES="'+self.libraries.toString(self.parmetis.lib)+'"')
+      args.append('-DTPL_PARMETIS_INCLUDE_DIRS="'+self.headers.toStringNoDupes(self.parmetis.include)[2:]+'"')
     else:
-      args.append('-DSTRUMPACK_USE_PARMETIS=OFF')
+      args.append('-DTPL_ENABLE_PARMETIS=OFF')
 
     if self.ptscotch.found:
-      args.append('-DSTRUMPACK_USE_SCOTCH=ON')
-      args.append('-DSCOTCH_LIBRARIES="'+self.libraries.toString(self.ptscotch.lib)+'"')
-      args.append('-DSCOTCH_INCLUDES="'+self.headers.toStringNoDupes(self.ptscotch.include)[2:]+'"')
+      args.append('-DTPL_ENABLE_SCOTCH=ON')
+      args.append('-DTPL_SCOTCH_LIBRARIES="'+self.libraries.toString(self.ptscotch.lib)+'"')
+      args.append('-DTPL_SCOTCH_INCLUDE_DIRS="'+self.headers.toStringNoDupes(self.ptscotch.include)[2:]+'"')
     else:
-      args.append('-DSTRUMPACK_USE_SCOTCH=OFF')
+      args.append('-DTPL_ENABLE_SCOTCH=OFF')
 
     if self.compilerFlags.debugging:
       args.append('-DCMAKE_BUILD_TYPE=Debug')
@@ -80,3 +79,12 @@ class Configure(config.package.CMakePackage):
     args.append('-DCMAKE_INSTALL_NAME_DIR:STRING="'+os.path.join(self.installDir,self.libdir)+'"')
 
     return args
+
+  def consistencyChecks(self):
+    config.package.Package.consistencyChecks(self)
+    if self.argDB['with-'+self.package]:
+      # Strumpack requires dlapmr() LAPACK routine
+      if not self.blasLapack.checkForRoutine('dlapmr'):
+        raise RuntimeError('Strumpack requires the LAPACK routine dlapmr(), the current Lapack libraries '+str(self.blasLapack.lib)+' does not have it\nTry using --download-fblaslapack=1 option \nIf you are using vecLib on OSX, it does not contain this function.')
+      self.log.write('Found dlapmr() in Lapack library as needed by Strumpack\n')
+    return
