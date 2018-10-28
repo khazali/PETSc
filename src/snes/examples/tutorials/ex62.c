@@ -60,8 +60,6 @@ TODO:
 #include <petscsnes.h>
 #include <petscds.h>
 
-PetscInt spatialDim = 0;
-
 typedef enum {NEUMANN, DIRICHLET, NUM_BC_TYPES} BCType;
 const char *bcTypes[NUM_BC_TYPES+1]  = {"neumann", "dirichlet", "unknown"};
 typedef enum {RUN_FULL, RUN_TEST, NUM_RUN_TYPES} RunType;
@@ -90,7 +88,7 @@ PetscErrorCode zero_scalar(PetscInt dim, PetscReal time, const PetscReal x[], Pe
 PetscErrorCode zero_vector(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   PetscInt d;
-  for (d = 0; d < spatialDim; ++d) u[d] = 0.0;
+  for (d = 0; d < dim; ++d) u[d] = 0.0;
   return 0;
 }
 
@@ -337,7 +335,6 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsEList("-run_type", "The run type", "ex62.c", runTypes, NUM_RUN_TYPES, runTypes[options->runType], &run, NULL);CHKERRQ(ierr);
   options->runType = (RunType) run;
   ierr = PetscOptionsInt("-dim", "The topological mesh dimension", "ex62.c", options->dim, &options->dim, NULL);CHKERRQ(ierr);
-  spatialDim = options->dim;
   ierr = PetscOptionsBool("-simplex", "Use simplices or tensor product cells", "ex62.c", options->simplex, &options->simplex, NULL);CHKERRQ(ierr);
   if (options->simplex) {
     options->cells[0] = 4 - options->dim;
