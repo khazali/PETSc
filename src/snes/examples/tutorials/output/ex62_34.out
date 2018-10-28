@@ -41,22 +41,22 @@ SNES Object: 1 MPI processes
             out-of-place factorization
             tolerance for zero pivot 2.22045e-14
             matrix ordering: nd
-            factor fill ratio given 5., needed 3.45047
+            factor fill ratio given 5., needed 2.50561
               Factored matrix follows:
                 Mat Object: 1 MPI processes
                   type: seqaij
-                  rows=962, cols=962, bs=2
+                  rows=450, cols=450, bs=2
                   package used to perform factorization: petsc
-                  total: nonzeros=68692, allocated nonzeros=68692
+                  total: nonzeros=22340, allocated nonzeros=22340
                   total number of mallocs used during MatSetValues calls =0
-                    using I-node routines: found 456 nodes, limit used is 5
+                    using I-node routines: found 223 nodes, limit used is 5
           linear system matrix = precond matrix:
           Mat Object: (fieldsplit_velocity_) 1 MPI processes
             type: seqaij
-            rows=962, cols=962, bs=2
-            total: nonzeros=19908, allocated nonzeros=19908
+            rows=450, cols=450, bs=2
+            total: nonzeros=8916, allocated nonzeros=8916
             total number of mallocs used during MatSetValues calls =0
-              using I-node routines: found 481 nodes, limit used is 5
+              using I-node routines: found 225 nodes, limit used is 5
       KSP solver for S = A11 - A10 inv(A00) A01 
         KSP Object: (fieldsplit_pressure_) 1 MPI processes
           type: gmres
@@ -71,22 +71,22 @@ SNES Object: 1 MPI processes
           linear system matrix followed by preconditioner matrix:
           Mat Object: (fieldsplit_pressure_) 1 MPI processes
             type: schurcomplement
-            rows=145, cols=145
+            rows=81, cols=81
               has attached null space
               Schur complement A11 - A10 inv(A00) A01
               A11
                 Mat Object: (fieldsplit_pressure_) 1 MPI processes
                   type: seqaij
-                  rows=145, cols=145
-                  total: nonzeros=945, allocated nonzeros=945
+                  rows=81, cols=81
+                  total: nonzeros=497, allocated nonzeros=497
                   total number of mallocs used during MatSetValues calls =0
                     has attached null space
                     not using I-node routines
               A10
                 Mat Object: 1 MPI processes
                   type: seqaij
-                  rows=145, cols=962
-                  total: nonzeros=4466, allocated nonzeros=4466
+                  rows=81, cols=450
+                  total: nonzeros=2094, allocated nonzeros=2094
                   total number of mallocs used during MatSetValues calls =0
                     not using I-node routines
               KSP of A00
@@ -103,42 +103,42 @@ SNES Object: 1 MPI processes
                     out-of-place factorization
                     tolerance for zero pivot 2.22045e-14
                     matrix ordering: nd
-                    factor fill ratio given 5., needed 3.45047
+                    factor fill ratio given 5., needed 2.50561
                       Factored matrix follows:
                         Mat Object: 1 MPI processes
                           type: seqaij
-                          rows=962, cols=962, bs=2
+                          rows=450, cols=450, bs=2
                           package used to perform factorization: petsc
-                          total: nonzeros=68692, allocated nonzeros=68692
+                          total: nonzeros=22340, allocated nonzeros=22340
                           total number of mallocs used during MatSetValues calls =0
-                            using I-node routines: found 456 nodes, limit used is 5
+                            using I-node routines: found 223 nodes, limit used is 5
                   linear system matrix = precond matrix:
                   Mat Object: (fieldsplit_velocity_) 1 MPI processes
                     type: seqaij
-                    rows=962, cols=962, bs=2
-                    total: nonzeros=19908, allocated nonzeros=19908
+                    rows=450, cols=450, bs=2
+                    total: nonzeros=8916, allocated nonzeros=8916
                     total number of mallocs used during MatSetValues calls =0
-                      using I-node routines: found 481 nodes, limit used is 5
+                      using I-node routines: found 225 nodes, limit used is 5
               A01
                 Mat Object: 1 MPI processes
                   type: seqaij
-                  rows=962, cols=145, rbs=2, cbs = 1
-                  total: nonzeros=4466, allocated nonzeros=4466
+                  rows=450, cols=81, rbs=2, cbs = 1
+                  total: nonzeros=2094, allocated nonzeros=2094
                   total number of mallocs used during MatSetValues calls =0
-                    using I-node routines: found 481 nodes, limit used is 5
+                    using I-node routines: found 225 nodes, limit used is 5
           Mat Object: (fieldsplit_pressure_) 1 MPI processes
             type: seqaij
-            rows=145, cols=145
-            total: nonzeros=945, allocated nonzeros=945
+            rows=81, cols=81
+            total: nonzeros=497, allocated nonzeros=497
             total number of mallocs used during MatSetValues calls =0
               has attached null space
               not using I-node routines
     linear system matrix = precond matrix:
     Mat Object: 1 MPI processes
       type: seqaij
-      rows=1107, cols=1107
-      total: nonzeros=29785, allocated nonzeros=29785
+      rows=531, cols=531
+      total: nonzeros=13601, allocated nonzeros=13601
       total number of mallocs used during MatSetValues calls =0
         has attached null space
-        using I-node routines: found 513 nodes, limit used is 5
-L_2 Error: 7.53727e-10 [2.28039e-11, 7.53382e-10]
+        using I-node routines: found 257 nodes, limit used is 5
+L_2 Error: 4.26324e-09 [6.46658e-11, 4.26275e-09]
