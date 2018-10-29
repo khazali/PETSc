@@ -129,12 +129,12 @@ PetscErrorCode constant_p(PetscInt dim, PetscReal time, const PetscReal x[], Pet
     u = x^3 + y^3
     v = 2 x^3 - 3 x^2 y
     p = 3/2 x^2 + 3/2 y^2 - 1
-    f_x = 6 (x + y)
-    f_y = 12 x - 3 y
+    f_x =  3 x + 6 y
+    f_y = 12 x - 9 y
 
   so that
 
-    -\Delta u + \nabla p + f = <-6 x - 6 y, -12 x + 6 y> + <3 x, 3 y> + <6 (x + y), 12 x - 6 y> = 0
+    -\Delta u + \nabla p + f = <-6 x - 6 y, -12 x + 6 y> + <3 x, 3 y> + <3 x + 6 y, 12 x - 9 y> = 0
     \nabla \cdot u           = 3 x^2 - 3 x^2 = 0
 */
 PetscErrorCode cubic_u_2d(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
@@ -153,23 +153,36 @@ PetscErrorCode quadratic_p_2d(PetscInt dim, PetscReal time, const PetscReal x[],
 /*
   In 2D we use exact solution:
 
-    u =  sin(n pi x) + y^2
-    v = -sin(n pi y)
-    p = 3/2 x^2 + 3/2 y^2 - 1
-    f_x = 4 - 3x - n^2 pi^2 sin (n pi x)
-    f_y =   - 3y + n^2 pi^2 sin(n pi y)
+    u =  sin(2n pi (x + y))
+    v = -sin(2n pi (x + y))
+    p =  cos(2n pi y)
+    f_x = -8 n^2 pi^2 sin(2n pi (x + y))
+    f_y = 2n pi sin(2n pi y) + 8 n^2 pi^2 sin(2n pi (x + y))
 
   so that
 
-    -\Delta u + \nabla p + f = <n^2 pi^2 sin (n pi x) - 4, -n^2 pi^2 sin(n pi y)> + <3 x, 3 y> + <4 - 3x - n^2 pi^2 sin (n pi x), -3y + n^2 pi^2 sin(n pi y)> = 0
-    \nabla \cdot u           = n pi cos(n pi x) - n pi cos(n pi y) = 0
+p_x = 0
+p_y = -2n pi sin(2n pi y)
+
+\int^1_0 dx \int^1_0 dy p = \int^1_0 dy cos(2n pi y) = 1/(2 pi) \int^{2 pi}_0 dz cos(n z) = 0
+
+    -\Delta u + \nabla p + f = <8 n^2 pi^2 sin(2n pi x), -8 n^2 pi^2 sin(2n pi x)> + <0, -2n pi sin(2n pi y)> + <-8 n^2 pi^2 sin(2n pi (x + y)), 2n pi sin(2n pi y) + 8 n^2 pi^2 sin(2n pi (x + y))> = 0
+    \nabla \cdot u           = 2n pi cos(2n pi (x + y)) - 2n pi cos(2n pi (x + y)) = 0
 */
 PetscErrorCode trig_u_2d(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx)
 {
   const PetscReal n = 1.0;
 
-  u[0] =  PetscSinReal(n*PETSC_PI*x[0]) + x[1]*x[1];
-  u[1] = -PetscSinReal(n*PETSC_PI*x[1]);
+  u[0] =  PetscSinReal(2.0*n*PETSC_PI*(x[0] + x[1]));
+  u[1] = -PetscSinReal(2.0*n*PETSC_PI*(x[0] + x[1]));
+  return 0;
+}
+
+PetscErrorCode trig_p_2d(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *p, void *ctx)
+{
+  const PetscReal n = 1.0;
+
+  *p = PetscCosReal(2.0*n*PETSC_PI*x[1]);
   return 0;
 }
 
@@ -198,8 +211,8 @@ void f0_trig_u(PetscInt dim, PetscInt Nf, PetscInt NfAux,
 {
   const PetscReal n = 1.0;
 
-  f0[0] = 4.0 - 3.0*x[0] - PetscSqr(n*PETSC_PI)*PetscSinReal(n*PETSC_PI*x[0]);
-  f0[1] =      -3.0*x[1] + PetscSqr(n*PETSC_PI)*PetscSinReal(n*PETSC_PI*x[1]);
+  f0[0] = -2.0*PetscSqr(2.0*n*PETSC_PI)*PetscSinReal(2.0*n*PETSC_PI*(x[0] + x[1]));
+  f0[1] =  2.0*n*PETSC_PI*PetscSinReal(2.0*n*PETSC_PI*x[1]) + 2.0*PetscSqr(2.0*n*PETSC_PI)*PetscSinReal(2.0*n*PETSC_PI*(x[0] + x[1]));
 }
 
 /* gradU[comp*dim+d] = {u_x, u_y, v_x, v_y} or {u_x, u_y, u_z, v_x, v_y, v_z, w_x, w_y, w_z}
@@ -419,7 +432,7 @@ PetscErrorCode SetupProblem(PetscDS prob, AppCtx *user)
     case 2:
       ierr = PetscDSSetResidual(prob, 0, f0_trig_u, f1_u);CHKERRQ(ierr);
       user->exactFuncs[0] = trig_u_2d;
-      user->exactFuncs[1] = quadratic_p_2d;
+      user->exactFuncs[1] = trig_p_2d;
       break;
     default: SETERRQ1(PETSC_COMM_WORLD, PETSC_ERR_ARG_OUTOFRANGE, "Unsupported dimension %d for trigonometric solution", user->dim);
     }
@@ -881,6 +894,16 @@ int main(int argc, char **argv)
     requires: triangle !single
     args: -run_type full -sol_type cubic -bc_type dirichlet -dm_refine 1 \
       -vel_petscspace_degree 2 -pres_petscspace_degree 1 \
+      -snes_convergence_estimate -convest_num_refine 2 -snes_error_if_not_converged \
+      -ksp_type fgmres -ksp_gmres_restart 10 -ksp_rtol 1.0e-9 -ksp_error_if_not_converged \
+      -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_factorization_type full \
+        -fieldsplit_velocity_pc_type lu \
+        -fieldsplit_pressure_ksp_rtol 1e-10 -fieldsplit_pressure_pc_type jacobi
+  test:
+    suffix: 2d_tri_p3_p2_conv
+    requires: triangle !single
+    args: -run_type full -sol_type cubic -bc_type dirichlet -dm_refine 1 \
+      -vel_petscspace_degree 3 -pres_petscspace_degree 2 \
       -snes_convergence_estimate -convest_num_refine 2 -snes_error_if_not_converged \
       -ksp_type fgmres -ksp_gmres_restart 10 -ksp_rtol 1.0e-9 -ksp_error_if_not_converged \
       -pc_type fieldsplit -pc_fieldsplit_type schur -pc_fieldsplit_schur_factorization_type full \
