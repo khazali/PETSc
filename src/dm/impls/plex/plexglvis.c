@@ -362,12 +362,11 @@ static PetscErrorCode DMPlexView_GLVis_ASCII(DM dm, PetscViewer viewer)
 
   /*
      a couple of sections of the mesh specification are disabled
-       - boundary: unless we want to visualize boundary attributes or we have a periodic mesh
-                   the boundary is not needed for proper mesh visualization
+       - boundary: the boundary is not needed for proper mesh visualization unless we want to visualize boundary attributes
        - vertex_parents: used for non-conforming meshes only when we want to use MFEM as a discretization package
                          and be able to derefine the mesh (MFEM does not currently have to ability to read ncmeshes in parallel)
   */
-  enable_boundary = periodic;
+  enable_boundary = PETSC_FALSE;
   enable_ncmesh   = PETSC_FALSE;
   enable_mfem     = PETSC_FALSE;
   /* I'm tired of problems with negative values in the markers, disable them */
@@ -760,13 +759,20 @@ static PetscErrorCode DMPlexView_GLVis_ASCII(DM dm, PetscViewer viewer)
 
         ierr = DMPlexGetSupportSize(dm,p,&supportSize);CHKERRQ(ierr);
         ierr = DMPlexGetSupport(dm,p,&support);CHKERRQ(ierr);
-        if (pown) {
-          for (c=0;c<supportSize;c++) {
-            if (PetscLikely(PetscBTLookup(pown,support[c]-cStart))) {
-              bf++;
+        for (c=0;c<supportSize;c++) {
+          const    PetscInt *cone;
+          PetscInt cell,cl;
+
+          cell = support[c];
+          if (pown && PetscUnlikely(!PetscBTLookup(pown,cell-cStart))) continue;
+          ierr = DMPlexGetCone(dm,cell,&cone);CHKERRQ(ierr);
+          for (cl=0;cl<fpc;cl++) {
+            if (cone[cl] == p) {
+              bf += 1;
+              break;
             }
           }
-        } else bf += supportSize;
+        }
       }
     }
     ierr = DMGetLabel(dm,bmark,&label);CHKERRQ(ierr);
@@ -795,6 +801,7 @@ static PetscErrorCode DMPlexView_GLVis_ASCII(DM dm, PetscViewer viewer)
           for (cl=0;cl<fpc;cl++)
             if (cone[cl] == p)
               break;
+          if (cl == fpc) continue;
 
           /* face material id and type */
           ierr = DMPlexGetPointMFEMCellID_Internal(dm,label,p,&mid,&cid);CHKERRQ(ierr);
@@ -805,8 +812,8 @@ static PetscErrorCode DMPlexView_GLVis_ASCII(DM dm, PetscViewer viewer)
             ierr = PetscViewerASCIIPrintf(viewer," %d",vids[faces[cl*vpf+i]]);CHKERRQ(ierr);
           }
           ierr = PetscViewerASCIIPrintf(viewer,"\n");CHKERRQ(ierr);
+          bf -= 1;
         }
-        bf = bf-nc;
       }
     }
     if (bf) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Remaining boundary faces %D",bf);
@@ -986,7 +993,9 @@ static PetscErrorCode DMPlexView_GLVis_ASCII(DM dm, PetscViewer viewer)
     for (p=0;p<nvert/sdim;p++) {
       PetscInt s;
       for (s=0;s<sdim;s++) {
-        ierr = PetscViewerASCIIPrintf(viewer,fmt,PetscRealPart(array[p*sdim+s]));CHKERRQ(ierr);
+        PetscReal v = PetscRealPart(array[p*sdim+s]);
+
+        ierr = PetscViewerASCIIPrintf(viewer,fmt,PetscIsInfOrNanReal(v) ? 0.0 : v);CHKERRQ(ierr);
       }
       ierr = PetscViewerASCIIPrintf(viewer,"\n");CHKERRQ(ierr);
     }
