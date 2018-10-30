@@ -45,7 +45,7 @@ static PetscErrorCode GNHessianProd(Mat H, Vec in, Vec out)
   ierr = MatShellGetContext(H, &gn);CHKERRQ(ierr);
   ierr = MatMult(gn->subsolver->ls_jac, in, gn->r_work);CHKERRQ(ierr);
   ierr = MatMultTranspose(gn->subsolver->ls_jac, gn->r_work, out);CHKERRQ(ierr);
-
+  /* out = out + lambda*in.*diag*/
   ierr = VecPointwiseMult(gn->x_work, in, gn->diag);CHKERRQ(ierr);   /* gn->x_work = in.*diag, where diag = epsilon^2 ./ sqrt(x.^2+epsilon^2).^3 */
   ierr = VecAXPY(out, gn->lambda, gn->x_work);CHKERRQ(ierr);  
 
@@ -76,8 +76,8 @@ static PetscErrorCode GNObjectiveGradientEval(Tao tao, Vec X, PetscReal *fcn, Ve
   /* compute gradient G */
   ierr = TaoComputeResidualJacobian(tao, X, tao->ls_jac, tao->ls_jac_pre);CHKERRQ(ierr);
   ierr = MatMultTranspose(tao->ls_jac, tao->ls_res, G);CHKERRQ(ierr);
-  /* compute G = G + lambda*(X./sqrt(x.^2+epsilon^2)) */
-  ierr = VecPointwiseDivide(gn->x_work, X, gn->x_work);CHKERRQ(ierr); /* reuse x_work = X./sqrt(x.^2+epsilon^2) */
+  /* compute G = G + lambda*(x./sqrt(x.^2+epsilon^2)) */
+  ierr = VecPointwiseDivide(gn->x_work, X, gn->x_work);CHKERRQ(ierr); /* reuse x_work = x./sqrt(x.^2+epsilon^2) */
   ierr = VecAXPY(G, gn->lambda, gn->x_work);CHKERRQ(ierr); 
 
   PetscFunctionReturn(0);
@@ -97,7 +97,7 @@ static PetscErrorCode GNComputeHessian(Tao tao, Vec X, Mat H, Mat Hpre, void *pt
   ierr = VecShift(gn->x_work, gn->epsilon*gn->epsilon);CHKERRQ(ierr);
   ierr = VecCopy(gn->x_work, gn->diag);CHKERRQ(ierr);                     /* gn->diag = x.^2+epsilon^2 */
   ierr = VecSqrtAbs(gn->x_work);CHKERRQ(ierr);                            /* gn->x_work = sqrt(x.^2+epsilon^2) */ 
-  ierr = VecPointwiseMult(gn->diag, gn->diag, gn->x_work);CHKERRQ(ierr);  /* gn->diag = sqrt(x.^2+epsilon^2).^3 */
+  ierr = VecPointwiseMult(gn->diag, gn->x_work, gn->diag);CHKERRQ(ierr);  /* gn->diag = sqrt(x.^2+epsilon^2).^3 */
   ierr = VecReciprocal(gn->diag);CHKERRQ(ierr);
   ierr = VecScale(gn->diag, gn->epsilon*gn->epsilon);CHKERRQ(ierr);
 
