@@ -370,14 +370,6 @@ static PetscErrorCode DMConvert_plex_pforest(DM dm, DMType newtype, DM *pforest)
   ierr = DMSetApplicationContext(*pforest,ctx);CHKERRQ(ierr);
   ierr = DMGetDS(dm,&ds);CHKERRQ(ierr);
   ierr = DMSetDS(*pforest,ds);CHKERRQ(ierr);
-  {
-    PetscBool            isper;
-    const PetscReal      *maxCell, *L;
-    const DMBoundaryType *bd;
-
-    ierr = DMGetPeriodicity(dm,&isper,&maxCell,&L,&bd);CHKERRQ(ierr);
-    ierr = DMSetPeriodicity(*pforest,isper,maxCell,L,bd);CHKERRQ(ierr);
-  }
   PetscFunctionReturn(0);
 }
 
@@ -734,7 +726,7 @@ static PetscErrorCode DMSetUp_pforest(DM dm)
         ierr = DMForestSetBaseDM(dm,base);CHKERRQ(ierr);
         ierr = DMDestroy(&connDM);CHKERRQ(ierr);
       } else if (depth != P4EST_DIM) {
-        SETERRQ2(comm,PETSC_ERR_ARG_WRONG,"Base plex is neither interpolated nor uninterpolated? depth %d, expected 2 or %d",depth,P4EST_DIM + 1);
+        SETERRQ2(comm,PETSC_ERR_ARG_WRONG,"Base plex is neither interpolated nor uninterpolated? depth %D, expected 2 or %d",depth,P4EST_DIM + 1);
       }
       ierr = MPI_Comm_size(comm,&size);CHKERRQ(ierr);
       if (size > 1) {
@@ -1497,12 +1489,10 @@ static PetscErrorCode DMPlexCreateConnectivity_pforest(DM dm, p4est_connectivity
   ierr = DMPlexGetHeightStratum(dm,0,&cStart,&cEnd);CHKERRQ(ierr);
   ierr = DMPlexGetHybridBounds(dm, &cEndInterior, &fEndInterior, &eEndInterior, &vEndInterior);CHKERRQ(ierr);
   cEnd = cEndInterior < 0 ? cEnd : cEndInterior;
-  if (cEndInterior < 0) cEndInterior = cEnd;
   ierr     = P4estTopidxCast(cEnd-cStart,&numTrees);CHKERRQ(ierr);
   numVerts = P4EST_CHILDREN * numTrees;
   ierr     = DMPlexGetDepthStratum(dm,0,&vStart,&vEnd);CHKERRQ(ierr);
   vEnd     = vEndInterior < 0 ? vEnd : vEndInterior;
-  if (vEndInterior < 0) vEndInterior = vEnd;
   ierr = P4estTopidxCast(vEnd-vStart,&numCorns);CHKERRQ(ierr);
   ierr = PetscSectionCreate(PETSC_COMM_SELF,&ctt);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(ctt,vStart,vEnd);CHKERRQ(ierr);
@@ -1537,7 +1527,6 @@ static PetscErrorCode DMPlexCreateConnectivity_pforest(DM dm, p4est_connectivity
 #if defined(P4_TO_P8)
   ierr = DMPlexGetDepthStratum(dm,1,&eStart,&eEnd);CHKERRQ(ierr);
   eEnd = eEndInterior < 0 ? eEnd : eEndInterior;
-  if (eEndInterior < 0) eEndInterior = eEnd;
   ierr = P4estTopidxCast(eEnd-eStart,&numEdges);CHKERRQ(ierr);
   ierr = PetscSectionCreate(PETSC_COMM_SELF,&ett);CHKERRQ(ierr);
   ierr = PetscSectionSetChart(ett,eStart,eEnd);CHKERRQ(ierr);
@@ -1579,7 +1568,6 @@ static PetscErrorCode DMPlexCreateConnectivity_pforest(DM dm, p4est_connectivity
   /* 2: visit every face, determine neighboring cells(trees) */
   ierr = DMPlexGetHeightStratum(dm,1,&fStart,&fEnd);CHKERRQ(ierr);
   fEnd = fEndInterior < 0 ? fEnd : fEndInterior;
-  if (fEndInterior < 0) fEndInterior = fEnd;
   ierr = PetscMalloc1((cEnd-cStart) * P4EST_FACES,&ttf);CHKERRQ(ierr);
   for (f = fStart; f < fEnd; f++) {
     PetscInt       numSupp, s;
@@ -1588,7 +1576,7 @@ static PetscErrorCode DMPlexCreateConnectivity_pforest(DM dm, p4est_connectivity
     const PetscInt *supp;
 
     ierr = DMPlexGetSupportSize(dm, f, &numSupp);CHKERRQ(ierr);
-    if (numSupp != 1 && numSupp != 2) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"point %d has facet with %d sides: must be 1 or 2 (boundary or conformal)",f,numSupp);
+    if (numSupp != 1 && numSupp != 2) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"point %D has facet with %D sides: must be 1 or 2 (boundary or conformal)",f,numSupp);
     ierr = DMPlexGetSupport(dm, f, &supp);CHKERRQ(ierr);
 
     for (s = 0; s < numSupp; s++) {
@@ -1608,7 +1596,7 @@ static PetscErrorCode DMPlexCreateConnectivity_pforest(DM dm, p4est_connectivity
       PetscInt       orient = PETSC_MIN_INT;
 
       ierr = DMPlexGetConeSize(dm, p, &numCone);CHKERRQ(ierr);
-      if (numCone != P4EST_FACES) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"cell %d has %d facets, expect %d",p,numCone,P4EST_FACES);
+      if (numCone != P4EST_FACES) SETERRQ3(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"cell %D has %D facets, expect %d",p,numCone,P4EST_FACES);
       ierr = DMPlexGetCone(dm, p, &cone);CHKERRQ(ierr);
       ierr = DMPlexGetConeOrientation(dm, p, &ornt);CHKERRQ(ierr);
       for (i = 0; i < P4EST_FACES; i++) {
@@ -1617,7 +1605,7 @@ static PetscErrorCode DMPlexCreateConnectivity_pforest(DM dm, p4est_connectivity
           break;
         }
       }
-      if (i >= P4EST_FACES) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"cell %d faced %d mismatch",p,f);
+      if (i >= P4EST_FACES) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONG,"cell %D faced %D mismatch",p,f);
       ttf[P4EST_FACES * (p - cStart) + PetscFaceToP4estFace[i]] = f - fStart;
       if (numSupp == 1) {
         /* boundary faces indicated by self reference */
@@ -3098,7 +3086,7 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
   cLocalEnd                = pforest->cLocalEnd;
   ierr                     = DMForestGetBaseDM(dm,&base);CHKERRQ(ierr);
   if (!base) {
-    if (pforest->ghostName) { /* insert a label to make the boundaries, with stratum values that are denote which face of the element touches the boundary */
+    if (pforest->ghostName) { /* insert a label to make the boundaries, with stratum values denoting which face of the element touches the boundary */
       p4est_connectivity_t *conn  = pforest->topo->conn;
       p4est_t              *p4est = pforest->forest;
       p4est_tree_t         *trees = (p4est_tree_t*) p4est->trees->array;
@@ -3238,7 +3226,7 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
           if (l < closureSize) break;
         }
       }
-      if (c < 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Failed to find cell with point %d in its closure",p);
+      if (c < 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Failed to find cell with point %D in its closure",p);
       ierr = DMPlexRestoreTransitiveClosure(plex,p,PETSC_FALSE,NULL,&star);CHKERRQ(ierr);
 
       if (c < cLocalStart) {
@@ -3585,6 +3573,7 @@ static PetscErrorCode DMPforestLabelsFinalize(DM dm, DM plex)
   PetscFunctionReturn(0);
 }
 
+/* XXX SZ: add test for this, it seems is not working */
 static PetscErrorCode DMPforestMapCoordinates_Cell(DM plex, p4est_geometry_t *geom, PetscInt cell, p4est_quadrant_t *q, p4est_topidx_t t, p4est_connectivity_t * conn, PetscScalar *coords)
 {
   PetscInt       closureSize, c, coordStart, coordEnd, coordDim, p4estCoordDim;
@@ -3682,11 +3671,14 @@ static PetscErrorCode DMPforestMapCoordinates_Cell(DM plex, p4est_geometry_t *ge
             }
           }
         }
-
         for (j = 0; j < 3; j++) coordP4est[j] = (double) eta[j];
 
-        (geom->X)(geom,t,coordP4est,coordP4estMapped);
-        for (j = 0; j < p4estCoordDim; j++) coord[j] = (PetscScalar) coordP4estMapped[j];
+        if (geom) {
+          (geom->X)(geom,t,coordP4est,coordP4estMapped);
+          for (j = 0; j < p4estCoordDim; j++) coord[j] = (PetscScalar) coordP4estMapped[j];
+        } else {
+          SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Not coded");
+        }
       }
     }
   }
@@ -3785,6 +3777,11 @@ static PetscErrorCode DMPforestMapCoordinates(DM dm, DM plex)
       }
     }
   } else { /* we have to transform coordinates back to the unit cube (where geom is defined), and then apply geom */
+    PetscInt cStart, cEnd, cEndInterior;
+
+    ierr = DMPlexGetHeightStratum(plex,0,&cStart,&cEnd);CHKERRQ(ierr);
+    ierr = DMPlexGetHybridBounds(plex,&cEndInterior,NULL,NULL,NULL);CHKERRQ(ierr);
+    cEnd = cEndInterior < 0 ? cEnd : cEndInterior;
     if (cLocalStart > 0) {
       p4est_quadrant_t *ghosts = (p4est_quadrant_t*) pforest->ghost->ghosts.array;
       PetscInt         count;
@@ -3808,20 +3805,295 @@ static PetscErrorCode DMPforestMapCoordinates(DM dm, DM plex)
         ierr = DMPforestMapCoordinates_Cell(plex,geom,count,&quads[i],t,pforest->topo->conn,coords);CHKERRQ(ierr);
       }
     }
-    if (cLocalStart > 0) {
+    if (cLocalEnd - cLocalStart < cEnd - cStart) {
       p4est_quadrant_t *ghosts   = (p4est_quadrant_t*) pforest->ghost->ghosts.array;
       PetscInt         numGhosts = (PetscInt) pforest->ghost->ghosts.elem_count;
       PetscInt         count;
 
-      for (count = cLocalStart; count < numGhosts; count++) {
-        p4est_quadrant_t *quad = &ghosts[count];
+      for (count = 0; count < numGhosts - cLocalStart; count++) {
+        p4est_quadrant_t *quad = &ghosts[count + cLocalStart];
         p4est_topidx_t   t     = quad->p.which_tree;
 
-        ierr = DMPforestMapCoordinates_Cell(plex,geom,count,quad,t,pforest->topo->conn,coords);CHKERRQ(ierr);
+        ierr = DMPforestMapCoordinates_Cell(plex,geom,count + cLocalEnd,quad,t,pforest->topo->conn,coords);CHKERRQ(ierr);
       }
     }
   }
   ierr = VecRestoreArray(coordLocalVec,&coords);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
+{
+  DM_Forest         *forest;
+  DM_Forest_pforest *pforest;
+  DM                base;
+  Vec               coordinates, cVec;
+  PetscSection      oldSection, baseSection = NULL, newSection;
+  const PetscScalar *coords;
+  PetscScalar       *coords2;
+  PetscInt          cLocalStart, cLocalEnd, coarsePoint;
+  PetscInt          cDim, newStart, newEnd, dof, cdof = -1;
+  PetscInt          v, vStart, vEnd, cp, cStart, cEnd, cEndInterior, *coarsePoints;
+  p4est_topidx_t    flt, llt, t;
+  p4est_tree_t      *trees;
+  PetscBool         isper, baseLocalized = PETSC_FALSE;
+  PetscErrorCode    ierr;
+
+  PetscFunctionBegin;
+  ierr = DMGetPeriodicity(dm,&isper,NULL,NULL,NULL);CHKERRQ(ierr);
+  if (!isper) PetscFunctionReturn(0);
+  /* we localize on all cells if we don't have a base DM or the base DM coordinates have not been localized */
+  ierr = DMGetCoordinateDim(dm, &cDim);CHKERRQ(ierr);
+  cdof = P4EST_CHILDREN*cDim;
+  ierr = DMForestGetBaseDM(dm,&base);CHKERRQ(ierr);
+  if (base) {
+    ierr = DMGetCoordinatesLocalized(base,&baseLocalized);CHKERRQ(ierr);
+  }
+  if (!baseLocalized) base = NULL;
+
+  /* XXX SZ */
+  ierr = DMPlexGetChart(plex, &newStart, &newEnd);CHKERRQ(ierr);
+
+  ierr = PetscSectionCreate(PetscObjectComm((PetscObject) dm), &newSection);CHKERRQ(ierr);
+  ierr = PetscSectionSetNumFields(newSection, 1);CHKERRQ(ierr);
+  ierr = PetscSectionSetFieldComponents(newSection, 0, cDim);CHKERRQ(ierr);
+  ierr = PetscSectionSetChart(newSection, newStart, newEnd);CHKERRQ(ierr);
+
+  ierr = DMGetCoordinateSection(plex, &oldSection);CHKERRQ(ierr);
+  if (base) { ierr = DMGetCoordinateSection(base, &baseSection);CHKERRQ(ierr); }
+  ierr = DMPlexGetDepthStratum(plex,0,&vStart,&vEnd);CHKERRQ(ierr);
+  for (v = vStart; v < vEnd; ++v) {
+    ierr = PetscSectionGetDof(oldSection, v, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionSetDof(newSection, v, dof);CHKERRQ(ierr);
+    ierr = PetscSectionSetFieldDof(newSection, v, 0, dof);CHKERRQ(ierr);
+  }
+
+  forest      = (DM_Forest*) dm->data;
+  pforest     = (DM_Forest_pforest*) forest->data;
+  cLocalStart = pforest->cLocalStart;
+  cLocalEnd   = pforest->cLocalEnd;
+  flt         = pforest->forest->first_local_tree;
+  llt         = pforest->forest->last_local_tree;
+  trees       = (p4est_tree_t*) pforest->forest->trees->array;
+
+  cp = 0;
+  ierr = DMPlexGetHeightStratum(plex,0,&cStart,&cEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetHybridBounds(plex, &cEndInterior, NULL, NULL, NULL);CHKERRQ(ierr);
+  cEnd = cEndInterior < 0 ? cEnd : cEndInterior;
+  ierr = PetscMalloc1(cEnd-cStart,&coarsePoints);CHKERRQ(ierr);
+  if (cLocalStart > 0) {
+    p4est_quadrant_t *ghosts = (p4est_quadrant_t*) pforest->ghost->ghosts.array;
+    PetscInt         count;
+
+    for (count = 0; count < cLocalStart; count++) {
+      p4est_quadrant_t *quad = &ghosts[count];
+      coarsePoint = quad->p.which_tree;
+
+      if (baseSection) { ierr = PetscSectionGetFieldDof(baseSection, coarsePoint, 0, &cdof);CHKERRQ(ierr); }
+      ierr = PetscSectionSetDof(newSection, count, cdof);CHKERRQ(ierr);
+      ierr = PetscSectionSetFieldDof(newSection, count, 0, cdof);CHKERRQ(ierr);
+      coarsePoints[cp++] = cdof ? coarsePoint : -1;
+    }
+  }
+  for (t = flt; t <= llt; t++) {
+    p4est_tree_t *tree    = &(trees[t]);
+    PetscInt     offset   = cLocalStart + tree->quadrants_offset;
+    PetscInt     numQuads = (PetscInt) tree->quadrants.elem_count;
+    PetscInt     i;
+
+    if (!numQuads) continue;
+    coarsePoint = t;
+    if (baseSection) { ierr = PetscSectionGetFieldDof(baseSection, coarsePoint, 0, &cdof);CHKERRQ(ierr); }
+    for (i = 0; i < numQuads; i++) {
+      PetscInt newCell = i + offset;
+
+      ierr = PetscSectionSetDof(newSection, newCell, cdof);CHKERRQ(ierr);
+      ierr = PetscSectionSetFieldDof(newSection, newCell, 0, cdof);CHKERRQ(ierr);
+      coarsePoints[cp++] = cdof ? coarsePoint : -1;
+    }
+  }
+  if (cLocalEnd - cLocalStart < cEnd - cStart) {
+    p4est_quadrant_t *ghosts   = (p4est_quadrant_t*) pforest->ghost->ghosts.array;
+    PetscInt         numGhosts = (PetscInt) pforest->ghost->ghosts.elem_count;
+    PetscInt         count;
+
+    for (count = 0; count < numGhosts - cLocalStart; count++) {
+      p4est_quadrant_t *quad = &ghosts[count + cLocalStart];
+      coarsePoint = quad->p.which_tree;
+      PetscInt newCell = count + cLocalEnd;
+
+      if (baseSection) { ierr = PetscSectionGetFieldDof(baseSection, coarsePoint, 0, &cdof);CHKERRQ(ierr); }
+      ierr = PetscSectionSetDof(newSection, newCell, cdof);CHKERRQ(ierr);
+      ierr = PetscSectionSetFieldDof(newSection, newCell, 0, cdof);CHKERRQ(ierr);
+      coarsePoints[cp++] = cdof ? coarsePoint : -1;
+    }
+  }
+  if (cp != cEnd - cStart) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unexpected number of fine cells %D != %D",cp,cEnd-cStart);
+
+  if (base) { /* we need to localize on all the cells in the star of the coarse cell vertices */
+    PetscInt *closure = NULL, closureSize;
+    PetscInt p, i, c, vStartBase, vEndBase, cStartBase, cEndBase;
+
+    ierr = DMPlexGetHeightStratum(base,0,&cStartBase,&cEndBase);CHKERRQ(ierr);
+    ierr = DMPlexGetDepthStratum(base,0,&vStartBase,&vEndBase);CHKERRQ(ierr);
+    for (p = cStart; p < cEnd; p++) {
+      coarsePoint = coarsePoints[p-cStart];
+      if (coarsePoint < 0) continue;
+      if (baseSection) { ierr = PetscSectionGetFieldDof(baseSection, coarsePoint, 0, &cdof);CHKERRQ(ierr); }
+      ierr = DMPlexGetTransitiveClosure(base,coarsePoint,PETSC_TRUE,&closureSize,&closure);CHKERRQ(ierr);
+      for (c = 0; c < closureSize; c++) {
+        PetscInt *star = NULL, starSize;
+        PetscInt j, v = closure[2 * c];
+
+        if (v < vStartBase || v > vEndBase) continue;
+        ierr = DMPlexGetTransitiveClosure(base,v,PETSC_FALSE,&starSize,&star);CHKERRQ(ierr);
+        for (j = 0; j < starSize; j++) {
+          PetscInt cell = star[2 * j];
+
+          if (cStartBase <= cell && cell < cEndBase) {
+            p4est_tree_t *tree;
+            PetscInt     offset,numQuads;
+
+            if (cell < flt || cell > llt) { printf("[%d] BASE OUT: %d [%d %d]\n",PetscGlobalRank,cell,flt,llt); continue; } /* XXX GHOSTS ? */
+            tree     = &(trees[cell]);
+            offset   = cLocalStart + tree->quadrants_offset;
+            numQuads = (PetscInt) tree->quadrants.elem_count;
+            for (i = 0; i < numQuads; i++) {
+              PetscInt newCell = i + offset;
+
+              ierr = PetscSectionSetDof(newSection, newCell, cdof);CHKERRQ(ierr);
+              ierr = PetscSectionSetFieldDof(newSection, newCell, 0, cdof);CHKERRQ(ierr);
+            }
+          }
+        }
+        ierr = DMPlexRestoreTransitiveClosure(base,v,PETSC_FALSE,&starSize,&star);CHKERRQ(ierr);
+      }
+      ierr = DMPlexRestoreTransitiveClosure(base,coarsePoint,PETSC_TRUE,&closureSize,&closure);CHKERRQ(ierr);
+    }
+  }
+  ierr = PetscSectionSetUp(newSection);CHKERRQ(ierr);
+  ierr = PetscObjectReference((PetscObject)oldSection);CHKERRQ(ierr);
+  ierr = DMSetCoordinateSection(plex, cDim, newSection);CHKERRQ(ierr);
+  ierr = PetscSectionGetStorageSize(newSection, &v);CHKERRQ(ierr);
+  ierr = VecCreate(PETSC_COMM_SELF, &cVec);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject)cVec,"coordinates");CHKERRQ(ierr);
+  ierr = VecSetBlockSize(cVec, cDim);CHKERRQ(ierr);
+  ierr = VecSetSizes(cVec, v, PETSC_DETERMINE);CHKERRQ(ierr);
+  ierr = VecSetType(cVec, VECSTANDARD);CHKERRQ(ierr);
+  ierr = VecGetArray(cVec, &coords2);CHKERRQ(ierr);
+
+  /* Copy over vertex coordinates */
+  ierr = DMGetCoordinatesLocal(plex, &coordinates);CHKERRQ(ierr);
+  if (!coordinates) SETERRQ(PetscObjectComm((PetscObject)plex),PETSC_ERR_SUP,"Missing local coordinates vector");
+  ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
+  for (v = vStart; v < vEnd; ++v) {
+    PetscInt d, off,off2;
+
+    ierr = PetscSectionGetDof(oldSection, v, &dof);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(oldSection, v, &off);CHKERRQ(ierr);
+    ierr = PetscSectionGetOffset(newSection, v, &off2);CHKERRQ(ierr);
+    for (d = 0; d < dof; ++d) coords2[off2+d] = coords[off+d];
+  }
+  ierr = VecRestoreArrayRead(coordinates, &coords);CHKERRQ(ierr);
+
+  /* Localize coordinates on cells if needed */
+  for (t = flt; t <= llt; t++) {
+    p4est_tree_t     *tree    = &(trees[t]);
+    const PetscScalar *v      = pforest->topo->conn->vertices;
+    p4est_quadrant_t *quads   = (p4est_quadrant_t*) tree->quadrants.array;
+    PetscInt         offset   = cLocalStart + tree->quadrants_offset;
+    PetscInt         numQuads = (PetscInt) tree->quadrants.elem_count;
+    p4est_topidx_t   vt[8]    = {0,0,0,0,0,0,0,0};
+    PetscInt         i,k;
+
+    if (!numQuads) continue;
+    for (k = 0; k < P4EST_CHILDREN; ++k) {
+      vt[k] = pforest->topo->conn->tree_to_vertex[t * P4EST_CHILDREN + k];
+    }
+
+    for (i = 0; i < numQuads; i++) {
+      p4est_quadrant_t  *quad = &quads[i];
+      const PetscScalar intsize = 1.0 / P4EST_ROOT_LEN;
+      PetscScalar       h2;
+      PetscScalar       xyz[3];
+#ifdef P4_TO_P8
+      PetscInt          zi;
+#endif
+      PetscInt          yi,xi;
+      PetscInt          off2;
+      PetscInt          newCell = i + offset;
+
+      ierr = PetscSectionGetFieldDof(newSection, newCell, 0, &cdof);CHKERRQ(ierr);
+      if (!cdof) continue;
+
+      h2   = .5 * intsize * P4EST_QUADRANT_LEN (quad->level);
+      k    = 0;
+      ierr = PetscSectionGetOffset(newSection, newCell, &off2);CHKERRQ(ierr);
+#ifdef P4_TO_P8
+      for (zi = 0; zi < 2; ++zi) {
+        const PetscScalar eta_z = intsize * quad->z + h2 * (1. + (zi * 2 - 1));
+#else
+      {
+        const PetscScalar eta_z = 0.0;
+#endif
+        for (yi = 0; yi < 2; ++yi) {
+          const PetscScalar eta_y = intsize * quad->y + h2 * (1. + (yi * 2 - 1));
+          for (xi = 0; xi < 2; ++xi) {
+            const PetscScalar eta_x = intsize * quad->x + h2 * (1. + (xi * 2 - 1));
+            PetscInt    j;
+
+            for (j = 0; j < 3; ++j) {
+              xyz[j] = ((1. - eta_z) * ((1. - eta_y) * ((1. - eta_x) * v[3 * vt[0] + j] +
+                                                              eta_x  * v[3 * vt[1] + j]) +
+                                              eta_y  * ((1. - eta_x) * v[3 * vt[2] + j] +
+                                                              eta_x  * v[3 * vt[3] + j]))
+                        +     eta_z  * ((1. - eta_y) * ((1. - eta_x) * v[3 * vt[4] + j] +
+                                                              eta_x  * v[3 * vt[5] + j]) +
+                                              eta_y  * ((1. - eta_x) * v[3 * vt[6] + j] +
+                                                              eta_x  * v[3 * vt[7] + j])));
+            }
+            for (j = 0; j < cDim; ++j) coords2[off2 + cDim*P4estVertToPetscVert[k] + j] = xyz[j];
+            ++k;
+          }
+        }
+      }
+    }
+  }
+
+  if (cLocalStart > 0) {
+    p4est_quadrant_t *ghosts = (p4est_quadrant_t*) pforest->ghost->ghosts.array;
+    PetscInt         count;
+
+    for (count = 0; count < cLocalStart; count++) {
+      p4est_quadrant_t *quad = &ghosts[count];
+
+      coarsePoint = coarsePoints[count];
+      if (coarsePoint < 0) continue;
+      (void)(quad);
+      /* How to localize? */
+    }
+  }
+  if (cLocalEnd - cLocalStart < cEnd - cStart) {
+    p4est_quadrant_t *ghosts   = (p4est_quadrant_t*) pforest->ghost->ghosts.array;
+    PetscInt         numGhosts = (PetscInt) pforest->ghost->ghosts.elem_count;
+    PetscInt         count;
+
+    for (count = 0; count < numGhosts - cLocalStart; count++) {
+      p4est_quadrant_t *quad = &ghosts[count + cLocalStart];
+      PetscInt newCell = count + cLocalEnd;
+      coarsePoint = coarsePoints[newCell];
+
+      if (coarsePoint < 0) continue;
+      (void)(quad);
+      /* How to localize? */
+    }
+  }
+  ierr = VecRestoreArray(cVec, &coords2);CHKERRQ(ierr);
+  ierr = DMSetCoordinatesLocal(plex, cVec);CHKERRQ(ierr);
+  ierr = VecDestroy(&cVec);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&newSection);CHKERRQ(ierr);
+  ierr = PetscSectionDestroy(&oldSection);CHKERRQ(ierr);
+  ierr = PetscFree(coarsePoints);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -3928,8 +4200,8 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
     ierr                 = locidx_to_PetscInt(leaves);CHKERRQ(ierr);
     ierr                 = locidx_pair_to_PetscSFNode(remotes);CHKERRQ(ierr);
 
-    ierr  = DMSetDimension(newPlex,P4EST_DIM);CHKERRQ(ierr);
-    ierr  = DMSetCoordinateDim(newPlex,coordDim);CHKERRQ(ierr);
+    ierr = DMSetDimension(newPlex,P4EST_DIM);CHKERRQ(ierr);
+    ierr = DMSetCoordinateDim(newPlex,coordDim);CHKERRQ(ierr);
     {
       PetscBool            isper;
       const PetscReal      *maxCell, *L;
@@ -3999,7 +4271,7 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
 
       ierr = DMGetPeriodicity(dm,&isper,&maxCell,&L,&bd);CHKERRQ(ierr);
       ierr = DMSetPeriodicity(newPlex,isper,maxCell,L,bd);CHKERRQ(ierr);
-      ierr = DMLocalizeCoordinates(newPlex);CHKERRQ(ierr);
+      ierr = DMPforestLocalizeCoordinates(dm,newPlex);CHKERRQ(ierr);
     }
     ierr = DMPforestMapCoordinates(dm,newPlex);CHKERRQ(ierr);
 
@@ -4040,8 +4312,13 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
     }
     ierr = DMViewFromOptions(newPlex,NULL,"-dm_p4est_plex_view");CHKERRQ(ierr);
     {
-      Vec coords;
+      PetscSection coordsSec;
+      Vec          coords;
+      PetscInt     cDim;
 
+      ierr = DMGetCoordinateDim(newPlex,&cDim);CHKERRQ(ierr);
+      ierr = DMGetCoordinateSection(newPlex,&coordsSec);CHKERRQ(ierr);
+      ierr = DMSetCoordinateSection(dm,cDim,coordsSec);CHKERRQ(ierr);
       ierr = DMGetCoordinatesLocal(newPlex,&coords);CHKERRQ(ierr);
       ierr = DMSetCoordinatesLocal(dm,coords);CHKERRQ(ierr);
     }
@@ -4053,7 +4330,6 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
     ierr = DMClone(newPlex,plex);CHKERRQ(ierr);
     ierr = DMGetCoordinateDM(newPlex,&coordDM);CHKERRQ(ierr);
     ierr = DMSetCoordinateDM(*plex,coordDM);CHKERRQ(ierr);
-
     ierr = DMShareDiscretization(dm,*plex);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
