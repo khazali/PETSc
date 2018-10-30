@@ -46,12 +46,16 @@ static PetscErrorCode GNHessianProd(Mat H, Vec in, Vec out)
   
   PetscFunctionBegin;
   /* Allocate vectors */
+
+  /* XH: Use x_work or r_work instead and do not create new vectors */
   ierr = VecCreateSeq(MPI_COMM_SELF,N,&xE);CHKERRQ(ierr); 
   ierr = VecCreateSeq(MPI_COMM_SELF,N,&tmp);CHKERRQ(ierr); 
     
   ierr = MatShellGetContext(H, &gn);CHKERRQ(ierr);
   ierr = MatMult(gn->subsolver->ls_jac, in, gn->r_work);CHKERRQ(ierr);
   ierr = MatMultTranspose(gn->subsolver->ls_jac, gn->r_work, out);CHKERRQ(ierr);
+
+  /* XH: Use the sparse diagonal vector diag that has already been computed.  Code should just be the VecAXPY() */
 
   /* out = out +  lambda*epsilon^2*(in./xE.^3) */
   /* xE = sqrt(x.^2+epsilon^2). Should we reuse code/result of xE from GNObjectiveGradientEval()?*/
@@ -79,6 +83,8 @@ static PetscErrorCode GNObjectiveGradientEval(Tao tao, Vec X, PetscReal *fcn, Ve
   
   PetscFunctionBegin;
   /* Allocate vectors */
+
+  /* XH: Do no create vectors; use x_work or r_work */
   ierr = VecCreateSeq(MPI_COMM_SELF,N,&xE);CHKERRQ(ierr); 
 
   ierr = TaoComputeResidual(tao, X, tao->ls_res);CHKERRQ(ierr);
@@ -86,9 +92,13 @@ static PetscErrorCode GNObjectiveGradientEval(Tao tao, Vec X, PetscReal *fcn, Ve
   ierr = VecDotEnd(tao->ls_res, tao->ls_res, fcn);CHKERRQ(ierr);
 
   /* Compute xE = sqrt(x.^2+epsilon^2) */
+
+  /* XH: Use epsilon from the gn structure */
+  /* XH: Use VecGetSize() rather than N */
+
   ierr = VecPointwiseMult(xE, X, X);CHKERRQ(ierr);
   ierr = VecShift(xE, epsilon*epsilon);CHKERRQ(ierr);
-  ierr = VecSqrtAbs(xE);CHKERRQ(ierr);CHKERRQ(ierr);
+  ierr = VecSqrtAbs(xE);CHKERRQ(ierr);
 
   ierr = VecSum(xE,&xESum);CHKERRQ(ierr);CHKERRQ(ierr);
   *fcn = 0.5*(*fcn) + gn->lambda*(xESum - N*epsilon);
@@ -112,6 +122,8 @@ static PetscErrorCode GNComputeHessian(Tao tao, Vec X, Mat H, Mat Hpre, void *pt
   
   PetscFunctionBegin;
   ierr = TaoComputeResidualJacobian(tao, X, tao->ls_jac, tao->ls_jac_pre);CHKERRQ(ierr);
+
+  /* XH: Calculate and store diagonal matrix as a vector; diag in the structure */
   PetscFunctionReturn(0);
 }
 
@@ -173,6 +185,8 @@ static PetscErrorCode TaoSetFromOptions_BRGN(PetscOptionItems *PetscOptionsObjec
   TAO_BRGN              *gn = (TAO_BRGN *)tao->data;
   PetscErrorCode        ierr;
 
+  /* XH: Read an option to change epsilon in the structure; follow the lambda function below */
+
   PetscFunctionBegin;
   ierr = PetscOptionsHead(PetscOptionsObject,"Gauss-Newton method for least-squares problems using Tikhonov regularization");CHKERRQ(ierr);
   ierr = PetscOptionsReal("-tao_brgn_lambda", "Tikhonov regularization factor", "", gn->lambda, &gn->lambda, NULL);CHKERRQ(ierr);
@@ -219,6 +233,9 @@ static PetscErrorCode TaoSetUp_BRGN(Tao tao)
     ierr = VecDuplicate(tao->solution, &gn->x_old);CHKERRQ(ierr);
     ierr = VecSet(gn->x_old, 0.0);CHKERRQ(ierr);
   }
+
+  /* XH: Create diag vector */
+
   if (!tao->setupcalled) {
     /* Hessian setup */
     ierr = VecGetLocalSize(tao->solution, &nx);CHKERRQ(ierr);
@@ -262,6 +279,8 @@ static PetscErrorCode TaoDestroy_BRGN(Tao tao)
     ierr = VecDestroy(&gn->x_work);CHKERRQ(ierr);
     ierr = VecDestroy(&gn->r_work);CHKERRQ(ierr);
     ierr = VecDestroy(&gn->x_old);CHKERRQ(ierr);
+
+    /* XH: Destroy diagonal vector */
   }
   ierr = MatDestroy(&gn->H);CHKERRQ(ierr);
   ierr = TaoDestroy(&gn->subsolver);CHKERRQ(ierr);
@@ -284,6 +303,8 @@ PETSC_EXTERN PetscErrorCode TaoCreate_BRGN(Tao tao)
   tao->ops->view = TaoView_BRGN;
   tao->ops->solve = TaoSolve_BRGN;
   
+  /* XH: initialize the epsilon */
+
   tao->data = (void*)gn;
   gn->lambda = 1e-4;
   gn->parent = tao;
@@ -332,7 +353,13 @@ PetscErrorCode TaoBRGNSetTikhonovLambda(Tao tao, PetscReal lambda)
 {
   TAO_BRGN       *gn = (TAO_BRGN *)tao->data;
   
+  /* Initialize epsilon here */
+
   PetscFunctionBegin;
   gn->lambda = lambda;
   PetscFunctionReturn(0);
 }
+
+/* XH: Add a routine to TaoBRGNSetEpsilon; follow the SetTikhonovLambda function including the comment */
+/* XH: Look for BRGNSetTikhonovLambda in the rest of the code; it will appear in a header file somewhere and add TaoBRGNSetEpsilon to that header with the same format */
+/* XH: Need to add a line to the ftn-custom for the TaoBRGNSetEpsilon function */
