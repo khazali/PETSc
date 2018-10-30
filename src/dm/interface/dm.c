@@ -5226,14 +5226,14 @@ PetscErrorCode DMLocalizeCoordinates(DM dm)
   }
   for (v = vStart; v < vEnd; ++v) {
     ierr = PetscSectionGetDof(coordSection, v, &dof);CHKERRQ(ierr);
-    ierr = PetscSectionSetDof(cSection,     v,  dof);CHKERRQ(ierr);
+    ierr = PetscSectionSetDof(cSection, v, dof);CHKERRQ(ierr);
     ierr = PetscSectionSetFieldDof(cSection, v, 0, dof);CHKERRQ(ierr);
   }
   ierr = PetscSectionSetUp(cSection);CHKERRQ(ierr);
   ierr = PetscSectionGetStorageSize(cSection, &coordSize);CHKERRQ(ierr);
   ierr = VecCreate(PETSC_COMM_SELF, &cVec);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject)cVec,"coordinates");CHKERRQ(ierr);
-  ierr = VecSetBlockSize(cVec,         bs);CHKERRQ(ierr);
+  ierr = VecSetBlockSize(cVec, bs);CHKERRQ(ierr);
   ierr = VecSetSizes(cVec, coordSize, PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = VecSetType(cVec, VECSTANDARD);CHKERRQ(ierr);
   ierr = VecGetArrayRead(coordinates, (const PetscScalar**)&coords);CHKERRQ(ierr);
@@ -6203,7 +6203,7 @@ PetscErrorCode DMSetLabelOutput(DM dm, const char name[], PetscBool output)
   Note: This is typically used when interpolating or otherwise adding to a mesh
 
 .keywords: mesh
-.seealso: DMCopyCoordinates(), DMGetCoordinates(), DMGetCoordinatesLocal(), DMGetCoordinateDM(), DMGetCoordinateSection()
+.seealso: DMGetCoordinates(), DMGetCoordinatesLocal(), DMGetCoordinateDM(), DMGetCoordinateSection()
 @*/
 PetscErrorCode DMCopyLabels(DM dmA, DM dmB)
 {

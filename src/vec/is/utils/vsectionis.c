@@ -1202,7 +1202,7 @@ PetscErrorCode PetscSectionCreateGlobalSection(PetscSection s, PetscSF sf, Petsc
       }
     }
   }
-  /* Calculate new sizes, get proccess offset, and calculate point offsets */
+  /* Calculate new sizes, get process offset, and calculate point offsets */
   if (s->perm) {ierr = ISGetIndices(s->perm, &pind);CHKERRQ(ierr);}
   for (p = 0, off = 0; p < pEnd-pStart; ++p) {
     const PetscInt q = pind ? pind[p] : p;
