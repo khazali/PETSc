@@ -6671,10 +6671,10 @@ PetscErrorCode DMPlexCreateRankField(DM dm, Vec *ranks)
 @*/
 PetscErrorCode DMPlexCheckSymmetry(DM dm)
 {
-  PetscSection    coneSection, supportSection;
+  PetscSection    coneSection, supportSection, parentSection;
   const PetscInt *cone, *support;
   PetscInt        coneSize, c, supportSize, s;
-  PetscInt        pStart, pEnd, p, csize, ssize;
+  PetscInt        pStart, pEnd, p, pp, csize, ssize;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -6712,12 +6712,16 @@ PetscErrorCode DMPlexCheckSymmetry(DM dm)
         else SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "Point %D not found in support of cone point %D", p, cone[c]);
       }
     }
+    ierr = DMPlexGetTreeParent(dm, p, &pp, NULL);CHKERRQ(ierr);
+    if (p != pp) continue;
     ierr = DMPlexGetSupportSize(dm, p, &supportSize);CHKERRQ(ierr);
     ierr = DMPlexGetSupport(dm, p, &support);CHKERRQ(ierr);
     for (s = 0; s < supportSize; ++s) {
       ierr = DMPlexGetConeSize(dm, support[s], &coneSize);CHKERRQ(ierr);
       ierr = DMPlexGetCone(dm, support[s], &cone);CHKERRQ(ierr);
       for (c = 0; c < coneSize; ++c) {
+        ierr = DMPlexGetTreeParent(dm, cone[c], &pp, NULL);CHKERRQ(ierr);
+        if (cone[c] != pp) { c = 0; break; }
         if (cone[c] == p) break;
       }
       if (c >= coneSize) {
@@ -6735,9 +6739,12 @@ PetscErrorCode DMPlexCheckSymmetry(DM dm)
       }
     }
   }
-  ierr = PetscSectionGetStorageSize(coneSection, &csize);CHKERRQ(ierr);
-  ierr = PetscSectionGetStorageSize(supportSection, &ssize);CHKERRQ(ierr);
-  if (csize != ssize) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Total cone size %D != Total support size %D", csize, ssize);
+  ierr = DMPlexGetTree(dm,&parentSection,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
+  if (!parentSection) {
+    ierr = PetscSectionGetStorageSize(coneSection, &csize);CHKERRQ(ierr);
+    ierr = PetscSectionGetStorageSize(supportSection, &ssize);CHKERRQ(ierr);
+    if (csize != ssize) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Total cone size %D != Total support size %D", csize, ssize);
+  }
   PetscFunctionReturn(0);
 }
 
