@@ -14,33 +14,32 @@
 #DIRS		 =
 #CLEANFILES       = eptorsion1 eptorsion2 minsurf2 rosenbrock1 eptorsion2f rosenbrock1f
 
-CODI_INCLUDE=/home/michel/git/CoDiPack/include
-AD_BLAS_LIB=/home/michel/git/adblaslapack/src/libadblaslapack.a
-AD_BLAS_ADJ_LIB=/home/michel/git/adblaslapack_adj/src/libadblaslapackadj.a
+AD_BLAS_LIB=${PETSC_DIR}/${PETSC_ARCH}/lib/libadblaslapack.a
 
-CPPFLAGS		 += -I$(CODI_INCLUDE) -Wno-unused-variable 
+#CODI_INCLUDE=
+#CPPFLAGS		 += -I$(CODI_INCLUDE) -Wno-unused-variable 
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
 
 spectraladjointassimilation: spectraladjointassimilation.o chkopts
-	-${CLINKER} -o spectraladjointassimilation spectraladjointassimilation.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
+	-${CLINKER} -o spectraladjointassimilation spectraladjointassimilation.o ${PETSC_TAO_LIB} ${PETSC_TS_LIB}
 	${RM} spectraladjointassimilation.o
 
 burgers_spectral: burgers_spectral.o chkopts
-	-${CLINKER} -o burgers_spectral burgers_spectral.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
+	-${CLINKER} -o burgers_spectral burgers_spectral.o ${PETSC_TAO_LIB} ${PETSC_TS_LIB}
 	${RM} burgers_spectral.o
 
 burgers_spectral_mf: burgers_spectral_mf.o chkopts
-	-${CLINKER} -o burgers_spectral_mf burgers_spectral_mf.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
+	-${CLINKER} -o burgers_spectral_mf burgers_spectral_mf.o ${PETSC_TAO_LIB} ${PETSC_TS_LIB}
 	${RM} burgers_spectral_mf.o
 
 burgers_spectral2d: burgers_spectral2d.o chkopts
-	-${CLINKER} -o burgers_spectral2d burgers_spectral2d.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB} ${AD_BLAS_LIB} ${AD_BLAS_ADJ_LIB}
-	#${RM} burgers_spectral2d.o
+	-${CLINKER} -o burgers_spectral2d burgers_spectral2d.o ${PETSC_TAO_LIB} ${PETSC_TS_LIB} ${AD_BLAS_LIB}
+	${RM} burgers_spectral2d.o
 
 heat-data-assimulation: heat-data-assimulation.o chkopts
-	-${CLINKER} -o heat-data-assimulation heat-data-assimulation.o ${PETSC_TAO_LIB}  ${PETSC_TS_LIB}
+	-${CLINKER} -o heat-data-assimulation heat-data-assimulation.o ${PETSC_TAO_LIB} ${PETSC_TS_LIB}
 	${RM} heat-data-assimulation.o
 
 rosenbrock1: rosenbrock1.o chkopts

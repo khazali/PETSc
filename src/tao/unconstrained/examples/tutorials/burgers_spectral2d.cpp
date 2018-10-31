@@ -177,7 +177,7 @@ int main(int argc,char **argv)
   appctx.param.mu   = 0.005; /* diffusion coefficient */
   appctx.initial_dt = 5e-3;
   appctx.param.steps = PETSC_MAX_INT;
-  appctx.param.Tend  = 2.0;
+  appctx.param.Tend  = 4.0;
   appctx.ncoeff      = 2;
 
   ierr = PetscOptionsGetInt(NULL,NULL,"-N",&appctx.param.N,NULL);CHKERRQ(ierr);
@@ -355,6 +355,8 @@ int main(int argc,char **argv)
   ierr = ComputeObjective(2.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
   ierr = TSSolve(appctx.ts,appctx.dat.obj);CHKERRQ(ierr);
   
+
+
   Vec   ref, wrk_vec, jac, vec_jac, vec_rhs, temp, vec_trans;
   Field<double> **s;
   PetscScalar vareps;
@@ -409,7 +411,7 @@ int main(int argc,char **argv)
     ierr = PetscViewerPopFormat(viewfile);
     //printf("test i %d length %d\n",its, appctx.param.lenx*appctx.param.leny);
     } 
-//exit(1);
+exit(1);
 
   //ierr = VecDuplicate(appctx.dat.ic,&uu);CHKERRQ(ierr);
   //ierr = VecCopy(appctx.dat.ic,uu);CHKERRQ(ierr);
@@ -530,10 +532,21 @@ PetscErrorCode InitialConditions(Vec u,AppCtx *appctx)
   for (i=0; i<appctx->param.lenx; i++) 
     {for (j=0; j<appctx->param.leny; j++) 
       {
-           
+      //s[j][i].u=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y))*2.0;
+      //s[j][i].v=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(2.*PETSC_PI*coors[j][i].x)+PetscCosScalar(2.*PETSC_PI*coors[j][i].y))*2.0;
+      
       s[j][i].u=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(0.5*PETSC_PI*coors[j][i].x)+PetscSinScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
       s[j][i].v=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(0.5*PETSC_PI*coors[j][i].x)+PetscCosScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
       
+      //pp=(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y);
+      //s[j][i].u=PetscExpScalar(- 7.0*pp)/5.0;
+      //s[j][i].v=0.0;//PetscExpScalar(-appctx->param.mu*tt - 12.0*(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y));
+
+
+      //s[j][i].u=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(2*PETSC_PI*));
+      //s[j][i].v=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(2*PETSC_PI*(coors[j][i].x-0.5*PETSC_PI)));
+      //s[j][i].u=PetscMax(0.0,PetscSinReal(PetscSqrtReal(PETSC_PI*coors[j][i].x*coors[j][i].x+PETSC_PI*coors[j][i].y*coors[j][i].y)))+1.0;
+      //s[j][i].v=0.0;
       } 
      }
   
@@ -615,9 +628,18 @@ PetscErrorCode ComputeObjective(PetscReal t,Vec obj,AppCtx *appctx)
   for (i=0; i<appctx->param.lenx; i++) 
     {for (j=0; j<appctx->param.leny; j++) 
       {
+      //s[j][i].u=PetscExpScalar(-appctx->param.mu*t)*(PetscCosScalar(2.*PETSC_PI*coors[j][i].x)+PetscSinScalar(2.*PETSC_PI*coors[j][i].y));
+      //s[j][i].v=PetscExpScalar(-appctx->param.mu*t)*(PetscSinScalar(2.*PETSC_PI*coors[j][i].x)+PetscCosScalar(2.*PETSC_PI*coors[j][i].y));
+      //s[j][i].u=PetscExpScalar(-appctx->param.mu*t - 10.0*(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y));
+      //s[j][i].v=PetscExpScalar(-appctx->param.mu*t - 12.0*(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y));
+      //pp=(coors[j][i].x*coors[j][i].x+coors[j][i].y*coors[j][i].y);
+      //s[j][i].u=PetscExpScalar(- 2.0*pp*pp)/5.0;
+      //s[j][i].v=0.0;
+
       s[j][i].u=PetscExpScalar(-appctx->param.mu*t)*(PetscCosScalar(0.5*PETSC_PI*coors[j][i].x)+PetscSinScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
       s[j][i].v=PetscExpScalar(-appctx->param.mu*t)*(PetscSinScalar(0.5*PETSC_PI*coors[j][i].x)+PetscCosScalar(0.5*PETSC_PI*coors[j][i].y))/10.0;
-     
+      //s[j][i].u=PetscExpScalar(-appctx->param.mu*t)*(PetscSinScalar(2*PETSC_PI*coors[j][i].x));
+      //s[j][i].v=PetscExpScalar(-appctx->param.mu*t)*(PetscCosScalar(2*PETSC_PI*(coors[j][i].x-0.5*PETSC_PI)));
       } 
      }
   
@@ -882,10 +904,6 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   ierr = PetscGLLElementAdvectionCreate(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
   
   /* unwrap local vector for the input solution */
-  /* globalin, the global array
-     uloc, the local array
-     ul, the pointer to uloc*/
-  
   DMCreateLocalVector(appctx->da,&uloc);
 
   DMGlobalToLocalBegin(appctx->da,globalin,INSERT_VALUES,uloc);
@@ -902,9 +920,9 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   //ierr = DMDAVecGetArray(appctx->da,gradloc,&outgrad);CHKERRQ(ierr);
   ierr = ADRHSFunction<double> (outl, ul, ctx); 
 
-  ierr = DMDAVecRestoreArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
+  ierr = DMDAVecRestoreArrayRead(appctx->da,globalin,&uloc);CHKERRQ(ierr);
 
+  ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
   VecSet(globalout,0.0);
   DMLocalToGlobalBegin(appctx->da,outloc,ADD_VALUES,globalout);
   DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,globalout);
@@ -912,15 +930,65 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   VecScale(globalout, -1.0);
  
   ierr = VecPointwiseDivide(globalout,globalout,appctx->SEMop.mass);CHKERRQ(ierr);
+
   
   DMGetCoordinateDM(appctx->da,&cda);
   DMGetCoordinates(appctx->da,&global);
   DMDAVecGetArray(cda,global,&coors);
-    
+  VecDuplicate(globalout,&forcing); 
+
+  ierr = DMDAVecGetArray(appctx->da,forcing,&ff);CHKERRQ(ierr);
+     
+  /* 
+  tt=t;
+  for (ix=0; ix<appctx->param.lenx; ix++) 
+    {for (jx=0; jx<appctx->param.leny; jx++) 
+      {
+      //ff[jx][ix].u=PetscExpScalar(-appctx->param.mu*tt)*(appctx->param.mu*(-1.0 + 4*PETSC_PI*PETSC_PI)*PetscCosScalar(2.*PETSC_PI*coors[jx][ix].x)
+      //             +2.*PETSC_PI*ul[jx][ix].v*PetscCosScalar(2.*PETSC_PI*coors[jx][ix].y)-2.*PETSC_PI*ul[jx][ix].u*PetscSinScalar(2.*PETSC_PI*coors[jx][ix].x)-
+      //               appctx->param.mu*PetscSinScalar(2.*PETSC_PI*coors[jx][ix].y));
+      //ff[jx][ix].v=PetscExpScalar(-appctx->param.mu*tt)*((appctx->param.mu*(-1.0 + 4*PETSC_PI*PETSC_PI)+2.*PETSC_PI*ul[jx][ix].v)*
+      //              PetscCosScalar(2.*PETSC_PI*coors[jx][ix].y)-(appctx->param.mu +2.*PETSC_PI*ul[jx][ix].u)*PetscSinScalar(2.*PETSC_PI*coors[jx][ix].x));
+      //       xpy=(coors[jx][ix].x*coors[jx][ix].x+coors[jx][ix].y*coors[jx][ix].y);
+      //       tempu=PetscExpScalar(-appctx->param.mu*tt - 10.0*xpy);
+      //       tempv=PetscExpScalar(-appctx->param.mu*tt - 12.0*xpy);
+
+      //ff[jx][ix].u=PetscExpScalar(-appctx->param.mu*tt - 10.0*xpy)*(appctx->param.mu*(19.0 - 400.0*coors[jx][ix].x*coors[jx][ix].x) - 20.0*(tempu*coors[jx][ix].x + tempv*coors[jx][ix].y));
+      //ff[jx][ix].v=PetscExpScalar(-appctx->param.mu*tt - 12.0*xpy)*(-20.0*PetscExpScalar(2.0*xpy)*(tempu*coors[jx][ix].x + tempv*coors[jx][ix].y) + appctx->param.mu* (23.0 - 576.0*coors[jx][ix].y*coors[jx][ix].y));
+
+        xpy=0.25*PETSC_PI*PETSC_PI;
+        tempu=PetscExpScalar(-appctx->param.mu*tt)*(PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].x)+PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].y))/10.0;
+        tempv=PetscExpScalar(-appctx->param.mu*tt)*(PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].x)+PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].y))/10.0;
+ff[jx][ix].u=PetscExpScalar(-appctx->param.mu*tt) *((-0.1 + 0.1*xpy)*appctx->param.mu*PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].x) + 0.1* 0.5*PETSC_PI*tempv* PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].y) * 0.1*0.5*PETSC_PI*tempu*PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].x) - 0.1*appctx->param.mu*PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].y));
+ff[jx][ix].v=PetscExpScalar(-appctx->param.mu*tt)* (((-0.1 + 0.1*xpy)*appctx->param.mu + 0.1*0.5*PETSC_PI*tempv)*PetscCosScalar(0.5*PETSC_PI*coors[jx][ix].y) + (-0.1* appctx->param.mu- 0.1*0.5*PETSC_PI*tempu)*PetscSinScalar(0.5*PETSC_PI*coors[jx][ix].x));
+      } 
+     }
+  ierr = DMDAVecRestoreArray(appctx->da,forcing,&ff);CHKERRQ(ierr);
+  VecAXPY(globalout,1.0,forcing);
+  */
+
+
   ierr = PetscGLLElementLaplacianDestroy(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
   ierr = PetscGLLElementMassDestroy(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
 
+  //ierr = VecDestroy(&outloc);CHKERRQ(ierr);
+  //ierr = VecDestroy(&uloc);CHKERRQ(ierr);
+/*
+  its=its+1;
+  //printf("time to write %f ",&t); 
+  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"rhsB.m",&viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+  PetscSNPrintf(var,sizeof(var),"inr(:,%d)",its);
+  ierr = PetscObjectSetName((PetscObject)globalin,var);
+  ierr = VecView(globalin,viewfile);CHKERRQ(ierr);
+  PetscSNPrintf(var,sizeof(var),"outr(:,%d)",its);
+  ierr = PetscObjectSetName((PetscObject)globalout,var);
+ ierr = VecView(globalout,viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPopFormat(viewfile);
+  
+  exit(1);
+  */
   PetscFunctionReturn(0);
 }
 
@@ -954,20 +1022,13 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
 
   /* unwrap local vector for the input solution */
   DMCreateLocalVector(appctx->da,&uloc);
-/*   in, the global array
-     uloc, the local array
-     ul, the pointer to uloc*/
-
 
   DMGlobalToLocalBegin(appctx->da,in,INSERT_VALUES,uloc);
   DMGlobalToLocalEnd(appctx->da,in,INSERT_VALUES,uloc);
 
   DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
 
-  /* unwrap the vector for the forward variable */
-  /* appctx->dat.pass_sol, the global array
-     ujloc, the local array
-     uj, the pointer to uloc*/
+  // vector form jacobian
   DMCreateLocalVector(appctx->da,&ujloc);
 
   DMGlobalToLocalBegin(appctx->da,appctx->dat.pass_sol,INSERT_VALUES,ujloc);
@@ -1019,8 +1080,8 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   delete [] t1s_outl;  
  
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
-  DMDAVecRestoreArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
-  DMDAVecRestoreArrayRead(appctx->da,ujloc,&uj);CHKERRQ(ierr);
+  DMDAVecRestoreArrayRead(appctx->da,in,&uloc);CHKERRQ(ierr);
+  DMDAVecRestoreArrayRead(appctx->da,appctx->dat.pass_sol,&ujloc);CHKERRQ(ierr);
 
   VecSet(out,0.0);
 
@@ -1036,6 +1097,24 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
   ierr = PetscGLLElementMassDestroy(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
 
+
+/*
+  its=its+1;
+  //printf("time to write %f ",&t); 
+  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jacin.m",&viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+  PetscSNPrintf(var,sizeof(var),"in(:,%d)",its);
+  ierr = PetscObjectSetName((PetscObject)in,var);
+  ierr = VecView(in,viewfile);CHKERRQ(ierr);
+  PetscSNPrintf(var,sizeof(var),"out(:,%d)",its);
+  ierr = PetscObjectSetName((PetscObject)out,var);
+  ierr = VecView(out,viewfile);CHKERRQ(ierr);
+  //PetscSNPrintf(var,sizeof(var),"mass",its);
+  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass,var);
+  //ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPopFormat(viewfile);
+
+ */
    return(0);
  }
 
@@ -1073,10 +1152,6 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   ierr = VecPointwiseDivide(incopy,in,appctx->SEMop.mass);CHKERRQ(ierr);
   
   /* unwrap local vector for the input solution */
-  /* incopy, the global array (copy needed cause it needs rescaling by mass matrix)
-     uloc, the local array
-     ul, the pointer to uloc*/
-
   DMCreateLocalVector(appctx->da,&uloc);
 
   DMGlobalToLocalBegin(appctx->da,incopy,INSERT_VALUES,uloc);
@@ -1084,11 +1159,7 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
 
   DMDAVecGetArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
 
-  
-  /* unwrap the vector for the forward variable */
-  /* appctx->dat.pass_sol, the global array
-     ujloc, the local array
-     uj, the pointer to uloc*/
+  // vector form jacobian
   DMCreateLocalVector(appctx->da,&ujloc);
 
   DMGlobalToLocalBegin(appctx->da,appctx->dat.pass_sol,INSERT_VALUES,ujloc);
@@ -1156,8 +1227,10 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
 
 
   ierr = DMDAVecRestoreArray(appctx->da,outloc,&outl);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArrayRead(appctx->da,uloc,&ul);CHKERRQ(ierr);
-  ierr = DMDAVecRestoreArrayRead(appctx->da,ujloc,&uj);CHKERRQ(ierr);
+  DMDAVecRestoreArrayRead(appctx->da,in,&uloc);CHKERRQ(ierr);
+  DMDAVecRestoreArrayRead(appctx->da,appctx->dat.pass_sol,&ujloc);CHKERRQ(ierr);
+
+  VecSet(out,0.0);
 
   DMLocalToGlobalBegin(appctx->da,outloc,ADD_VALUES,out);
   DMLocalToGlobalEnd(appctx->da,outloc,ADD_VALUES,out);
@@ -1170,6 +1243,23 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   ierr = PetscGLLElementAdvectionDestroy(&appctx->SEMop.gll,&grad);CHKERRQ(ierr);
   ierr = PetscGLLElementMassDestroy(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
  
+/*
+  its=its+1;
+  //printf("time to write %f ",&t); 
+  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jacin.m",&viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+  PetscSNPrintf(var,sizeof(var),"in(:,%d)",its);
+  ierr = PetscObjectSetName((PetscObject)in,var);
+  ierr = VecView(in,viewfile);CHKERRQ(ierr);
+  PetscSNPrintf(var,sizeof(var),"out(:,%d)",its);
+  ierr = PetscObjectSetName((PetscObject)out,var);
+  ierr = VecView(out,viewfile);CHKERRQ(ierr);
+  //PetscSNPrintf(var,sizeof(var),"mass",its);
+  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass,var);
+  //ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
+  ierr = PetscViewerPopFormat(viewfile);
+
+ */
    return(0);
  }
 
