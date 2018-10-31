@@ -3226,8 +3226,9 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
           if (l < closureSize) break;
         }
       }
-      if (c < 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Failed to find cell with point %D in its closure",p);
       ierr = DMPlexRestoreTransitiveClosure(plex,p,PETSC_FALSE,NULL,&star);CHKERRQ(ierr);
+      //if (c < 0) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Failed to find cell with point %D in its closure",p);
+      if (c < 0) { printf("[%d] Failed to find cell with point %d in its closure\n",PetscGlobalRank,p); continue; }
 
       if (c < cLocalStart) {
         /* get from the beginning of the ghost layer */
