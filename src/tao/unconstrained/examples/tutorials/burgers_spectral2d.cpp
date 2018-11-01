@@ -91,6 +91,7 @@ typedef struct {
   PetscReal         initial_dt;
   PetscReal         *solutioncoefficients;
   PetscInt          ncoeff;
+  PetscBool         output_matlab;
 } AppCtx;
 
 /*
@@ -151,6 +152,7 @@ int main(int argc,char **argv)
   ierr = PetscOptionsGetInt(NULL,NULL,"-ncoeff",&appctx.ncoeff,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetReal(NULL,NULL,"-Tend",&appctx.param.Tend,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetReal(NULL,NULL,"-mu",&appctx.param.mu,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,NULL,"-output_matlab",&appctx.output_matlab,NULL);CHKERRQ(ierr);
   appctx.param.Lex = appctx.param.Lx/appctx.param.Ex;
   appctx.param.Ley = appctx.param.Ly/appctx.param.Ey;
 
@@ -386,7 +388,7 @@ exit(1);
    //ierr = VecCopy(appctx.dat.ic,appctx.dat.curr_sol);CHKERRQ(ierr);
    //ierr = TSSolve(appctx.ts,appctx.dat.curr_sol);CHKERRQ(ierr);
 
-/*
+  if (appctx.output_matlab) {
     ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"sol2d.m",&viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject)appctx.dat.obj,"sol");
@@ -394,10 +396,9 @@ exit(1);
     ierr = PetscObjectSetName((PetscObject)appctx.dat.ic,"ic");
     ierr = VecView(appctx.dat.ic,viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewfile);
+    //exit(1);
+  }
 
- exit(1);
-
- */
   ierr = TSSetSaveTrajectory(appctx.ts);CHKERRQ(ierr);
 
   /* Set Objective and Initial conditions for the problem and compute Objective function (evolution of true_solution to final time */
@@ -766,7 +767,7 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
 
         // first (B x D_y) v =W7 this mutiplies v
         alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl)
+        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk7[0][0],&Nl);
 
@@ -1124,23 +1125,23 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
   ierr = PetscFree(wrk6);CHKERRQ(ierr);
   
 
-/*
-  its=its+1;
-  //printf("time to write %f ",&t); 
-  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jacin.m",&viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-  PetscSNPrintf(var,sizeof(var),"in(:,%d)",its);
-  ierr = PetscObjectSetName((PetscObject)in,var);
-  ierr = VecView(in,viewfile);CHKERRQ(ierr);
-  PetscSNPrintf(var,sizeof(var),"out(:,%d)",its);
-  ierr = PetscObjectSetName((PetscObject)out,var);
-  ierr = VecView(out,viewfile);CHKERRQ(ierr);
-  //PetscSNPrintf(var,sizeof(var),"mass",its);
-  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass,var);
-  //ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPopFormat(viewfile);
+  if (appctx->output_matlab) {
+    its=its+1;
+    //printf("time to write %f ",&t); 
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jacin.m",&viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    PetscSNPrintf(var,sizeof(var),"in(:,%d)",its);
+    ierr = PetscObjectSetName((PetscObject)in,var);
+    ierr = VecView(in,viewfile);CHKERRQ(ierr);
+    PetscSNPrintf(var,sizeof(var),"out(:,%d)",its);
+    ierr = PetscObjectSetName((PetscObject)out,var);
+    ierr = VecView(out,viewfile);CHKERRQ(ierr);
+    //PetscSNPrintf(var,sizeof(var),"mass",its);
+    //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass,var);
+    //ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewfile);
+  }
 
- */
    return(0);
  }
 
@@ -1250,6 +1251,10 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   ierr = PetscMalloc1(appctx->param.N,&wrk6);CHKERRQ(ierr);
   ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk6[0]);CHKERRQ(ierr);
   for (i=1; i<Nl; i++) wrk6[i] = wrk6[i-1]+Nl;
+
+  ierr = PetscMalloc1(appctx->param.N,&wrk7);CHKERRQ(ierr);
+  ierr = PetscMalloc1(appctx->param.N*appctx->param.N,&wrk7[0]);CHKERRQ(ierr);
+  for (i=1; i<Nl; i++) wrk7[i] = wrk7[i-1]+Nl;
 
 
   alpha = 1.0;
@@ -1451,23 +1456,23 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
   ierr = PetscFree(wrk6);CHKERRQ(ierr);
   ierr = PetscFree((wrk7)[0]);CHKERRQ(ierr);
   ierr = PetscFree(wrk7);CHKERRQ(ierr);
-/*
-  its=its+1;
-  //printf("time to write %f ",&t); 
-  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jacin.m",&viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-  PetscSNPrintf(var,sizeof(var),"in(:,%d)",its);
-  ierr = PetscObjectSetName((PetscObject)in,var);
-  ierr = VecView(in,viewfile);CHKERRQ(ierr);
-  PetscSNPrintf(var,sizeof(var),"out(:,%d)",its);
-  ierr = PetscObjectSetName((PetscObject)out,var);
-  ierr = VecView(out,viewfile);CHKERRQ(ierr);
-  //PetscSNPrintf(var,sizeof(var),"mass",its);
-  //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass,var);
-  //ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPopFormat(viewfile);
 
- */
+  if (appctx->output_matlab) {
+    its=its+1;
+    //printf("time to write %f ",&t); 
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"jacin.m",&viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    PetscSNPrintf(var,sizeof(var),"in(:,%d)",its);
+    ierr = PetscObjectSetName((PetscObject)in,var);
+    ierr = VecView(in,viewfile);CHKERRQ(ierr);
+    PetscSNPrintf(var,sizeof(var),"out(:,%d)",its);
+    ierr = PetscObjectSetName((PetscObject)out,var);
+    ierr = VecView(out,viewfile);CHKERRQ(ierr);
+    //PetscSNPrintf(var,sizeof(var),"mass",its);
+    //ierr = PetscObjectSetName((PetscObject)appctx->SEMop.mass,var);
+    //ierr = VecView(appctx->SEMop.mass,viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewfile);
+  }
    return(0);
  }
 
@@ -1482,10 +1487,10 @@ PetscErrorCode RHSJacobian(TS ts,PetscReal t,Vec globalin, Mat A, Mat B,void *ct
   AppCtx         *appctx = (AppCtx*)ctx;  
   PetscFunctionBegin;
 
-  MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);
+  ierr = MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY);
+  ierr = MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY);
 
-  VecCopy(globalin, appctx->dat.pass_sol);
+  ierr = VecCopy(globalin, appctx->dat.pass_sol);CHKERRQ(ierr);
  
   PetscFunctionReturn(0);
 }
