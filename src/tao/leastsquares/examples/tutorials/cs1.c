@@ -111,7 +111,10 @@ int main(int argc,char **argv)
   */
   ierr = VecAssemblyBegin(x);CHKERRQ(ierr);
   ierr = VecAssemblyEnd(x);CHKERRQ(ierr);
-  /* XH: Debug: View the result, function and Jacobian.  */
+
+  
+  /* XH: Debug: View the result, function and Jacobian.  */    
+  PetscPrintf(PETSC_COMM_SELF, "-------- result x, residual f=A*x-b, and Jacobian=A. -------- \n");  
   ierr = VecView(x,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   ierr = VecView(f,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
   ierr = MatView(J,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
@@ -145,9 +148,9 @@ PetscErrorCode EvaluateFunction(Tao tao, Vec X, Vec F, void *ptr)
   
   /* Even for linear least square, we do not use matrix operation f = b-A*x now, just for future modification and compatability for nonlinear least square */
   for (m=0;m<M;m++) {
-    f[m] = b[m];
+    f[m] = -b[m];
     for (n=0;n<N;n++) {
-      f[m] -= user->A[m][n]*x[n];
+      f[m] += user->A[m][n]*x[n];
     }
   }
   ierr = VecRestoreArrayRead(X,&x);CHKERRQ(ierr);
