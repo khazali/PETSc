@@ -4115,6 +4115,90 @@ static PetscErrorCode DMForestClearAdaptivityForest_pforest(DM dm)
   ierr = PetscFree(pforest->pointSelfToAdaptCids);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+#define PRUNE 0
+#if PRUNE
+static PetscErrorCode DMPforestPruneCones(DM dm, PetscInt depth, PetscInt numPoints[], PetscInt coneSizes[], PetscInt cones[], PetscInt coneOrientations[], PetscScalar vertexCoords[], ISLocalToGlobalMapping *pmap)
+{
+  PetscErrorCode ierr;
+  PetscInt       *pmapid,v,n,d,p,csize,off,pn;
+  PetscBT        valid;
+
+  PetscFunctionBegin;
+  *pmap = NULL;
+  switch (depth) {
+  case 3:
+    csize = 6;
+    break;
+  case 2:
+    csize = 4;
+    break;
+  case 1:
+    csize = 2;
+    break;
+  default:
+    SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_SUP,"Unhandled depth %D",depth);
+    break;
+  }
+  for (d = 0, n = 0; d <= depth; ++d) n += numPoints[d];
+  ierr = PetscBTCreate(n,&valid);CHKERRQ(ierr);
+
+  /* mark cells and their faces */
+  for (p = 0, off = 0; p < n; p++) {
+    PetscInt coneSize = coneSizes[p];
+    PetscInt i, *cone = cones + off;
+
+    off += coneSize;
+    if (coneSize != csize) continue;
+    ierr = PetscBTSet(valid,p);CHKERRQ(ierr);
+    for (i = 0; i < coneSize; i++) {
+      ierr = PetscBTSet(valid,cone[i]);CHKERRQ(ierr);
+    }
+  }
+  csize -= 2;
+
+  /* mark every point that is in the cone of a point of larger depth */
+  for (d = depth - 1; d > 0; --d) {
+    for (p = 0, off = 0; p < n; p++) {
+      PetscInt coneSize = coneSizes[p];
+      PetscInt i,*cone = cones + off;
+
+      off += coneSize;
+      if (coneSize != csize || !PetscBTLookup(valid,p)) continue;
+      for (i = 0; i < coneSize; i++) {
+        ierr = PetscBTSet(valid,cone[i]);CHKERRQ(ierr);
+      }
+    }
+    csize -= 2;
+  }
+
+  /* prints non valid points in the cone list */
+  ierr = PetscMalloc1(n,&pmapid);CHKERRQ(ierr);
+  for (p = 0, pn = 0, off = 0, v = 0; p < n; p++) {
+    csize = coneSizes[p];
+    d     = csize/2;
+    if (PetscUnlikely(!PetscBTLookup(valid,p))) {
+      off  += csize;
+      v    += (PetscInt) (!d);
+      pmapid[p] = -1;
+      printf("[%d] PRUNED POINT %d, depth %d (csize %d)\n",PetscGlobalRank,p,d,csize);
+      continue;
+    }
+    pmapid[p] = pn;
+    pn   += 1;
+    off  += csize;
+    v    += (PetscInt) (!d);
+  }
+  if (pn != n) {
+    ierr = ISLocalToGlobalMappingCreate(PETSC_COMM_SELF,1,n,pmapid,PETSC_OWN_POINTER,pmap);CHKERRQ(ierr);
+    /* ierr = ISLocalToGlobalMappingView(*pmap,NULL);CHKERRQ(ierr); */
+    /* ierr = ISLocalToGlobalMappingApply(*pmap,off,cones,cones);CHKERRQ(ierr); */
+  } else {
+    ierr = PetscFree(pmapid);CHKERRQ(ierr);
+  }
+  ierr = PetscBTDestroy(&valid);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+#endif
 
 static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
 {
@@ -4229,6 +4313,13 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
       }
     }
     ierr  = DMPlexSetMaxProjectionHeight(newPlex,P4EST_DIM - 1);CHKERRQ(ierr);
+#if PRUNE
+    {
+      ISLocalToGlobalMapping pmap;
+      ierr  = DMPforestPruneCones(newPlex,P4EST_DIM,(PetscInt*)points_per_dim->array,(PetscInt*)cone_sizes->array,(PetscInt*)cones->array,(PetscInt*)cone_orientations->array,(PetscScalar*)coords->array,&pmap);CHKERRQ(ierr);
+      ierr = ISLocalToGlobalMappingDestroy(&pmap);CHKERRQ(ierr);
+    }
+#endif
     ierr  = DMPlexCreateFromDAG(newPlex,P4EST_DIM,(PetscInt*)points_per_dim->array,(PetscInt*)cone_sizes->array,(PetscInt*)cones->array,(PetscInt*)cone_orientations->array,(PetscScalar*)coords->array);CHKERRQ(ierr);
     ierr  = PetscSFCreate(comm,&pointSF);CHKERRQ(ierr);
     ierr  = DMCreateReferenceTree_pforest(comm,&refTree);CHKERRQ(ierr);
