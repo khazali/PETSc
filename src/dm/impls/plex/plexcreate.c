@@ -2173,7 +2173,6 @@ static PetscErrorCode DMPlexSwap_Static(DM dmA, DM dmB)
   void            *tmp;
   DMLabelLinkList listTmp;
   DMLabel         depthTmp;
-  PetscInt        tmpI;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -2207,9 +2206,6 @@ static PetscErrorCode DMPlexSwap_Static(DM dmA, DM dmB)
   depthTmp  = dmA->depthLabel;
   dmA->depthLabel = dmB->depthLabel;
   dmB->depthLabel = depthTmp;
-  tmpI         = dmA->levelup;
-  dmA->levelup = dmB->levelup;
-  dmB->levelup = tmpI;
   PetscFunctionReturn(0);
 }
 
