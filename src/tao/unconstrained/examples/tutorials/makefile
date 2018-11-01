@@ -38,6 +38,10 @@ burgers_spectral2d: burgers_spectral2d.o chkopts
 	-${CLINKER} -o burgers_spectral2d burgers_spectral2d.o ${PETSC_TAO_LIB} ${PETSC_TS_LIB} ${AD_BLAS_LIB}
 	${RM} burgers_spectral2d.o
 
+burgers_spectral2d_ad: burgers_spectral2d_ad.o chkopts
+	-${CLINKER} -o burgers_spectral2d_ad burgers_spectral2d_ad.o ${PETSC_TAO_LIB} ${PETSC_TS_LIB} ${AD_BLAS_LIB}
+	${RM} burgers_spectral2d_ad.o
+
 heat-data-assimulation: heat-data-assimulation.o chkopts
 	-${CLINKER} -o heat-data-assimulation heat-data-assimulation.o ${PETSC_TAO_LIB} ${PETSC_TS_LIB}
 	${RM} heat-data-assimulation.o
