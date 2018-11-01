@@ -126,6 +126,7 @@ typedef struct {
   PetscReal         initial_dt;
   PetscReal         *solutioncoefficients;
   PetscInt          ncoeff;
+  PetscBool         output_matlab;
 } AppCtx;
 
 /*
@@ -179,6 +180,7 @@ int main(int argc,char **argv)
   appctx.param.steps = PETSC_MAX_INT;
   appctx.param.Tend  = 2.0;
   appctx.ncoeff      = 2;
+  appctx.output_matlab = PETSC_FALSE;
 
   ierr = PetscOptionsGetInt(NULL,NULL,"-N",&appctx.param.N,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-Ex",&appctx.param.Ex,NULL);CHKERRQ(ierr);
@@ -186,6 +188,7 @@ int main(int argc,char **argv)
   ierr = PetscOptionsGetInt(NULL,NULL,"-ncoeff",&appctx.ncoeff,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetReal(NULL,NULL,"-Tend",&appctx.param.Tend,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetReal(NULL,NULL,"-mu",&appctx.param.mu,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsGetBool(NULL,NULL,"-output_matlab",&appctx.output_matlab,NULL);CHKERRQ(ierr);
   appctx.param.Lex = appctx.param.Lx/appctx.param.Ex;
   appctx.param.Ley = appctx.param.Ly/appctx.param.Ey;
 
@@ -419,7 +422,7 @@ int main(int argc,char **argv)
    //ierr = VecCopy(appctx.dat.ic,appctx.dat.curr_sol);CHKERRQ(ierr);
    //ierr = TSSolve(appctx.ts,appctx.dat.curr_sol);CHKERRQ(ierr);
 
-/*
+  if (appctx.output_matlab) {
     ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,"sol2d.m",&viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject)appctx.dat.obj,"sol");
@@ -427,10 +430,9 @@ int main(int argc,char **argv)
     ierr = PetscObjectSetName((PetscObject)appctx.dat.ic,"ic");
     ierr = VecView(appctx.dat.ic,viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewfile);
+    //exit(1);
+  }
 
- exit(1);
-
- */
   ierr = TSSetSaveTrajectory(appctx.ts);CHKERRQ(ierr);
 
   /* Set Objective and Initial conditions for the problem and compute Objective function (evolution of true_solution to final time */
@@ -644,8 +646,8 @@ template <class T> PetscErrorCode ADRHSFunction (Field<T> **outl, Field<T> **ul,
   PetscScalar     tt, alpha, beta, tempu, tempv,xpy;
   T               aalpha, abeta; 
   PetscInt        inc;  
-  static int its=0;
-  char var[12] ;
+  static int      its=0;
+  char            var[12];
 
   ierr = PetscGLLElementLaplacianCreate(&appctx->SEMop.gll,&stiff);CHKERRQ(ierr);
   ierr = PetscGLLElementMassCreate(&appctx->SEMop.gll,&mass);CHKERRQ(ierr);
@@ -1248,15 +1250,16 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
 
   ierr = TSSolve(appctx->ts,appctx->dat.curr_sol);CHKERRQ(ierr);
  //counter++; // this was for storing the error accross line searches
-  /*
-  PetscSNPrintf(filename,sizeof(filename),"inside.m",its);
-  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,filename,&viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject)appctx->dat.curr_sol,"fwd");
-  ierr = VecView(appctx->dat.curr_sol,viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPopFormat(viewfile);CHKERRQ(ierr);
 
-*/
+  if (appctx->output_matlab) {
+    PetscSNPrintf(filename,sizeof(filename),"inside.m",its);
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,filename,&viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)appctx->dat.curr_sol,"fwd");
+    ierr = VecView(appctx->dat.curr_sol,viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewfile);CHKERRQ(ierr);
+  }
+
   /*
   Store current solution for comparison
   */
@@ -1283,13 +1286,13 @@ PetscErrorCode FormFunctionGradient(Tao tao,Vec IC,PetscReal *f,Vec G,void *ctx)
   ierr = VecDestroy(&temp);CHKERRQ(ierr);
   errex  = PetscSqrtReal(errex); 
 
-/*
-  ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,filename,&viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
-  ierr = PetscObjectSetName((PetscObject)G,"inb");
-  ierr = VecView(G,viewfile);CHKERRQ(ierr);
-  ierr = PetscViewerPopFormat(viewfile);CHKERRQ(ierr);
-*/
+  if (appctx->output_matlab) {
+    ierr = PetscViewerASCIIOpen(PETSC_COMM_WORLD,filename,&viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPushFormat(viewfile,PETSC_VIEWER_ASCII_MATLAB);CHKERRQ(ierr);
+    ierr = PetscObjectSetName((PetscObject)G,"inb");
+    ierr = VecView(G,viewfile);CHKERRQ(ierr);
+    ierr = PetscViewerPopFormat(viewfile);CHKERRQ(ierr);
+  }
 
 /*
      Compute initial conditions for the adjoint integration. See Notes above

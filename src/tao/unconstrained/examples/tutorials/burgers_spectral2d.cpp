@@ -145,6 +145,7 @@ int main(int argc,char **argv)
   appctx.param.steps = PETSC_MAX_INT;
   appctx.param.Tend  = 1.0;
   appctx.ncoeff      = 2;
+  appctx.output_matlab = PETSC_FALSE;
 
   ierr = PetscOptionsGetInt(NULL,NULL,"-N",&appctx.param.N,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsGetInt(NULL,NULL,"-Ex",&appctx.param.Ex,NULL);CHKERRQ(ierr);
@@ -376,9 +377,9 @@ int main(int argc,char **argv)
     //ierr = PetscObjectSetName((PetscObject)ref,"ref");
     //ierr = VecView(ref,viewfile);CHKERRQ(ierr);
     ierr = PetscViewerPopFormat(viewfile);
-    printf("test i %d length %d\n",its, appctx.param.lenx*appctx.param.leny);
+    //printf("test i %d length %d\n",its, appctx.param.lenx*appctx.param.leny);
     } 
-exit(1);
+//exit(1);
 
   //ierr = VecDuplicate(appctx.dat.ic,&uu);CHKERRQ(ierr);
   //ierr = VecCopy(appctx.dat.ic,uu);CHKERRQ(ierr);
@@ -408,6 +409,8 @@ exit(1);
   ierr = ComputeObjective(appctx.param.Tend,appctx.dat.true_solution,&appctx);CHKERRQ(ierr);
   //ierr = TrueSolution(appctx.dat.true_solution,&appctx);CHKERRQ(ierr);
   //ierr = ComputeObjective(4.0,appctx.dat.obj,&appctx);CHKERRQ(ierr);
+
+exit(1); // TODO: temp
 
   /* Create TAO solver and set desired solution method  */
   ierr = TaoCreate(PETSC_COMM_WORLD,&tao);CHKERRQ(ierr);
