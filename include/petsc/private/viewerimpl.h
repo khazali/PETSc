@@ -45,5 +45,10 @@ PETSC_EXTERN PetscMPIInt Petsc_Viewer_HDF5_keyval;
 PETSC_EXTERN PetscMPIInt Petsc_Viewer_Socket_keyval;
 #endif
 
+#if defined(PETSC_HAVE_HDF5)
+#include <petscviewerhdf5.h>
+#include <petscis.h>
+PETSC_INTERN PetscErrorCode PetscViewerHDF5Load_Internal(PetscViewer,const char *,PetscLayout,hid_t,void**);
+#endif
 
 #endif
