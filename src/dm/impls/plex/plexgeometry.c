@@ -532,7 +532,7 @@ PetscErrorCode DMPlexComputeGridHash_Internal(DM dm, PetscGridHash *localBox)
               for (ii = 0, cpoint[0] = point[0]; ii < 2; ++ii, cpoint[0] += h[0]) {
 
                 ierr = DMPlexLocatePoint_Internal(dm, dim, cpoint, c, &cell);CHKERRQ(ierr);
-                if (cell >= 0) {DMLabelSetValue(lbox->cellsSparse, c, box);CHKERRQ(ierr); ii = jj = kk = 2;}
+                if (cell >= 0) { ierr = DMLabelSetValue(lbox->cellsSparse, c, box);CHKERRQ(ierr); ii = jj = kk = 2;}
               }
             }
           }
@@ -554,7 +554,7 @@ PetscErrorCode DMPlexComputeGridHash_Internal(DM dm, PetscGridHash *localBox)
                   segB[0]     = PetscRealPart(point[0]);
                   segB[dim+0] = PetscRealPart(point[0]) + ii*h[0];
                   ierr = DMPlexGetLineIntersection_2D_Internal(segA, segB, NULL, &intersects);CHKERRQ(ierr);
-                  if (intersects) {DMLabelSetValue(lbox->cellsSparse, c, box);CHKERRQ(ierr); edge = ii = jj = kk = dim+1;}
+                  if (intersects) { ierr = DMLabelSetValue(lbox->cellsSparse, c, box);CHKERRQ(ierr); edge = ii = jj = kk = dim+1;}
                 }
               }
             }

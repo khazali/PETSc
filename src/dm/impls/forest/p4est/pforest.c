@@ -1956,7 +1956,7 @@ static PetscErrorCode DMReferenceTreeGetChildSymmetry_pforest(DM dm, PetscInt pa
           if (coneSize != 0 && coneSize != 2) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Expected a vertex or an edge");
           /* we may have to flip an edge */
           oBtrue        = coneSize ? ((sOrientB >= 0) ? oB[j] : -(oB[j] + 2)) : 0;
-          ABswap        = DihedralSwap(coneSize,oA[i],oBtrue);CHKERRQ(ierr);
+          ABswap        = DihedralSwap(coneSize,oA[i],oBtrue);
           *childOrientB = DihedralCompose(coneSize,childOrientA,ABswap);
         }
         break;
@@ -2112,10 +2112,10 @@ static PetscErrorCode DMCreateReferenceTree_pforest(MPI_Comm comm, DM *dm)
       ierr = DMCreateLabel(dmRoot,"identity");CHKERRQ(ierr);
       ierr = DMCreateLabel(dmRefined,"identity");CHKERRQ(ierr);
       for (p = 0; p < P4EST_INSUL; p++) {
-        DMSetLabelValue(dmRoot,"identity",p,p);CHKERRQ(ierr);
+        ierr = DMSetLabelValue(dmRoot,"identity",p,p);CHKERRQ(ierr);
       }
       for (p = 0; p < nPoints; p++) {
-        DMSetLabelValue(dmRefined,"identity",p,ident[p]);CHKERRQ(ierr);
+        ierr = DMSetLabelValue(dmRefined,"identity",p,ident[p]);CHKERRQ(ierr);
       }
     }
   }
