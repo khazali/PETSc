@@ -84,6 +84,7 @@ int main(int argc, char **argv)
   PetscReal      diff, tol = PETSC_SMALL;
   PetscBool      linear = PETSC_FALSE;
   PetscBool      useFV = PETSC_FALSE;
+  PetscBool      conv = PETSC_FALSE;
   PetscDS        ds;
   bc_func_ctx    bcCtx;
   DMLabel        adaptLabel;
@@ -95,6 +96,7 @@ int main(int argc, char **argv)
   ierr = PetscOptionsInt("-dim", "The dimension (2 or 3)", "ex2.c", dim, &dim, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-linear","Transfer a simple linear function", "ex2.c", linear, &linear, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_fv","Use a finite volume approximation", "ex2.c", useFV, &useFV, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-test_convert","Test conversion to DMPLEX",NULL,conv,&conv,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   if (linear) {
@@ -200,6 +202,15 @@ int main(int argc, char **argv)
   ierr = PetscObjectGetReference((PetscObject)preForest,&postCount);CHKERRQ(ierr);
   if (postCount != preCount) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Adaptation not memory neutral: reference count increase from %d to %d\n",preCount,postCount);
 
+  if (conv) {
+    DM dmConv;
+
+    ierr = DMConvert(postForest,DMPLEX,&dmConv);CHKERRQ(ierr);
+    ierr = DMPlexCheckCellShape(dmConv,PETSC_TRUE);CHKERRQ(ierr);
+    ierr = DMViewFromOptions(dmConv,NULL,"-dm_conv_view");CHKERRQ(ierr);
+    ierr = DMDestroy(&dmConv);CHKERRQ(ierr);
+  }
+
   /* cleanup */
   ierr = VecDestroy(&postVecExact);CHKERRQ(ierr);
   ierr = VecDestroy(&postVecTransfer);CHKERRQ(ierr);
@@ -228,6 +239,30 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
+       TODO: broken (codimension adjacency)
+       output_file: output/ex2_2d_fv.out
+       suffix: p4est_2d_fv_adjcodim
+       args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1 -dm_forest_adjacency_codimension 1
+       nsize: 2
+       requires: p4est
+
+     test:
+       TODO: broken (dimension adjacency)
+       output_file: output/ex2_2d_fv.out
+       suffix: p4est_2d_fv_adjdim
+       args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1 -dm_forest_adjacency_dimension 1
+       nsize: 2
+       requires: p4est
+
+     test:
+       TODO: broken (zero cells on one process?)
+       output_file: output/ex2_2d_fv.out
+       suffix: p4est_2d_fv_zerocells
+       args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
+       nsize: 10
+       requires: p4est
+
+     test:
        output_file: output/ex2_3d.out
        suffix: p4est_3d
        args: -petscspace_poly_tensor -petscspace_degree 1 -dim 3
@@ -240,5 +275,11 @@ int main(int argc, char **argv)
        args: -use_fv -linear -dim 3 -dm_forest_partition_overlap 1
        nsize: 3
        requires: p4est
+
+     test:
+       TODO: broken (nans in coordinates vector!)
+       suffix: p4est_3d_nans
+       args: -dim 3 -dm_forest_partition_overlap 1 -test_convert -dm_conv_view ::ascii_info_detail -petscspace_poly_tensor -petscspace_degree 1
+       nsize: 2
 
 TEST*/
