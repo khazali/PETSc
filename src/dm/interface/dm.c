@@ -4935,10 +4935,8 @@ PetscErrorCode DMSetPeriodicity(DM dm, PetscBool per, const PetscReal maxCell[],
   if (maxCell) {
     ierr = PetscMalloc3(dim,&dm->L,dim,&dm->maxCell,dim,&dm->bdtype);CHKERRQ(ierr);
     for (d = 0; d < dim; ++d) {dm->L[d] = L[d]; dm->maxCell[d] = maxCell[d]; dm->bdtype[d] = bd[d];}
-    dm->periodic = PETSC_TRUE;
-  } else {
-    dm->periodic = per;
   }
+  dm->periodic = per;
   PetscFunctionReturn(0);
 }
 
