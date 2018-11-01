@@ -1,20 +1,20 @@
 #ALL:
 
-#CFLAGS		 =
-#FFLAGS		 =
-#CPPFLAGS         =
-#FPPFLAGS         =
-#EXAMPLESC        = eptorsion1.c eptorsion2.c minsurf2.c rosenbrock1.c spectraladjointassimilation.c
-#EXAMPLESF        = eptorsion2f.F rosenbrock1f.F90
-#EXAMPLESCH       =
-#EXAMPLESFH       = eptorsion2f.h rosenbrock1f.h
-#LOCDIR		 = src/tao/unconstrained/examples/tutorials/
-#MANSEC		 =
-#DOCS		 =
-#DIRS		 =
-#CLEANFILES       = eptorsion1 eptorsion2 minsurf2 rosenbrock1 eptorsion2f rosenbrock1f
+CFLAGS		=
+FFLAGS		=
+CPPFLAGS        =
+FPPFLAGS        =
+#EXAMPLESC       = eptorsion1.c eptorsion2.c minsurf2.c rosenbrock1.c spectraladjointassimilation.c
+#EXAMPLESF       = eptorsion2f.F rosenbrock1f.F90
+#EXAMPLESCH      =
+#EXAMPLESFH      = eptorsion2f.h rosenbrock1f.h
+LOCDIR		= src/tao/unconstrained/examples/tutorials/
+MANSEC		=
+DOCS		=
+DIRS		=
+CLEANFILES	= eptorsion1 eptorsion2 minsurf2 rosenbrock1 eptorsion2f rosenbrock1f burgers_spectral2d
 
-AD_BLAS_LIB=${PETSC_DIR}/${PETSC_ARCH}/lib/libadblaslapack.a
+AD_BLAS_LIB	= ${PETSC_DIR}/${PETSC_ARCH}/lib/libadblaslapack.a
 
 #CODI_INCLUDE=
 #CPPFLAGS		 += -I$(CODI_INCLUDE) -Wno-unused-variable 
