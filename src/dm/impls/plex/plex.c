@@ -2604,7 +2604,7 @@ PetscErrorCode DMPlexStratify(DM dm)
     }
     ierr = MPI_Allreduce(&numValues,&maxValues,1,MPIU_INT,MPI_MAX,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
     for (v = numValues; v < maxValues; v++) {
-      DMLabelAddStratum(label,v);CHKERRQ(ierr);
+      ierr = DMLabelAddStratum(label,v);CHKERRQ(ierr);
     }
   }
   ierr = DMLabelGetState(label, &mesh->depthState);CHKERRQ(ierr);

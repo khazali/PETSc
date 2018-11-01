@@ -2238,8 +2238,8 @@ PetscErrorCode PetscSFDistributeSection(PetscSF sf, PetscSection rootSection, Pe
   }
   ierr = PetscSectionGetChart(rootSection, &rpStart, &rpEnd);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(sf,&nroots,NULL,NULL,NULL);CHKERRQ(ierr);
-  rpEnd = PetscMin(rpEnd,nroots);CHKERRQ(ierr);
-  rpEnd = PetscMax(rpStart,rpEnd);CHKERRQ(ierr);
+  rpEnd = PetscMin(rpEnd,nroots);
+  rpEnd = PetscMax(rpStart,rpEnd);
   ierr = ISCreateStride(PETSC_COMM_SELF, rpEnd - rpStart, rpStart, 1, &selected);CHKERRQ(ierr);
   ierr = ISGetIndices(selected, &indices);CHKERRQ(ierr);
   ierr = PetscSFCreateEmbeddedSF(sf, rpEnd - rpStart, indices, &embedSF);CHKERRQ(ierr);
