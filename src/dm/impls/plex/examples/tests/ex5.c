@@ -306,7 +306,7 @@ typedef struct {
   PetscInt  testNum;       /* The particular mesh to test */
 } AppCtx;
 
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscErrorCode ierr;
 
@@ -327,7 +327,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateSimplex_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
+static PetscErrorCode CreateSimplex_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
   DM             idm;
   PetscInt       p;
@@ -384,7 +384,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateSimplex_3D(MPI_Comm comm, AppCtx *user, DM dm)
+static PetscErrorCode CreateSimplex_3D(MPI_Comm comm, AppCtx *user, DM dm)
 {
   PetscInt       depth = 3, testNum  = user->testNum, p;
   PetscMPIInt    rank;
@@ -444,7 +444,7 @@ PetscErrorCode CreateSimplex_3D(MPI_Comm comm, AppCtx *user, DM dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateQuad_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
+static PetscErrorCode CreateQuad_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
   DM             idm;
   PetscInt       p;
@@ -513,7 +513,7 @@ PetscErrorCode CreateQuad_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
+static PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
   DM             idm;
   PetscInt       depth = 3, p;
@@ -613,7 +613,7 @@ PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim          = user->dim;
   PetscBool      cellSimplex  = user->cellSimplex, hasFault, hasFault2, hasParallelFault;
@@ -773,9 +773,17 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   }
   ierr = PetscObjectSetName((PetscObject) *dm, "Hybrid Mesh");CHKERRQ(ierr);
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
-  ierr = DMPlexCheckSymmetry(*dm);CHKERRQ(ierr);
-  ierr = DMPlexCheckSkeleton(*dm, user->cellSimplex, 0);CHKERRQ(ierr);
-  ierr = DMPlexCheckFaces(*dm, user->cellSimplex, 0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TestMesh(DM dm, AppCtx *user)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMPlexCheckSymmetry(dm);CHKERRQ(ierr);
+  ierr = DMPlexCheckSkeleton(dm, user->cellSimplex, 0);CHKERRQ(ierr);
+  ierr = DMPlexCheckFaces(dm, user->cellSimplex, 0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -788,6 +796,7 @@ int main(int argc, char **argv)
   ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
   ierr = ProcessOptions(PETSC_COMM_WORLD, &user);CHKERRQ(ierr);
   ierr = CreateMesh(PETSC_COMM_WORLD, &user, &dm);CHKERRQ(ierr);
+  ierr = TestMesh(dm, &user);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return ierr;
