@@ -85,7 +85,6 @@ static PetscErrorCode DMPlexCreateSectionInitial(DM dm, PetscInt dim, PetscInt n
       const PetscInt *points;
       PetscInt        n;
 
-      ierr = DMLabelView(label[f], PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
       ierr = DMLabelGetStratumIS(label[f], 1, &pointIS);CHKERRQ(ierr);
       if (!pointIS) continue;
       ierr = ISGetLocalSize(pointIS, &n);CHKERRQ(ierr);
