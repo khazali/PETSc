@@ -9,6 +9,7 @@ static char help[] = "Tests for creation of hybrid meshes\n\n";
 */
 
 #include <petscdmplex.h>
+#include <petscds.h>
 /* List of test meshes
 
 Triangle
@@ -306,7 +307,7 @@ typedef struct {
   PetscInt  testNum;       /* The particular mesh to test */
 } AppCtx;
 
-PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
+static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 {
   PetscErrorCode ierr;
 
@@ -327,7 +328,7 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateSimplex_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
+static PetscErrorCode CreateSimplex_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
   DM             idm;
   PetscInt       p;
@@ -384,7 +385,7 @@ PetscErrorCode CreateSimplex_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateSimplex_3D(MPI_Comm comm, AppCtx *user, DM dm)
+static PetscErrorCode CreateSimplex_3D(MPI_Comm comm, AppCtx *user, DM dm)
 {
   PetscInt       depth = 3, testNum  = user->testNum, p;
   PetscMPIInt    rank;
@@ -444,7 +445,7 @@ PetscErrorCode CreateSimplex_3D(MPI_Comm comm, AppCtx *user, DM dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateQuad_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
+static PetscErrorCode CreateQuad_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
   DM             idm;
   PetscInt       p;
@@ -513,7 +514,7 @@ PetscErrorCode CreateQuad_2D(MPI_Comm comm, PetscInt testNum, DM *dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
+static PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
 {
   DM             idm;
   PetscInt       depth = 3, p;
@@ -613,7 +614,29 @@ PetscErrorCode CreateHex_3D(MPI_Comm comm, PetscInt testNum, DM *dm)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
+static PetscErrorCode CreateFaultLabel(DM dm)
+{
+  DMLabel        label;
+  PetscInt       dim, d, pStart, pEnd, p;
+  PetscInt      *pMax;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = PetscMalloc1(dim+1, &pMax);CHKERRQ(ierr);
+  ierr = DMPlexGetHybridBounds(dm, dim > 0 ? &pMax[dim] : NULL, dim>1 ? &pMax[dim-1] : NULL, dim>2 ? &pMax[1] : NULL, &pMax[0]);CHKERRQ(ierr);
+  ierr = DMCreateLabel(dm, "cohesive");CHKERRQ(ierr);
+  ierr = DMGetLabel(dm, "cohesive", &label);CHKERRQ(ierr);
+  for (d = 0; d <= dim; ++d) {
+    ierr = DMPlexGetDepthStratum(dm, d, &pStart, &pEnd);CHKERRQ(ierr);
+    pStart = pMax[d] < 0 ? pEnd : pMax[d];
+    for (p = pStart; p < pEnd; ++p) {ierr = DMLabelSetValue(label, p, 1);CHKERRQ(ierr);}
+  }
+  ierr = PetscFree(pMax);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 {
   PetscInt       dim          = user->dim;
   PetscBool      cellSimplex  = user->cellSimplex, hasFault, hasFault2, hasParallelFault;
@@ -649,14 +672,18 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   ierr = DMPlexCheckFaces(*dm, user->cellSimplex, 0);CHKERRQ(ierr);
   ierr = DMHasLabel(*dm, "fault", &hasFault);CHKERRQ(ierr);
   if (hasFault) {
-    DM      dmHybrid = NULL;
-    DMLabel faultLabel, faultBdLabel, hybridLabel;
+    DM      dmHybrid = NULL, dmInterface = NULL;
+    DMLabel faultLabel, faultBdLabel, hybridLabel, splitLabel;
 
     ierr = DMGetLabel(*dm, "fault", &faultLabel);CHKERRQ(ierr);
     ierr = DMGetLabel(*dm, "faultBd", &faultBdLabel);CHKERRQ(ierr);
-    ierr = DMPlexCreateHybridMesh(*dm, faultLabel, faultBdLabel, &hybridLabel, NULL, NULL, &dmHybrid);CHKERRQ(ierr);
+    ierr = DMPlexCreateHybridMesh(*dm, faultLabel, faultBdLabel, &hybridLabel, &splitLabel, &dmInterface, &dmHybrid);CHKERRQ(ierr);
     ierr = DMLabelView(hybridLabel, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
     ierr = DMLabelDestroy(&hybridLabel);CHKERRQ(ierr);
+    ierr = DMLabelView(splitLabel, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = DMLabelDestroy(&splitLabel);CHKERRQ(ierr);
+    ierr = DMViewFromOptions(dmInterface, NULL, "-dm_interface_view");CHKERRQ(ierr);
+    ierr = DMDestroy(&dmInterface);CHKERRQ(ierr);
     ierr = DMDestroy(dm);CHKERRQ(ierr);
     *dm  = dmHybrid;
   }
@@ -773,9 +800,48 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   }
   ierr = PetscObjectSetName((PetscObject) *dm, "Hybrid Mesh");CHKERRQ(ierr);
   ierr = DMViewFromOptions(*dm, NULL, "-dm_view");CHKERRQ(ierr);
-  ierr = DMPlexCheckSymmetry(*dm);CHKERRQ(ierr);
-  ierr = DMPlexCheckSkeleton(*dm, user->cellSimplex, 0);CHKERRQ(ierr);
-  ierr = DMPlexCheckFaces(*dm, user->cellSimplex, 0);CHKERRQ(ierr);
+  ierr = CreateFaultLabel(*dm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TestMesh(DM dm, AppCtx *user)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMPlexCheckSymmetry(dm);CHKERRQ(ierr);
+  ierr = DMPlexCheckSkeleton(dm, user->cellSimplex, 0);CHKERRQ(ierr);
+  ierr = DMPlexCheckFaces(dm, user->cellSimplex, 0);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode TestDiscretization(DM dm, AppCtx *user)
+{
+  PetscDS        prob;
+  PetscFE        fe;
+  PetscSection   s;
+  DMLabel        fault;
+  PetscInt       dim;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
+  ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(PETSC_COMM_WORLD, dim, dim, user->cellSimplex, "displacement_", PETSC_DETERMINE, &fe);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) fe, "displacement");CHKERRQ(ierr);
+  ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
+  ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(PETSC_COMM_WORLD, dim-1, dim, user->cellSimplex, "faulttraction_", PETSC_DETERMINE, &fe);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) fe, "fault traction");CHKERRQ(ierr);
+  ierr = PetscDSSetDiscretization(prob, 1, (PetscObject) fe);CHKERRQ(ierr);
+  ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
+  ierr = DMGetLabel(dm, "cohesive", &fault);CHKERRQ(ierr);
+  ierr = DMLabelView(fault, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+  ierr = PetscDSSetLabel(prob, 1, fault);CHKERRQ(ierr);
+  ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
+
+  ierr = DMGetSection(dm, &s);CHKERRQ(ierr);
+  ierr = PetscObjectViewFromOptions((PetscObject) s, NULL, "-local_section_view");CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -788,6 +854,8 @@ int main(int argc, char **argv)
   ierr = PetscInitialize(&argc, &argv, NULL,help);if (ierr) return ierr;
   ierr = ProcessOptions(PETSC_COMM_WORLD, &user);CHKERRQ(ierr);
   ierr = CreateMesh(PETSC_COMM_WORLD, &user, &dm);CHKERRQ(ierr);
+  ierr = TestMesh(dm, &user);CHKERRQ(ierr);
+  ierr = TestDiscretization(dm, &user);CHKERRQ(ierr);
   ierr = DMDestroy(&dm);CHKERRQ(ierr);
   ierr = PetscFinalize();
   return ierr;
@@ -797,50 +865,63 @@ int main(int argc, char **argv)
   # 2D Simplex
   test:
     suffix: tri_0
-    args: -dim 2 -dm_view ascii::ascii_info_detail
+    args: -dim 2 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   test:
     suffix: tri_1
     nsize: 2
-    args: -dim 2 -dm_view ascii::ascii_info_detail
+    args: -dim 2 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   test:
     suffix: tri_t1_0
-    args: -dim 2 -test_num 1 -dm_view ascii::ascii_info_detail
+    args: -dim 2 -test_num 1 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   # 2D Quads
   test:
     suffix: quad_0
-    args: -dim 2 -cell_simplex 0 -dm_view ascii::ascii_info_detail
+    args: -dim 2 -cell_simplex 0 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   test:
     suffix: quad_1
     nsize: 2
-    args: -dim 2 -cell_simplex 0 -dm_view ascii::ascii_info_detail
+    args: -dim 2 -cell_simplex 0 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   test:
     suffix: quad_t1_0
-    args: -dim 2 -cell_simplex 0 -test_num 1 -dm_view ascii::ascii_info_detail
+    args: -dim 2 -cell_simplex 0 -test_num 1 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
     TODO: turn on test
   # 3D Simplex
   test:
     suffix: tet_0
-    args: -dim 3 -dm_view ascii::ascii_info_detail
+    args: -dim 3 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   test:
     suffix: tet_1
     nsize: 2
-    args: -dim 3 -dm_view ascii::ascii_info_detail
+    args: -dim 3 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   test:
     suffix: tet_t1_0
-    args: -dim 3 -test_num 1 -dm_view ascii::ascii_info_detail
+    args: -dim 3 -test_num 1 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   # 3D Hex
   test:
     suffix: hex_0
-    args: -dim 3 -cell_simplex 0 -dm_view ascii::ascii_info_detail
+    args: -dim 3 -cell_simplex 0 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   test:
     suffix: hex_1
     nsize: 2
-    args: -dim 3 -cell_simplex 0 -dm_view ascii::ascii_info_detail
+    args: -dim 3 -cell_simplex 0 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   test:
     suffix: hex_t1_0
-    args: -dim 3 -cell_simplex 0 -test_num 1 -dm_view ascii::ascii_info_detail
+    args: -dim 3 -cell_simplex 0 -test_num 1 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
   test:
     suffix: hex_t2_0
-    args: -dim 3 -cell_simplex 0 -test_num 2 -dm_view ascii::ascii_info_detail
+    args: -dim 3 -cell_simplex 0 -test_num 2 -dm_view ascii::ascii_info_detail \
+          -displacement_petscspace_degree 1 -faulttraction_petscspace_degree 1 -petscds_view -local_section_view
 
 TEST*/

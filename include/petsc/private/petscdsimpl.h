@@ -52,6 +52,7 @@ struct _p_PetscDS {
   PetscRiemannFunc *r;            /* Riemann solvers */
   PetscPointFunc   *update;       /* Direct update of field coefficients */
   PetscSimplePointFunc *exactSol; /* Exact solutions for each field */
+  DMLabel          *label;        /* Label for each field */
   PetscInt          numConstants; /* Number of constants passed to point functions */
   PetscScalar      *constants;    /* Array of constants passed to point functions */
   void       **ctx;               /* User contexts for each field */

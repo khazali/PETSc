@@ -1,4 +1,5 @@
 #include <petsc/private/petscdsimpl.h> /*I "petscds.h" I*/
+#include <petsc/private/dmlabelimpl.h> /* To reference DMLabel */
 
 PetscClassId PETSCDS_CLASSID = 0;
 
@@ -386,6 +387,7 @@ static PetscErrorCode PetscDSEnlarge_Static(PetscDS prob, PetscInt NfNew)
   PetscBdPointJac  *tmpgbd;
   PetscRiemannFunc *tmpr;
   PetscSimplePointFunc *tmpexactSol;
+  DMLabel              *tmplabel;
   void            **tmpctx;
   PetscInt          Nf = prob->Nf, f, i;
   PetscErrorCode    ierr;
@@ -429,17 +431,20 @@ static PetscErrorCode PetscDSEnlarge_Static(PetscDS prob, PetscInt NfNew)
   prob->r   = tmpr;
   prob->update = tmpup;
   prob->ctx = tmpctx;
-  ierr = PetscCalloc3(NfNew*2, &tmpfbd, NfNew*NfNew*4, &tmpgbd, NfNew, &tmpexactSol);CHKERRQ(ierr);
+  ierr = PetscCalloc4(NfNew*2, &tmpfbd, NfNew*NfNew*4, &tmpgbd, NfNew, &tmpexactSol, NfNew, &tmplabel);CHKERRQ(ierr);
   for (f = 0; f < Nf*2; ++f) tmpfbd[f] = prob->fBd[f];
   for (f = 0; f < Nf*Nf*4; ++f) tmpgbd[f] = prob->gBd[f];
   for (f = 0; f < Nf; ++f) tmpexactSol[f] = prob->exactSol[f];
+  for (f = 0; f < Nf; ++f) tmplabel[f] = prob->label[f];
   for (f = Nf*2; f < NfNew*2; ++f) tmpfbd[f] = NULL;
   for (f = Nf*Nf*4; f < NfNew*NfNew*4; ++f) tmpgbd[f] = NULL;
   for (f = Nf; f < NfNew; ++f) tmpexactSol[f] = NULL;
-  ierr = PetscFree3(prob->fBd, prob->gBd, prob->exactSol);CHKERRQ(ierr);
+  for (f = Nf; f < NfNew; ++f) tmplabel[f] = NULL;
+  ierr = PetscFree4(prob->fBd, prob->gBd, prob->exactSol, prob->label);CHKERRQ(ierr);
   prob->fBd = tmpfbd;
   prob->gBd = tmpgbd;
   prob->exactSol = tmpexactSol;
+  prob->label = tmplabel;
   PetscFunctionReturn(0);
 }
 
@@ -481,7 +486,10 @@ PetscErrorCode PetscDSDestroy(PetscDS *prob)
   ierr = PetscFree3((*prob)->disc, (*prob)->implicit, (*prob)->adjacency);CHKERRQ(ierr);
   ierr = PetscFree7((*prob)->obj,(*prob)->f,(*prob)->g,(*prob)->gp,(*prob)->gt,(*prob)->r,(*prob)->ctx);CHKERRQ(ierr);
   ierr = PetscFree((*prob)->update);CHKERRQ(ierr);
-  ierr = PetscFree3((*prob)->fBd,(*prob)->gBd,(*prob)->exactSol);CHKERRQ(ierr);
+  for (f = 0; f < (*prob)->Nf; ++f) {
+    ierr = DMLabelDestroy(&(*prob)->label[f]);CHKERRQ(ierr);
+  }
+  ierr = PetscFree4((*prob)->fBd,(*prob)->gBd,(*prob)->exactSol,(*prob)->label);CHKERRQ(ierr);
   if ((*prob)->ops->destroy) {ierr = (*(*prob)->ops->destroy)(*prob);CHKERRQ(ierr);}
   next = (*prob)->boundary;
   while (next) {
@@ -2220,7 +2228,7 @@ PetscErrorCode PetscDSGetExactSolution(PetscDS prob, PetscInt f, PetscErrorCode 
 }
 
 /*@C
-  PetscDSSetExactSolution - Get the pointwise exact solution function for a given test field
+  PetscDSSetExactSolution - Set the pointwise exact solution function for a given test field
 
   Not collective
 
@@ -2253,6 +2261,59 @@ PetscErrorCode PetscDSSetExactSolution(PetscDS prob, PetscInt f, PetscErrorCode 
   if (f < 0) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Field number %d must be non-negative", f);
   ierr = PetscDSEnlarge_Static(prob, f+1);CHKERRQ(ierr);
   if (sol) {PetscValidFunction(sol, 3); prob->exactSol[f] = sol;}
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  PetscDSGetLabel - Get the label for a given test field
+
+  Not collective
+
+  Input Parameters:
++ prob - The PetscDS
+- f    - The test field number
+
+  Output Parameter:
+. label - The DMLabel indicating what part of the mesh the field is defined over, or NULL for the entire mesh
+
+  Level: intermediate
+
+.seealso: PetscDSSetLabel()
+@*/
+PetscErrorCode PetscDSGetLabel(PetscDS prob, PetscInt f, DMLabel *label)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(prob, PETSCDS_CLASSID, 1);
+  if ((f < 0) || (f >= prob->Nf)) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Field number %d must be in [0, %d)", f, prob->Nf);
+  if (label) {PetscValidPointer(label, 3); *label = prob->label[f];}
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  PetscDSSetLabel - Set the label for a given test field
+
+  Not collective
+
+  Input Parameters:
++ prob  - The PetscDS
+. f     - The test field number
+- label - The DMLabel indicating what part of the mesh the field is defined over, or NULL for the entire mesh
+
+  Level: intermediate
+
+.seealso: PetscDSGetLabel()
+@*/
+PetscErrorCode PetscDSSetLabel(PetscDS prob, PetscInt f, DMLabel label)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(prob, PETSCDS_CLASSID, 1);
+  if (f < 0) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Field number %d must be non-negative", f);
+  ierr = PetscDSEnlarge_Static(prob, f+1);CHKERRQ(ierr);
+  ierr = DMLabelDestroy(&prob->label[f]);CHKERRQ(ierr);
+  label->refct++;
+  prob->label[f] = label;
   PetscFunctionReturn(0);
 }
 
@@ -2683,6 +2744,70 @@ PetscErrorCode PetscDSAddBoundary(PetscDS ds, DMBoundaryConditionType type, cons
   PetscFunctionReturn(0);
 }
 
+/*@C
+  PetscDSUpdateBoundary - Change a boundary condition for the model
+
+  Input Parameters:
++ ds          - The PetscDS object
+. bd          - The boundary condition number
+. type        - The type of condition, e.g. DM_BC_ESSENTIAL/DM_BC_ESSENTIAL_FIELD (Dirichlet), or DM_BC_NATURAL (Neumann)
+. name        - The BC name
+. labelname   - The label defining constrained points
+. field       - The field to constrain
+. numcomps    - The number of constrained field components
+. comps       - An array of constrained component numbers
+. bcFunc      - A pointwise function giving boundary values
+. numids      - The number of DMLabel ids for constrained points
+. ids         - An array of ids for constrained points
+- ctx         - An optional user context for bcFunc
+
+  Note: The boundary condition number is the order in which it was registered. The user can get the number of boundary conditions from PetscDSGetNumBoundary().
+
+  Level: developer
+
+.seealso: PetscDSAddBoundary(), PetscDSGetBoundary(), PetscDSGetNumBoundary()
+@*/
+PetscErrorCode PetscDSUpdateBoundary(PetscDS ds, PetscInt bd, DMBoundaryConditionType type, const char name[], const char labelname[], PetscInt field, PetscInt numcomps, const PetscInt *comps, void (*bcFunc)(void), PetscInt numids, const PetscInt *ids, void *ctx)
+{
+  DSBoundary     b = ds->boundary;
+  PetscInt       n = 0;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(ds, PETSCDS_CLASSID, 1);
+  while (b) {
+    if (n == bd) break;
+    b = b->next;
+    ++n;
+  }
+  if (!b) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_OUTOFRANGE, "Boundary %d is not in [0, %d)", bd, n);
+  if (name) {
+    ierr = PetscFree(b->name);CHKERRQ(ierr);
+    ierr = PetscStrallocpy(name, (char **) &b->name);CHKERRQ(ierr);
+  }
+  if (labelname) {
+    ierr = PetscFree(b->labelname);CHKERRQ(ierr);
+    ierr = PetscStrallocpy(labelname, (char **) &b->labelname);CHKERRQ(ierr);
+  }
+  if (numcomps >= 0 && numcomps != b->numcomps) {
+    b->numcomps = numcomps;
+    ierr = PetscFree(b->comps);CHKERRQ(ierr);
+    ierr = PetscMalloc1(numcomps, &b->comps);CHKERRQ(ierr);
+    if (numcomps) {ierr = PetscMemcpy(b->comps, comps, numcomps*sizeof(PetscInt));CHKERRQ(ierr);}
+  }
+  if (numids >= 0 && numids != b->numids) {
+    b->numids = numids;
+    ierr = PetscFree(b->ids);CHKERRQ(ierr);
+    ierr = PetscMalloc1(numids, &b->ids);CHKERRQ(ierr);
+    if (numids) {ierr = PetscMemcpy(b->ids, ids, numids*sizeof(PetscInt));CHKERRQ(ierr);}
+  }
+  b->type = type;
+  if (field >= 0) {b->field  = field;}
+  if (bcFunc)     {b->func   = bcFunc;}
+  if (ctx)        {b->ctx    = ctx;}
+  PetscFunctionReturn(0);
+}
+
 /*@
   PetscDSGetNumBoundary - Get the number of registered BC
 
@@ -2709,7 +2834,7 @@ PetscErrorCode PetscDSGetNumBoundary(PetscDS ds, PetscInt *numBd)
 }
 
 /*@C
-  PetscDSGetBoundary - Add a boundary condition to the model
+  PetscDSGetBoundary - Gets a boundary condition to the model
 
   Input Parameters:
 + ds          - The PetscDS object
