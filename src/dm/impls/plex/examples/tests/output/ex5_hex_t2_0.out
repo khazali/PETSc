@@ -39,6 +39,31 @@ Label 'subpoint_map':
 [0]: 61 (201)
 [0]: 9 (200)
 [0]: 18 (200)
+Label 'subpoint_map split':
+[0]: 9 (100)
+[0]: 10 (100)
+[0]: 18 (100)
+[0]: 19 (100)
+[0]: 24 (-100)
+[0]: 25 (-100)
+[0]: 26 (-100)
+[0]: 27 (-100)
+[0]: 59 (101)
+[0]: 62 (101)
+[0]: 65 (101)
+[0]: 68 (101)
+[0]: 71 (101)
+[0]: 72 (101)
+[0]: 90 (-101)
+[0]: 91 (-101)
+[0]: 92 (-101)
+[0]: 93 (-101)
+[0]: 94 (-101)
+[0]: 95 (-101)
+[0]: 32 (102)
+[0]: 37 (102)
+[0]: 48 (-102)
+[0]: 49 (-102)
 DM Object: Hybrid Mesh 1 MPI processes
   type: plex
 Hybrid Mesh in 3 dimensions:
@@ -555,3 +580,251 @@ Process 0:
   (  25) dim  3 offset  57 0. 0. 0.
   (  26) dim  3 offset  60 0. -2. 2.
   (  27) dim  3 offset  63 0. 0. 2.
+Label 'cohesive':
+[0]: 4 (1)
+[0]: 5 (1)
+[0]: 50 (1)
+[0]: 51 (1)
+[0]: 52 (1)
+[0]: 53 (1)
+[0]: 54 (1)
+[0]: 55 (1)
+[0]: 56 (1)
+[0]: 96 (1)
+[0]: 97 (1)
+[0]: 98 (1)
+[0]: 99 (1)
+[0]: 100 (1)
+[0]: 101 (1)
+Discrete System with 2 fields
+  Field displacement   FEM  3 components   (implicit)   (adj FEM)   (Nq 8 Nqc 1)  
+    Basic Finite Element:
+      dimension:       3
+      components:      3
+      num quad points: 8
+      PetscSpace Object: (displacement_) 1 MPI processes
+        type: poly
+        Space in 3 variables of order 1 with 3 components
+        Tensor polynomial space of degree 1
+      Continuous Tensor Lagrange dual space of order 1       with 3 components      
+  Field fault traction   FEM  3 components   (implicit)   (adj FEM)   (Nq 4 Nqc 1)  
+    Basic Finite Element:
+      dimension:       2
+      components:      3
+      num quad points: 4
+      PetscSpace Object: (faulttraction_) 1 MPI processes
+        type: poly
+        Space in 2 variables of order 1 with 3 components
+        Tensor polynomial space of degree 1
+      Continuous Tensor Lagrange dual space of order 1       with 3 components      
+PetscSection Object: 1 MPI processes
+  type not yet set
+2 fields
+  field 0 with 3 components
+Process 0:
+  (   0) dim  0 offset   0
+  (   1) dim  0 offset   0
+  (   2) dim  0 offset   0
+  (   3) dim  0 offset   0
+  (   4) dim  0 offset   0
+  (   5) dim  0 offset   0
+  (   6) dim  3 offset   0
+  (   7) dim  3 offset   3
+  (   8) dim  3 offset   6
+  (   9) dim  3 offset   9
+  (  10) dim  3 offset  12
+  (  11) dim  3 offset  15
+  (  12) dim  3 offset  18
+  (  13) dim  3 offset  21
+  (  14) dim  3 offset  24
+  (  15) dim  3 offset  27
+  (  16) dim  3 offset  30
+  (  17) dim  3 offset  33
+  (  18) dim  3 offset  36
+  (  19) dim  3 offset  39
+  (  20) dim  3 offset  42
+  (  21) dim  3 offset  45
+  (  22) dim  3 offset  48
+  (  23) dim  3 offset  51
+  (  24) dim  3 offset  54
+  (  25) dim  3 offset  57
+  (  26) dim  3 offset  60
+  (  27) dim  3 offset  63
+  (  28) dim  0 offset  66
+  (  29) dim  0 offset  66
+  (  30) dim  0 offset  66
+  (  31) dim  0 offset  66
+  (  32) dim  0 offset  66
+  (  33) dim  0 offset  66
+  (  34) dim  0 offset  66
+  (  35) dim  0 offset  66
+  (  36) dim  0 offset  66
+  (  37) dim  0 offset  66
+  (  38) dim  0 offset  66
+  (  39) dim  0 offset  66
+  (  40) dim  0 offset  66
+  (  41) dim  0 offset  66
+  (  42) dim  0 offset  66
+  (  43) dim  0 offset  66
+  (  44) dim  0 offset  66
+  (  45) dim  0 offset  66
+  (  46) dim  0 offset  66
+  (  47) dim  0 offset  66
+  (  48) dim  0 offset  66
+  (  49) dim  0 offset  66
+  (  50) dim  0 offset  66
+  (  51) dim  0 offset  66
+  (  52) dim  0 offset  66
+  (  53) dim  0 offset  66
+  (  54) dim  0 offset  66
+  (  55) dim  0 offset  66
+  (  56) dim  0 offset  66
+  (  57) dim  0 offset  66
+  (  58) dim  0 offset  66
+  (  59) dim  0 offset  66
+  (  60) dim  0 offset  66
+  (  61) dim  0 offset  66
+  (  62) dim  0 offset  66
+  (  63) dim  0 offset  66
+  (  64) dim  0 offset  66
+  (  65) dim  0 offset  66
+  (  66) dim  0 offset  66
+  (  67) dim  0 offset  66
+  (  68) dim  0 offset  66
+  (  69) dim  0 offset  66
+  (  70) dim  0 offset  66
+  (  71) dim  0 offset  66
+  (  72) dim  0 offset  66
+  (  73) dim  0 offset  66
+  (  74) dim  0 offset  66
+  (  75) dim  0 offset  66
+  (  76) dim  0 offset  66
+  (  77) dim  0 offset  66
+  (  78) dim  0 offset  66
+  (  79) dim  0 offset  66
+  (  80) dim  0 offset  66
+  (  81) dim  0 offset  66
+  (  82) dim  0 offset  66
+  (  83) dim  0 offset  66
+  (  84) dim  0 offset  66
+  (  85) dim  0 offset  66
+  (  86) dim  0 offset  66
+  (  87) dim  0 offset  66
+  (  88) dim  0 offset  66
+  (  89) dim  0 offset  66
+  (  90) dim  0 offset  66
+  (  91) dim  0 offset  66
+  (  92) dim  0 offset  66
+  (  93) dim  0 offset  66
+  (  94) dim  0 offset  66
+  (  95) dim  0 offset  66
+  (  96) dim  0 offset  66
+  (  97) dim  0 offset  69
+  (  98) dim  0 offset  72
+  (  99) dim  0 offset  75
+  ( 100) dim  0 offset  78
+  ( 101) dim  0 offset  81
+  field 1 with 3 components
+Process 0:
+  (   0) dim  0 offset   0
+  (   1) dim  0 offset   0
+  (   2) dim  0 offset   0
+  (   3) dim  0 offset   0
+  (   4) dim  0 offset   0
+  (   5) dim  0 offset   0
+  (   6) dim  0 offset   3
+  (   7) dim  0 offset   6
+  (   8) dim  0 offset   9
+  (   9) dim  0 offset  12
+  (  10) dim  0 offset  15
+  (  11) dim  0 offset  18
+  (  12) dim  0 offset  21
+  (  13) dim  0 offset  24
+  (  14) dim  0 offset  27
+  (  15) dim  0 offset  30
+  (  16) dim  0 offset  33
+  (  17) dim  0 offset  36
+  (  18) dim  0 offset  39
+  (  19) dim  0 offset  42
+  (  20) dim  0 offset  45
+  (  21) dim  0 offset  48
+  (  22) dim  0 offset  51
+  (  23) dim  0 offset  54
+  (  24) dim  0 offset  57
+  (  25) dim  0 offset  60
+  (  26) dim  0 offset  63
+  (  27) dim  0 offset  66
+  (  28) dim  0 offset  66
+  (  29) dim  0 offset  66
+  (  30) dim  0 offset  66
+  (  31) dim  0 offset  66
+  (  32) dim  0 offset  66
+  (  33) dim  0 offset  66
+  (  34) dim  0 offset  66
+  (  35) dim  0 offset  66
+  (  36) dim  0 offset  66
+  (  37) dim  0 offset  66
+  (  38) dim  0 offset  66
+  (  39) dim  0 offset  66
+  (  40) dim  0 offset  66
+  (  41) dim  0 offset  66
+  (  42) dim  0 offset  66
+  (  43) dim  0 offset  66
+  (  44) dim  0 offset  66
+  (  45) dim  0 offset  66
+  (  46) dim  0 offset  66
+  (  47) dim  0 offset  66
+  (  48) dim  0 offset  66
+  (  49) dim  0 offset  66
+  (  50) dim  0 offset  66
+  (  51) dim  0 offset  66
+  (  52) dim  0 offset  66
+  (  53) dim  0 offset  66
+  (  54) dim  0 offset  66
+  (  55) dim  0 offset  66
+  (  56) dim  0 offset  66
+  (  57) dim  0 offset  66
+  (  58) dim  0 offset  66
+  (  59) dim  0 offset  66
+  (  60) dim  0 offset  66
+  (  61) dim  0 offset  66
+  (  62) dim  0 offset  66
+  (  63) dim  0 offset  66
+  (  64) dim  0 offset  66
+  (  65) dim  0 offset  66
+  (  66) dim  0 offset  66
+  (  67) dim  0 offset  66
+  (  68) dim  0 offset  66
+  (  69) dim  0 offset  66
+  (  70) dim  0 offset  66
+  (  71) dim  0 offset  66
+  (  72) dim  0 offset  66
+  (  73) dim  0 offset  66
+  (  74) dim  0 offset  66
+  (  75) dim  0 offset  66
+  (  76) dim  0 offset  66
+  (  77) dim  0 offset  66
+  (  78) dim  0 offset  66
+  (  79) dim  0 offset  66
+  (  80) dim  0 offset  66
+  (  81) dim  0 offset  66
+  (  82) dim  0 offset  66
+  (  83) dim  0 offset  66
+  (  84) dim  0 offset  66
+  (  85) dim  0 offset  66
+  (  86) dim  0 offset  66
+  (  87) dim  0 offset  66
+  (  88) dim  0 offset  66
+  (  89) dim  0 offset  66
+  (  90) dim  0 offset  66
+  (  91) dim  0 offset  66
+  (  92) dim  0 offset  66
+  (  93) dim  0 offset  66
+  (  94) dim  0 offset  66
+  (  95) dim  0 offset  66
+  (  96) dim  3 offset  66
+  (  97) dim  3 offset  69
+  (  98) dim  3 offset  72
+  (  99) dim  3 offset  75
+  ( 100) dim  3 offset  78
+  ( 101) dim  3 offset  81

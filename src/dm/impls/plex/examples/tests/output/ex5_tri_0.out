@@ -8,6 +8,13 @@ Label 'subpoint_map':
 [0]: 1 (-102)
 [0]: 9 (-101)
 [0]: 10 (-101)
+Label 'subpoint_map split':
+[0]: 4 (100)
+[0]: 5 (100)
+[0]: 7 (-100)
+[0]: 8 (-100)
+[0]: 10 (101)
+[0]: 14 (-101)
 DM Object: Hybrid Mesh 1 MPI processes
   type: plex
 Hybrid Mesh in 2 dimensions:
@@ -83,3 +90,69 @@ Label 'marker':
 [0]: 6 (1)
 [0]: 7 (1)
 [0]: 8 (1)
+Label 'cohesive':
+[0]: 2 (1)
+[0]: 15 (1)
+[0]: 16 (1)
+Discrete System with 2 fields
+  Field displacement   FEM  2 components   (implicit)   (adj FEM)   (Nq 4 Nqc 1)  
+    Basic Finite Element:
+      dimension:       2
+      components:      2
+      num quad points: 4
+      PetscSpace Object: (displacement_) 1 MPI processes
+        type: poly
+        Space in 2 variables of order 1 with 2 components
+        Polynomial space of degree 1
+      Continuous Lagrange dual space of order 1       with 2 components      
+  Field fault traction   FEM  2 components   (implicit)   (adj FEM)   (Nq 2 Nqc 1)  
+    Basic Finite Element:
+      dimension:       1
+      components:      2
+      num quad points: 2
+      PetscSpace Object: (faulttraction_) 1 MPI processes
+        type: poly
+        Space in 1 variables of order 1 with 2 components
+        Polynomial space of degree 1
+      Continuous Lagrange dual space of order 1       with 2 components      
+PetscSection Object: 1 MPI processes
+  type not yet set
+2 fields
+  field 0 with 2 components
+Process 0:
+  (   0) dim  0 offset   0
+  (   1) dim  0 offset   0
+  (   2) dim  0 offset   0
+  (   3) dim  2 offset   0
+  (   4) dim  2 offset   2
+  (   5) dim  2 offset   4
+  (   6) dim  2 offset   6
+  (   7) dim  2 offset   8
+  (   8) dim  2 offset  10
+  (   9) dim  0 offset  12
+  (  10) dim  0 offset  12
+  (  11) dim  0 offset  12
+  (  12) dim  0 offset  12
+  (  13) dim  0 offset  12
+  (  14) dim  0 offset  12
+  (  15) dim  0 offset  12
+  (  16) dim  0 offset  14
+  field 1 with 2 components
+Process 0:
+  (   0) dim  0 offset   0
+  (   1) dim  0 offset   0
+  (   2) dim  0 offset   0
+  (   3) dim  0 offset   2
+  (   4) dim  0 offset   4
+  (   5) dim  0 offset   6
+  (   6) dim  0 offset   8
+  (   7) dim  0 offset  10
+  (   8) dim  0 offset  12
+  (   9) dim  0 offset  12
+  (  10) dim  0 offset  12
+  (  11) dim  0 offset  12
+  (  12) dim  0 offset  12
+  (  13) dim  0 offset  12
+  (  14) dim  0 offset  12
+  (  15) dim  2 offset  12
+  (  16) dim  2 offset  14
