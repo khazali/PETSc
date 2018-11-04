@@ -5078,7 +5078,9 @@ PetscErrorCode DMLocalizeAddCoordinate_Internal(DM dm, PetscInt dim, const Petsc
 }
 
 /*@
-  DMGetCoordinatesLocalized - Check if the DM coordinates have been localized for cells
+  DMGetCoordinatesLocalizedLocal - Check if the DM coordinates have been localized for cells on this process
+
+  Not collective
 
   Input Parameter:
 . dm - The DM
@@ -5088,9 +5090,9 @@ PetscErrorCode DMLocalizeAddCoordinate_Internal(DM dm, PetscInt dim, const Petsc
 
   Level: developer
 
-.seealso: DMLocalizeCoordinates()
+.seealso: DMLocalizeCoordinates(), DMGetCoordinatesLocalized(), DMSetPeriodicity()
 @*/
-PetscErrorCode DMGetCoordinatesLocalized(DM dm,PetscBool *areLocalized)
+PetscErrorCode DMGetCoordinatesLocalizedLocal(DM dm,PetscBool *areLocalized)
 {
   DM             cdm;
   PetscSection   coordSection;
@@ -5101,9 +5103,7 @@ PetscErrorCode DMGetCoordinatesLocalized(DM dm,PetscBool *areLocalized)
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
   PetscValidPointer(areLocalized, 2);
-
   *areLocalized = PETSC_FALSE;
-  if (!dm->periodic) PetscFunctionReturn(0); /* This is a hideous optimization hack! */
 
   /* We need some generic way of refering to cells/vertices */
   ierr = DMGetCoordinateDM(dm, &cdm);CHKERRQ(ierr);
@@ -5119,20 +5119,49 @@ PetscErrorCode DMGetCoordinatesLocalized(DM dm,PetscBool *areLocalized)
     ierr = PetscSectionGetDof(coordSection, c, &dof);CHKERRQ(ierr);
     if (dof) { alreadyLocalized = PETSC_TRUE; break; }
   }
-  ierr = MPIU_Allreduce(&alreadyLocalized,areLocalized,1,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+  *areLocalized = alreadyLocalized;
   PetscFunctionReturn(0);
 }
 
+/*@
+  DMGetCoordinatesLocalized - Check if the DM coordinates have been localized for cells
+
+  Collective on dm
+
+  Input Parameter:
+. dm - The DM
+
+  Output Parameter:
+  areLocalized - True if localized
+
+  Level: developer
+
+.seealso: DMLocalizeCoordinates(), DMSetPeriodicity(), DMGetCoordinatesLocalizedLocal()
+@*/
+PetscErrorCode DMGetCoordinatesLocalized(DM dm,PetscBool *areLocalized)
+{
+  PetscBool      localized;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidPointer(areLocalized, 2);
+  ierr = DMGetCoordinatesLocalizedLocal(dm,&localized);CHKERRQ(ierr);
+  ierr = MPIU_Allreduce(&localized,areLocalized,1,MPIU_BOOL,MPI_LOR,PetscObjectComm((PetscObject)dm));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
 
 /*@
   DMLocalizeCoordinates - If a mesh is periodic, create local coordinates for cells having periodic faces
+
+  Collective on dm
 
   Input Parameter:
 . dm - The DM
 
   Level: developer
 
-.seealso: DMLocalizeCoordinate(), DMLocalizeAddCoordinate()
+.seealso: DMSetPeriodicity(), DMLocalizeCoordinate(), DMLocalizeAddCoordinate()
 @*/
 PetscErrorCode DMLocalizeCoordinates(DM dm)
 {
@@ -5337,6 +5366,8 @@ PetscErrorCode DMLocatePoints(DM dm, Vec v, DMPointLocationType ltype, PetscSF *
 
 /*@
   DMGetOutputDM - Retrieve the DM associated with the layout for output
+
+  Collective on dm
 
   Input Parameter:
 . dm - The original DM
