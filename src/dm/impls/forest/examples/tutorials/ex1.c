@@ -62,11 +62,18 @@ int main(int argc, char **argv)
         requires: p4est
 
       test:
-        TODO: broken (space dimension, mapping? : note that with 1 process the vtu has something)
+        TODO: broken (geometry mapping)
         output_file: output/ex1_shell.out
         suffix: p4est_topology_shell_convert
         nsize: 3
         args: -dm_type p8est -dm_forest_topology shell -test_convert -dm_conv_view vtk:shellconv.vtu
+
+      test:
+        TODO: broken (geometry mapping)
+        output_file: output/ex1_sphere.out
+        suffix: p4est_topology_sphere_convert
+        nsize: 3
+        args: -dm_type p8est -dm_forest_topology sphere -dm_view vtk:sphere.vtu  -dm_forest_initial_refinement 1 -dm_forest_maximum_refinement 1 -test_convert -dm_conv_view vtk:sphereconv.vtu
 
       test:
         output_file: output/ex1_brick.out
