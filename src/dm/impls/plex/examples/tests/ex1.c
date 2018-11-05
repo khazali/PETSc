@@ -36,7 +36,7 @@ typedef struct {
   PetscBool     check[3];                        /* Runs DMPlex checks on the mesh */
   PetscReal     extrude_thickness;               /* Thickness of extrusion */
   PetscInt      extrude_layers;                  /* Layers to be extruded */
-  PetscBool     testp4est[3];
+  PetscBool     testp4est[2];
 } AppCtx;
 
 PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
@@ -119,7 +119,6 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsBool("-check_faces", "Run DMPlexCheckFaces", "ex1.c", options->check[2], &options->check[2], NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_p4est_seq", "Test p4est with sequential base DM", "ex1.c", options->testp4est[0], &options->testp4est[0], NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_p4est_par", "Test p4est with parallel base DM", "ex1.c", options->testp4est[1], &options->testp4est[1], NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-test_p4est_maxcell", "Propagate maxCell to p4est", "ex1.c", options->testp4est[2], &options->testp4est[2], NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
 
   ierr = PetscLogEventRegister("CreateMesh", DM_CLASSID, &options->createMeshEvent);CHKERRQ(ierr);
@@ -143,7 +142,6 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   const char    *extfilename          = user->extfilename;
   PetscBool      testp4est_seq        = user->testp4est[0];
   PetscBool      testp4est_par        = user->testp4est[1];
-  PetscBool      testp4est_maxcell    = user->testp4est[2];
   PetscInt       triSizes_n2[2]       = {4, 4};
   PetscInt       triPoints_n2[8]      = {3, 5, 6, 7, 0, 1, 2, 4};
   PetscInt       triSizes_n8[8]       = {1, 1, 1, 1, 1, 1, 1, 1};
@@ -215,10 +213,8 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
   if (testp4est_seq) {
 #if defined(PETSC_HAVE_P4EST)
-    PetscBool  isper;
     DM dmConv = NULL;
 
-    ierr = DMGetPeriodicity(*dm,&isper,NULL,NULL,NULL);CHKERRQ(ierr);
     ierr = DMPlexSetRefinementUniform(*dm, PETSC_TRUE);CHKERRQ(ierr);
     ierr = DMPlexRefineSimplexToTensor(*dm, &dmConv);CHKERRQ(ierr);
     if (dmConv) {
@@ -226,16 +222,13 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       *dm  = dmConv;
     }
     user->cellSimplex = PETSC_FALSE;
-    if (!testp4est_maxcell) {
-      ierr = DMSetPeriodicity(*dm,isper,NULL,NULL,NULL);CHKERRQ(ierr);
-    }
 
     ierr = DMConvert(*dm,dim == 2 ? DMP4EST : DMP8EST,&dmConv);CHKERRQ(ierr);
     if (dmConv) {
+      ierr = DMSetFromOptions(dmConv);CHKERRQ(ierr);
       ierr = DMDestroy(dm);CHKERRQ(ierr);
       *dm  = dmConv;
     }
-    ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
     ierr = DMSetUp(*dm);CHKERRQ(ierr);
     ierr = DMViewFromOptions(*dm, NULL, "-conv_seq_1_dm_view");CHKERRQ(ierr);
     ierr = DMConvert(*dm,DMPLEX,&dmConv);CHKERRQ(ierr);
@@ -244,9 +237,6 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       *dm  = dmConv;
     }
     ierr = DMViewFromOptions(*dm, NULL, "-conv_seq_2_dm_view");CHKERRQ(ierr);
-#else
-    (void)testp4est_maxcell;
-    SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_SUP,"Need to configure PETSc with --download-p4est");
 #endif
   }
 
@@ -315,10 +305,8 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
   if (testp4est_par) {
 #if defined(PETSC_HAVE_P4EST)
-    PetscBool  isper;
     DM dmConv = NULL;
 
-    ierr = DMGetPeriodicity(*dm,&isper,NULL,NULL,NULL);CHKERRQ(ierr);
     ierr = DMPlexSetRefinementUniform(*dm, PETSC_TRUE);CHKERRQ(ierr);
     ierr = DMPlexRefineSimplexToTensor(*dm, &dmConv);CHKERRQ(ierr);
     if (dmConv) {
@@ -326,16 +314,13 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       *dm  = dmConv;
     }
     user->cellSimplex = PETSC_FALSE;
-    if (!testp4est_maxcell) {
-      ierr = DMSetPeriodicity(*dm,isper,NULL,NULL,NULL);CHKERRQ(ierr);
-    }
 
     ierr = DMConvert(*dm,dim == 2 ? DMP4EST : DMP8EST,&dmConv);CHKERRQ(ierr);
     if (dmConv) {
+      ierr = DMSetFromOptions(dmConv);CHKERRQ(ierr);
       ierr = DMDestroy(dm);CHKERRQ(ierr);
       *dm  = dmConv;
     }
-    ierr = DMSetFromOptions(*dm);CHKERRQ(ierr);
     ierr = DMSetUp(*dm);CHKERRQ(ierr);
     ierr = DMViewFromOptions(*dm, NULL, "-conv_par_1_dm_view");CHKERRQ(ierr);
     ierr = DMConvert(*dm,DMPLEX,&dmConv);CHKERRQ(ierr);
@@ -344,9 +329,6 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
       *dm  = dmConv;
     }
     ierr = DMViewFromOptions(*dm, NULL, "-conv_par_2_dm_view");CHKERRQ(ierr);
-#else
-    (void)testp4est_maxcell;
-    SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_SUP,"Need to configure PETSc with --download-p4est");
 #endif
   }
 
@@ -761,7 +743,7 @@ int main(int argc, char **argv)
 
   testset:
     requires: p4est
-    args: -interpolate -dm_view -test_p4est_seq -test_shape -check_symmetry -check_skeleton -check_faces
+    args: -interpolate -dm_view -test_p4est_seq -test_shape -check_symmetry -check_skeleton -check_faces -dm_forest_minimum_refinement 1
     test:
       suffix: p4est_periodic
       args: -dim 2 -domain_shape box -cell_simplex 0 -x_periodicity periodic -y_periodicity periodic -domain_box_sizes 3,5 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 2 -dm_p4est_refine_pattern hash
@@ -774,6 +756,10 @@ int main(int argc, char **argv)
     test:
       suffix: p4est_gmsh_surface
       args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/surfacesphere_bin.msh -dm_plex_gmsh_spacedim 3
+    test:
+      TODO: broken
+      suffix: p4est_s2t_bugfaces_3d
+      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 0 -dim 3 -domain_box_sizes 1,1 -cell_simplex
     test:
       TODO: broken
       suffix: p4est_bug_overlapsf
