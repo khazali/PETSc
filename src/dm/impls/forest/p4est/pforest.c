@@ -4430,7 +4430,6 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
     ierr = DMClone(newPlex,plex);CHKERRQ(ierr);
     ierr = DMGetCoordinateDM(newPlex,&coordDM);CHKERRQ(ierr);
     ierr = DMSetCoordinateDM(*plex,coordDM);CHKERRQ(ierr);
-
     ierr = DMShareDiscretization(dm,*plex);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
