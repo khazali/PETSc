@@ -2840,11 +2840,10 @@ PetscErrorCode DMPlexComputeInterpolatorTree(DM coarse, DM fine, PetscSF coarseT
     ierr = PetscSectionGetMaxDof(leafIndicesSec,&maxColumns);CHKERRQ(ierr);
     ierr = PetscMalloc1(maxConDof*maxColumns,&pointWork);CHKERRQ(ierr);
     for (p = leafStart; p < leafEnd; p++) {
-      PetscInt    gDof, gcDof, gOff;
-      PetscInt    numColIndices, pIndOff, *pInd;
-      PetscInt    matSize;
-      PetscInt    childId;
-
+      PetscInt gDof, gcDof, gOff;
+      PetscInt numColIndices, pIndOff, *pInd;
+      PetscInt matSize;
+      PetscInt childId;
 
       ierr = PetscSectionGetDof(globalFine,p,&gDof);CHKERRQ(ierr);
       ierr = PetscSectionGetConstraintDof(globalFine,p,&gcDof);CHKERRQ(ierr);
