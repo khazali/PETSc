@@ -51,6 +51,15 @@ static PetscErrorCode MultiaffineFunction(PetscInt dim,PetscReal time, const Pet
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode CoordsFunction(PetscInt dim,PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar u[], void *ctx)
+{
+  PetscInt f;
+
+  PetscFunctionBeginUser;
+  for (f=0;f<Nf;f++) u[f] = x[f];
+  PetscFunctionReturn(0);
+}
+
 typedef struct _bc_func_ctx
 {
   PetscErrorCode (*func) (PetscInt,PetscReal,const PetscReal [], PetscInt, PetscScalar [], void *);
@@ -75,7 +84,7 @@ int main(int argc, char **argv)
 {
   MPI_Comm       comm;
   DM             base, preForest, postForest;
-  PetscInt       dim = 2;
+  PetscInt       dim = 2, Nf = 1;
   PetscInt       preCount, postCount;
   Vec            preVec, postVecTransfer, postVecExact;
   PetscErrorCode (*funcs[1]) (PetscInt,PetscReal,const PetscReal [],PetscInt,PetscScalar [], void *) = {MultiaffineFunction};
@@ -83,8 +92,10 @@ int main(int argc, char **argv)
   const PetscInt cells[] = {3, 3, 3};
   PetscReal      diff, tol = PETSC_SMALL;
   PetscBool      linear = PETSC_FALSE;
+  PetscBool      coords = PETSC_FALSE;
   PetscBool      useFV = PETSC_FALSE;
   PetscBool      conv = PETSC_FALSE;
+  PetscBool      transfer_from_base = PETSC_FALSE;
   PetscDS        ds;
   bc_func_ctx    bcCtx;
   DMLabel        adaptLabel;
@@ -95,17 +106,23 @@ int main(int argc, char **argv)
   ierr = PetscOptionsBegin(comm, "", "DMForestTransferVec() Test Options", "DMFOREST");CHKERRQ(ierr);
   ierr = PetscOptionsInt("-dim", "The dimension (2 or 3)", "ex2.c", dim, &dim, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-linear","Transfer a simple linear function", "ex2.c", linear, &linear, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-coords","Transfer a simple coordinate function", "ex2.c", coords, &coords, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_fv","Use a finite volume approximation", "ex2.c", useFV, &useFV, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_convert","Test conversion to DMPLEX",NULL,conv,&conv,NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-transfer_from_base","Transfer a vector from base DM to DMForest", "ex2.c", transfer_from_base, &transfer_from_base, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   if (linear) {
     funcs[0] = LinearFunction;
   }
+  if (coords) {
+    funcs[0] = CoordsFunction;
+    Nf = dim;
+  }
 
   bcCtx.func = funcs[0];
   bcCtx.dim  = dim;
-  bcCtx.Nf   = 1;
+  bcCtx.Nf   = Nf;
   bcCtx.ctx  = NULL;
 
   /* the base mesh */
@@ -121,7 +138,7 @@ int main(int argc, char **argv)
     ierr = PetscFVCreate(comm, &fv);CHKERRQ(ierr);
     ierr = PetscFVSetSpatialDimension(fv,dim);CHKERRQ(ierr);
     ierr = PetscFVSetType(fv,PETSCFVLEASTSQUARES);CHKERRQ(ierr);
-    ierr = PetscFVSetNumComponents(fv,1);CHKERRQ(ierr);
+    ierr = PetscFVSetNumComponents(fv,Nf);CHKERRQ(ierr);
     ierr = PetscLimiterCreate(comm,&limiter);CHKERRQ(ierr);
     ierr = PetscLimiterSetType(limiter,PETSCLIMITERNONE);CHKERRQ(ierr);
     ierr = PetscFVSetLimiter(fv,limiter);CHKERRQ(ierr);
@@ -131,17 +148,17 @@ int main(int argc, char **argv)
     ierr = PetscFVDestroy(&fv);CHKERRQ(ierr);
   } else {
     PetscFE fe;
-    ierr = PetscFECreateDefault(comm,dim,1,PETSC_FALSE,NULL,PETSC_DEFAULT,&fe);CHKERRQ(ierr);
+    ierr = PetscFECreateDefault(comm,dim,Nf,PETSC_FALSE,NULL,PETSC_DEFAULT,&fe);CHKERRQ(ierr);
     ierr = DMSetField(base,0,(PetscObject)fe);CHKERRQ(ierr);
     ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
   }
   {
     PetscDS  prob;
-    PetscInt comps[] = {0};
+    PetscInt comps[] = {0, 1, 2};
     PetscInt ids[]   = {1, 2, 3, 4, 5, 6};
 
     ierr = DMGetDS(base,&prob);CHKERRQ(ierr);
-    ierr = PetscDSAddBoundary(prob,DM_BC_ESSENTIAL, "bc", "marker", 0, 1, comps, useFV ? (void(*)(void)) bc_func_fv : (void(*)(void)) funcs[0], 2 * dim, ids, useFV ? (void *) &bcCtx : NULL);CHKERRQ(ierr);
+    ierr = PetscDSAddBoundary(prob,DM_BC_ESSENTIAL, "bc", "marker", 0, Nf, comps, useFV ? (void(*)(void)) bc_func_fv : (void(*)(void)) funcs[0], 2 * dim, ids, useFV ? (void *) &bcCtx : NULL);CHKERRQ(ierr);
   }
   ierr = AddIdentityLabel(base);CHKERRQ(ierr);
   ierr = DMViewFromOptions(base,NULL,"-dm_base_view");CHKERRQ(ierr);
@@ -162,6 +179,50 @@ int main(int argc, char **argv)
   ierr = DMCreateGlobalVector(preForest,&preVec);CHKERRQ(ierr);
   ierr = DMProjectFunction(preForest,0.,funcs,ctxs,INSERT_VALUES,preVec);CHKERRQ(ierr);
   ierr = VecViewFromOptions(preVec,NULL,"-vec_pre_view");CHKERRQ(ierr);
+
+  /* communicate between base and pre adaptivity forest */
+  if (transfer_from_base) {
+    DM  preForestPlex;
+    Mat inject = NULL;
+    Vec baseVec, baseVecMapped;
+
+    SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_SUP,"Not implemented");
+    ierr = DMCreateGlobalVector(base,&baseVec);CHKERRQ(ierr);
+    ierr = DMProjectFunction(base,0.,funcs,ctxs,INSERT_VALUES,baseVec);CHKERRQ(ierr);
+    ierr = VecViewFromOptions(baseVec,NULL,"-vec_base_view");CHKERRQ(ierr);
+
+    ierr = DMCreateGlobalVector(preForest,&baseVecMapped);CHKERRQ(ierr);
+    ierr = DMConvert(preForest,DMPLEX,&preForestPlex);CHKERRQ(ierr);
+    /* none of these alternatives work */
+    //ierr = DMSetCoarseDM(preForestPlex,base);CHKERRQ(ierr);
+    //ierr = DMPlexSetRegularRefinement(preForestPlex,PETSC_TRUE);CHKERRQ(ierr);
+    //ierr = DMCreateInterpolation(base,preForestPlex,&inject,NULL);CHKERRQ(ierr);
+
+    //ierr = DMCreateInjection(base,preForestPlex,&inject);CHKERRQ(ierr);
+
+    //ierr = DMCreateInjection(preForestPlex,base,&inject);CHKERRQ(ierr);
+
+    //ierr = DMCreateRestriction(base,preForestPlex,&inject);CHKERRQ(ierr);
+    (void)(inject);
+    ierr = MatInterpolate(inject,baseVec,baseVecMapped);CHKERRQ(ierr);
+    ierr = VecViewFromOptions(baseVecMapped,NULL,"-vec_basemap_view");CHKERRQ(ierr);
+
+    /* compare */
+    ierr = VecAXPY(baseVecMapped,-1.,preVec);CHKERRQ(ierr);
+    ierr = VecViewFromOptions(baseVecMapped,NULL,"-vec_diff_view");CHKERRQ(ierr);
+    ierr = VecNorm(baseVecMapped,NORM_2,&diff);CHKERRQ(ierr);
+
+    /* output */
+    if (diff < tol) {
+      ierr = PetscPrintf(comm,"Transfer vec from DMPLEX to DMFOREST passes.\n");CHKERRQ(ierr);
+    } else {
+      ierr = PetscPrintf(comm,"Transfer vec from DMPLEX to DMFOREST fails with error %g and tolerance %g\n",diff,tol);CHKERRQ(ierr);
+    }
+
+    ierr = DMDestroy(&preForestPlex);CHKERRQ(ierr);
+    ierr = VecDestroy(&baseVec);CHKERRQ(ierr);
+    ierr = VecDestroy(&baseVecMapped);CHKERRQ(ierr);
+  }
 
   ierr = PetscObjectGetReference((PetscObject)preForest,&preCount);CHKERRQ(ierr);
 
@@ -232,6 +293,20 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
+       TODO: broken (DMForestTransferVec fails)
+       output_file: output/ex2_2d.out
+       suffix: p4est_2d_deg4
+       args: -petscspace_poly_tensor -petscspace_degree 4 -dim 2
+       requires: p4est
+
+     test:
+       TODO: broken (memory corruption)
+       output_file: output/ex2_2d.out
+       suffix: p4est_2d_deg8
+       args: -petscspace_poly_tensor -petscspace_degree 8 -dim 2
+       requires: p4est
+
+     test:
        output_file: output/ex2_2d_fv.out
        suffix: p4est_2d_fv
        args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
@@ -266,6 +341,30 @@ int main(int argc, char **argv)
        output_file: output/ex2_3d.out
        suffix: p4est_3d
        args: -petscspace_poly_tensor -petscspace_degree 1 -dim 3
+       nsize: 3
+       requires: p4est
+
+     test:
+       TODO: broken (DMForestTransferVec fails)
+       output_file: output/ex2_3d.out
+       suffix: p4est_3d_deg3
+       args: -petscspace_poly_tensor -petscspace_degree 3 -dim 3
+       nsize: 3
+       requires: p4est
+
+     test:
+       TODO: broken (DMForestTransferVec fails)
+       output_file: output/ex2_2d.out
+       suffix: p4est_2d_deg2_coords
+       args: -petscspace_poly_tensor -petscspace_degree 2 -dim 2 -coords
+       nsize: 3
+       requires: p4est
+
+     test:
+       TODO: broken (DMForestTransferVec fails)
+       output_file: output/ex2_3d.out
+       suffix: p4est_3d_deg2_coords
+       args: -petscspace_poly_tensor -petscspace_degree 2 -dim 3 -coords
        nsize: 3
        requires: p4est
 
