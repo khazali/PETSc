@@ -1697,4 +1697,3 @@ PETSC_EXTERN PetscErrorCode DMCreate_Forest(DM dm)
   ierr                         = DMInitialize_Forest(dm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-
