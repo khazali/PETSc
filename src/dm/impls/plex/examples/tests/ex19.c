@@ -12,6 +12,7 @@ typedef struct {
   PetscInt  nbrVerEdge;                  /* Number of vertices per edge if unit square/cube generated */
   char      bdLabel[PETSC_MAX_PATH_LEN]; /* Name of the label marking boundary facets */
   PetscBool splitDomain;                 /* Split the domain into two subregions*/
+  char      rgLabel[PETSC_MAX_PATH_LEN]; /* Name of the label marking mesh cells */
   PetscInt  metOpt;                      /* Different choices of metric */
   PetscReal hmax, hmin;                  /* Max and min sizes prescribed by the metric */
   PetscBool doL2;                        /* Test L2 projection */
@@ -23,10 +24,11 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
 
   PetscFunctionBegin;
   options->dim         = 2;
-  ierr = PetscStrcpy(options->mshNam, "");CHKERRQ(ierr);
+  options->mshNam[0]   = 0;
   options->nbrVerEdge  = 5;
-  ierr = PetscStrcpy(options->bdLabel, "");CHKERRQ(ierr);
+  options->bdLabel[0]  = 0;
   options->splitDomain = PETSC_FALSE;
+  options->rgLabel[0]  = 0;
   options->metOpt      = 1;
   options->hmin        = 0.05;
   options->hmax        = 0.5;
@@ -37,7 +39,8 @@ static PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsString("-msh", "Name of the mesh filename if any", "ex19.c", options->mshNam, options->mshNam, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-nbrVerEdge", "Number of vertices per edge if unit square/cube generated", "ex19.c", options->nbrVerEdge, &options->nbrVerEdge, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsString("-bdLabel", "Name of the label marking boundary facets", "ex19.c", options->bdLabel, options->bdLabel, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
-  ierr = PetscOptionsBool("-splitdomain", "Create two internal regions", "ex19.c", options->splitDomain, &options->splitDomain, NULL);CHKERRQ(ierr); 
+  ierr = PetscOptionsBool("-splitdomain", "Create two internal regions", "ex19.c", options->splitDomain, &options->splitDomain, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsString("-rgLabel", "Name of the label marking internal regions", "ex19.c", options->rgLabel, options->rgLabel, PETSC_MAX_PATH_LEN, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsInt("-met", "Different choices of metric", "ex19.c", options->metOpt, &options->metOpt, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-hmax", "Max size prescribed by the metric", "ex19.c", options->hmax, &options->hmax, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsReal("-hmin", "Min size prescribed by the metric", "ex19.c", options->hmin, &options->hmin, NULL);CHKERRQ(ierr);
@@ -314,11 +317,11 @@ int main (int argc, char * argv[]) {
   else          {ierr = DMDestroy(&odm);CHKERRQ(ierr);}
   ierr = ComputeMetric(user.dm, &user, &metric);CHKERRQ(ierr);
   ierr = PetscStrlen(user.bdLabel, &len);CHKERRQ(ierr);
-  if (len) {
-    ierr = DMCreateLabel(user.dm, user.bdLabel);CHKERRQ(ierr);
-    ierr = DMGetLabel(user.dm, user.bdLabel, &bdLabel);CHKERRQ(ierr);
-  }
+  if (len) {ierr = DMGetLabel(user.dm, user.bdLabel, &bdLabel);CHKERRQ(ierr);}
   if (user.splitDomain) {ierr = SplitDomain(user.dm, &rgLabel, &user);CHKERRQ(ierr);}
+  len = 0;
+  ierr = PetscStrlen(user.rgLabel, &len);CHKERRQ(ierr);
+  if (len) {ierr = DMGetLabel(user.dm, user.rgLabel, &rgLabel);CHKERRQ(ierr);}
 
   ierr = DMAdaptMetric(user.dm, metric, bdLabel, rgLabel, &dma);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dma, "DMadapt");CHKERRQ(ierr);
