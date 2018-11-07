@@ -318,7 +318,7 @@ int main (int argc, char * argv[]) {
     ierr = DMCreateLabel(user.dm, user.bdLabel);CHKERRQ(ierr);
     ierr = DMGetLabel(user.dm, user.bdLabel, &bdLabel);CHKERRQ(ierr);
   }
-  ierr = SplitDomain(user.dm, &rgLabel, &user);CHKERRQ(ierr);
+  if (user.splitDomain) {ierr = SplitDomain(user.dm, &rgLabel, &user);CHKERRQ(ierr);}
 
   ierr = DMAdaptMetric(user.dm, metric, bdLabel, rgLabel, &dma);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) dma, "DMadapt");CHKERRQ(ierr);
