@@ -2225,7 +2225,8 @@ PetscErrorCode DMSetFromOptions_NonRefinement_Plex(PetscOptionItems *PetscOption
   /* Partitioning and distribution */
   ierr = PetscOptionsBool("-dm_plex_partition_balance", "Attempt to evenly divide points on partition boundary between processes", "DMPlexSetPartitionBalance", PETSC_FALSE, &mesh->partitionBalance, NULL);CHKERRQ(ierr);
   /* Generation and remeshing */
-  ierr = PetscOptionsBool("-dm_plex_remesh_bd", "Allow changes to the boundary on remeshing", "DMAdapt", PETSC_FALSE, &mesh->remeshBd, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-dm_plex_remesh_bd", "Allow coarsening of non flat external boundaries on remeshing", "DMAdapt", PETSC_FALSE, &mesh->remeshBd, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-dm_plex_remesh_int_bd", "Allow coarsening of non flat internal boundaries on remeshing", "DMAdapt", PETSC_FALSE, &mesh->remeshIntBd, NULL);CHKERRQ(ierr);
   /* Projection behavior */
   ierr = PetscOptionsInt("-dm_plex_max_projection_height", "Maxmimum mesh point height used to project locally", "DMPlexSetMaxProjectionHeight", 0, &mesh->maxProjectionHeight, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-dm_plex_regular_refinement", "Use special nested projection algorithm for regular refinement", "DMPlexSetRegularRefinement", mesh->regularRefinement, &mesh->regularRefinement, NULL);CHKERRQ(ierr);
@@ -2492,6 +2493,7 @@ PETSC_EXTERN PetscErrorCode DMCreate_Plex(DM dm)
   mesh->triangleOpts = NULL;
   ierr = PetscPartitionerCreate(PetscObjectComm((PetscObject)dm), &mesh->partitioner);CHKERRQ(ierr);
   mesh->remeshBd     = PETSC_FALSE;
+  mesh->remeshIntBd  = PETSC_FALSE;
 
   mesh->subpointMap = NULL;
 

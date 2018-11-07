@@ -147,6 +147,7 @@ typedef struct {
   PetscPartitioner     partitioner;
   PetscBool            partitionBalance;  /* Evenly divide partition overlap when distributing */
   PetscBool            remeshBd;
+  PetscBool            remeshIntBd;
 
   /* Submesh */
   DMLabel              subpointMap;       /* Label each original mesh point in the submesh with its depth, subpoint are the implicit numbering */
