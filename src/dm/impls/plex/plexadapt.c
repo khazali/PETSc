@@ -366,7 +366,7 @@ PetscErrorCode DMAdaptMetric_Plex(DM dm, Vec vertexMetric, DMLabel bdLabel, DMLa
   Vec                coordinates;
   const PetscScalar *coords, *met;
   const PetscInt    *bdFacesFull, *gV;
-  PetscInt          *bdFaces, *bdFaceIds, *cellIds, *l2gv;
+  PetscInt          *bdFaces, *bdFaceIds, *cellIds = NULL, *l2gv;
   PetscReal         *x, *y, *z, *metric;
   PetscInt          *cells;
   PetscInt           dim, cStart, cEnd, numCells, c, coff, vStart, vEnd, numVertices, numLocVertices, v;
