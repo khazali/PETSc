@@ -323,6 +323,9 @@ PetscErrorCode DMForestSetBaseDM(DM dm, DM base)
   Output Parameter:
 . base - the base DM of the forest
 
+  Notes:
+    After DMSetUp(), the base DM will be redundantly distributed across MPI processes
+
   Level: intermediate
 
 .seealso(); DMForestSetBaseDM()
