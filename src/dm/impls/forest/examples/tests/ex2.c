@@ -292,14 +292,12 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
-       TODO: broken (DMForestTransferVec fails)
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg4
        args: -petscspace_poly_tensor -petscspace_degree 4 -dim 2
        requires: p4est
 
      test:
-       TODO: broken (memory corruption)
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg8
        args: -petscspace_poly_tensor -petscspace_degree 8 -dim 2
