@@ -145,7 +145,7 @@ static PetscErrorCode PerturbVertices(DM dm, AppCtx *user)
 
     for (d = 0; d < cdim; ++d) {
       ierr = PetscRandomGetValue(rnd, &value);CHKERRQ(ierr);
-      coord[d] = PetscMax(user->domain_lo[d], PetscMin(user->domain_hi[d], coord[d] + value*hh[d]));
+      coord[d] = PetscMax(user->domain_lo[d], PetscMin(user->domain_hi[d], PetscRealPart(coord[d] + value*hh[d])));
     }
   }
   ierr = VecRestoreArray(coordinates, &coords);CHKERRQ(ierr);
@@ -311,9 +311,9 @@ static PetscErrorCode computeParticleMoments(DM sw, PetscReal moments[3], AppCtx
       const PetscInt   idx = pidx[p];
       const PetscReal *c   = &coords[idx*dim];
 
-      mom[0] += w[idx];
-      mom[1] += w[idx] * c[0];
-      for (d = 0; d < dim; ++d) mom[2] += w[idx] * c[d]*c[d];
+      mom[0] += PetscRealPart(w[idx]);
+      mom[1] += PetscRealPart(w[idx]) * c[0];
+      for (d = 0; d < dim; ++d) mom[2] += PetscRealPart(w[idx]) * c[d]*c[d];
     }
     ierr = PetscFree(pidx);CHKERRQ(ierr);
   }
@@ -355,15 +355,19 @@ static PetscErrorCode computeFEMMoments(DM dm, Vec u, PetscReal moments[3], AppC
 {
   PetscDS        prob;
   PetscErrorCode ierr;
+  PetscScalar    mom;
 
   PetscFunctionBeginUser;
   ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
   ierr = PetscDSSetObjective(prob, 0, &f0_1);CHKERRQ(ierr);
-  ierr = DMPlexComputeIntegralFEM(dm, u, &moments[0], user);CHKERRQ(ierr);
+  ierr = DMPlexComputeIntegralFEM(dm, u, &mom, user);CHKERRQ(ierr);
+  moments[0] = PetscRealPart(mom);
   ierr = PetscDSSetObjective(prob, 0, &f0_x);CHKERRQ(ierr);
-  ierr = DMPlexComputeIntegralFEM(dm, u, &moments[1], user);CHKERRQ(ierr);
+  ierr = DMPlexComputeIntegralFEM(dm, u, &mom, user);CHKERRQ(ierr);
+  moments[1] = PetscRealPart(mom);
   ierr = PetscDSSetObjective(prob, 0, &f0_r2);CHKERRQ(ierr);
-  ierr = DMPlexComputeIntegralFEM(dm, u, &moments[2], user);CHKERRQ(ierr);
+  ierr = DMPlexComputeIntegralFEM(dm, u, &mom, user);CHKERRQ(ierr);
+  moments[2] = PetscRealPart(mom);
   PetscFunctionReturn(0);
 }
 
@@ -693,62 +697,77 @@ int main (int argc, char * argv[]) {
 
   test:
     suffix: proj_tri_0
+    requires: triangle
     args: -dim 2 -faces 1 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_tri_2_faces
+    requires: triangle
     args: -dim 2 -faces 2  -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_quad_0
+    requires: triangle
     args: -dim 2 -simplex 0 -faces 1 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_quad_2_faces
+    requires: triangle
     args: -dim 2 -simplex 0 -faces 2 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_tri_5P
+    requires: triangle
     args: -dim 2 -faces 1 -particlesPerCell 5 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_quad_5P
+    requires: triangle
     args: -dim 2 -simplex 0 -faces 1 -particlesPerCell 5 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_tri_mdx
+    requires: triangle
     args: -dim 2 -faces 1 -mesh_perturbation 1.0e-1 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_tri_mdx_5P
+    requires: triangle
     args: -dim 2 -faces 1 -particlesPerCell 5 -mesh_perturbation 1.0e-1 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_tri_3d
+    requires: ctetgen
     args: -dim 3 -faces 1 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
   
   test:
     suffix: proj_tri_3d_2_faces
+    requires: ctetgen
     args: -dim 3 -faces 2 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
   
   test:
     suffix: proj_tri_3d_5P
+    requires: ctetgen
     args: -dim 3 -faces 1 -particlesPerCell 5 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_tri_3d_mdx
+    requires: ctetgen
     args: -dim 3 -faces 1 -mesh_perturbation 1.0e-1 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_tri_3d_mdx_5P
+    requires: ctetgen
     args: -dim 3 -faces 1 -particlesPerCell 5 -mesh_perturbation 1.0e-1 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
   
   test:
     suffix: proj_tri_3d_mdx_2_faces
+    requires: ctetgen
     args: -dim 3 -faces 2 -mesh_perturbation 1.0e-1 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
   test:
     suffix: proj_tri_3d_mdx_5P_2_faces
+    requires: ctetgen
     args: -dim 3 -faces 2 -particlesPerCell 5 -mesh_perturbation 1.0e-1 -dm_view -sw_view -petscspace_degree 2 -petscfe_default_quadrature_order {{2 3}} -ptof_pc_type lu  -ftop_ksp_rtol 1e-15 -ftop_ksp_type lsqr -ftop_pc_type none
 
 TEST*/
