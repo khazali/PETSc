@@ -118,6 +118,7 @@ static PetscErrorCode SplitDomain(DM dm, DMLabel * rgLabel, AppCtx *user){
     else                        {tag = 1;}
     ierr = DMLabelSetValue(*rgLabel, c+cStart, tag);CHKERRQ(ierr);
   }
+  ierr = DMDestroy(&udm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
