@@ -288,20 +288,20 @@ int main(int argc, char **argv)
      test:
        output_file: output/ex2_2d.out
        suffix: p4est_2d
-       args: -petscspace_poly_tensor -petscspace_degree 2 -dim 2
+       args: -petscspace_type tensor -petscspace_degree 2 -dim 2
        nsize: 3
        requires: p4est
 
      test:
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg4
-       args: -petscspace_poly_tensor -petscspace_degree 4 -dim 2
+       args: -petscspace_type tensor -petscspace_degree 4 -dim 2
        requires: p4est
 
      test:
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg8
-       args: -petscspace_poly_tensor -petscspace_degree 8 -dim 2
+       args: -petscspace_type tensor -petscspace_degree 8 -dim 2
        requires: p4est
 
      test:
@@ -338,7 +338,7 @@ int main(int argc, char **argv)
      test:
        output_file: output/ex2_3d.out
        suffix: p4est_3d
-       args: -petscspace_poly_tensor -petscspace_degree 1 -dim 3
+       args: -petscspace_type tensor -petscspace_degree 1 -dim 3
        nsize: 3
        requires: p4est
 
@@ -346,7 +346,7 @@ int main(int argc, char **argv)
        TODO: broken (DMForestTransferVec fails)
        output_file: output/ex2_3d.out
        suffix: p4est_3d_deg3
-       args: -petscspace_poly_tensor -petscspace_degree 3 -dim 3
+       args: -petscspace_type tensor -petscspace_degree 3 -dim 3
        nsize: 3
        requires: p4est
 
@@ -354,7 +354,7 @@ int main(int argc, char **argv)
        TODO: broken (DMForestTransferVec fails)
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg2_coords
-       args: -petscspace_poly_tensor -petscspace_degree 2 -dim 2 -coords
+       args: -petscspace_type tensor -petscspace_degree 2 -dim 2 -coords
        nsize: 3
        requires: p4est
 
@@ -362,7 +362,7 @@ int main(int argc, char **argv)
        TODO: broken (DMForestTransferVec fails)
        output_file: output/ex2_3d.out
        suffix: p4est_3d_deg2_coords
-       args: -petscspace_poly_tensor -petscspace_degree 2 -dim 3 -coords
+       args: -petscspace_type tensor -petscspace_degree 2 -dim 3 -coords
        nsize: 3
        requires: p4est
 
@@ -376,7 +376,7 @@ int main(int argc, char **argv)
      test:
        TODO: broken (nans in coordinates vector!)
        suffix: p4est_3d_nans
-       args: -dim 3 -dm_forest_partition_overlap 1 -test_convert -dm_conv_view ::ascii_info_detail -petscspace_poly_tensor -petscspace_degree 1
+       args: -dim 3 -dm_forest_partition_overlap 1 -test_convert -dm_conv_view ::ascii_info_detail -petscspace_type tensor -petscspace_degree 1
        nsize: 2
 
 TEST*/
