@@ -155,6 +155,7 @@ int main(int argc, char **argv)
   PetscBool      useFV = PETSC_FALSE;
   PetscBool      conv = PETSC_FALSE;
   PetscBool      transfer_from_base = PETSC_FALSE;
+  PetscBool      use_bcs = PETSC_TRUE;
   PetscDS        ds;
   bc_func_ctx    bcCtx;
   DMLabel        adaptLabel;
@@ -169,6 +170,7 @@ int main(int argc, char **argv)
   ierr = PetscOptionsBool("-use_fv","Use a finite volume approximation", "ex2.c", useFV, &useFV, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-test_convert","Test conversion to DMPLEX",NULL,conv,&conv,NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-transfer_from_base","Transfer a vector from base DM to DMForest", "ex2.c", transfer_from_base, &transfer_from_base, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsBool("-use_bcs","Use dirichlet boundary conditions", "ex2.c", transfer_from_base, &transfer_from_base, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   if (linear) {
@@ -211,7 +213,7 @@ int main(int argc, char **argv)
     ierr = DMSetField(base,0,(PetscObject)fe);CHKERRQ(ierr);
     ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
   }
-  {
+  if (use_bcs) {
     PetscDS  prob;
     PetscInt ids[]   = {1, 2, 3, 4, 5, 6};
 
@@ -402,7 +404,6 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
-       TODO: broken (DMForestTransferVec fails)
        output_file: output/ex2_3d.out
        suffix: p4est_3d_deg3
        args: -petscspace_type tensor -petscspace_degree 3 -dim 3
