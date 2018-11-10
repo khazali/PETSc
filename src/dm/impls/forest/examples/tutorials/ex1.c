@@ -48,7 +48,6 @@ int main(int argc, char **argv)
         requires: p4est
 
       test:
-        TODO: broken (inverted cells)
         output_file: output/ex1_moebius.out
         suffix: p4est_topology_moebius_convert
         nsize: 3
@@ -62,14 +61,12 @@ int main(int argc, char **argv)
         requires: p4est
 
       test:
-        TODO: broken (geometry mapping)
         output_file: output/ex1_shell.out
         suffix: p4est_topology_shell_convert
         nsize: 3
         args: -dm_type p8est -dm_forest_topology shell -test_convert -dm_conv_view vtk:shellconv.vtu
 
       test:
-        TODO: broken (geometry mapping)
         output_file: output/ex1_sphere.out
         suffix: p4est_topology_sphere_convert
         nsize: 3
