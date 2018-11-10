@@ -80,6 +80,65 @@ static PetscErrorCode bc_func_fv (PetscReal time, const PetscReal *c, const Pets
   PetscFunctionReturn(0);
 }
 
+static PetscErrorCode IdentifyBadPoints (DM dm, Vec vec, PetscReal tol)
+{
+  DM             dmplex;
+  PetscInt       p, pStart, pEnd, maxDof;
+  Vec            vecLocal;
+  DMLabel        depthLabel;
+  PetscSection   section;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  ierr = DMCreateLocalVector(dm, &vecLocal);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalBegin(dm, vec, INSERT_VALUES, vecLocal);CHKERRQ(ierr);
+  ierr = DMGlobalToLocalEnd(dm, vec, INSERT_VALUES, vecLocal);CHKERRQ(ierr);
+  ierr = DMConvert(dm ,DMPLEX, &dmplex);CHKERRQ(ierr);
+  ierr = DMPlexGetChart(dmplex, &pStart, &pEnd);CHKERRQ(ierr);
+  ierr = DMPlexGetDepthLabel(dmplex, &depthLabel);CHKERRQ(ierr);
+  ierr = DMGetDefaultSection(dmplex, &section);CHKERRQ(ierr);
+  ierr = PetscSectionGetMaxDof(section, &maxDof);CHKERRQ(ierr);
+  for (p = pStart; p < pEnd; p++) {
+    PetscInt     s, c, cSize, parent, childID, numChildren;
+    PetscInt     cl, closureSize, *closure = NULL;
+    PetscScalar *values = NULL;
+    PetscBool    bad = PETSC_FALSE;
+
+    ierr = VecGetValuesSection(vecLocal, section, p, &values);CHKERRQ(ierr);
+    ierr = PetscSectionGetDof(section, p, &cSize);CHKERRQ(ierr);
+    for (c = 0; c < cSize; c++) {
+      PetscReal absDiff = PetscAbsScalar(values[c]);CHKERRQ(ierr);
+      if (absDiff > tol) {bad = PETSC_TRUE; break;}
+    }
+    if (!bad) continue;
+    ierr = PetscPrintf(PETSC_COMM_SELF, "Bad point %D\n", p);CHKERRQ(ierr);
+    ierr = DMLabelGetValue(depthLabel, p, &s);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_SELF, "  Depth %D\n", s);CHKERRQ(ierr);
+    ierr = DMPlexGetTransitiveClosure(dmplex, p, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+    for (cl = 0; cl < closureSize; cl++) {
+      PetscInt cp = closure[2 * cl];
+      ierr = DMPlexGetTreeParent(dmplex, cp, &parent, &childID);CHKERRQ(ierr);
+      if (parent != cp) {
+        ierr = PetscPrintf(PETSC_COMM_SELF, "  Closure point %D (%D) child of %D (ID %D)\n", cl, cp, parent, childID);CHKERRQ(ierr);
+      }
+      ierr = DMPlexGetTreeChildren(dmplex, cp, &numChildren, NULL);CHKERRQ(ierr);
+      if (numChildren) {
+        ierr = PetscPrintf(PETSC_COMM_SELF, "  Closure point %D (%D) is parent\n", cl, cp);CHKERRQ(ierr);
+      }
+    }
+    ierr = DMPlexRestoreTransitiveClosure(dmplex, p, PETSC_TRUE, &closureSize, &closure);CHKERRQ(ierr);
+    for (c = 0; c < cSize; c++) {
+      PetscReal absDiff = PetscAbsScalar(values[c]);CHKERRQ(ierr);
+      if (absDiff > tol) {
+        ierr = PetscPrintf(PETSC_COMM_SELF, "  Bad dof %D\n", c);CHKERRQ(ierr);
+      }
+    }
+  }
+  ierr = DMDestroy(&dmplex);CHKERRQ(ierr);
+  ierr = VecDestroy(&vecLocal);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 int main(int argc, char **argv)
 {
   MPI_Comm       comm;
@@ -255,6 +314,7 @@ int main(int argc, char **argv)
     ierr = PetscPrintf(comm,"DMForestTransferVec() passes.\n");CHKERRQ(ierr);
   } else {
     ierr = PetscPrintf(comm,"DMForestTransferVec() fails with error %g and tolerance %g\n",diff,tol);CHKERRQ(ierr);
+    ierr = IdentifyBadPoints(postForest, postVecTransfer, tol);CHKERRQ(ierr);
   }
 
   /* disconnect preForest from postForest */
