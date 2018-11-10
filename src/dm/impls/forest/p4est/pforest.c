@@ -4331,7 +4331,6 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
     }
 #endif
     ierr  = DMPlexCreateFromDAG(newPlex,P4EST_DIM,(PetscInt*)points_per_dim->array,(PetscInt*)cone_sizes->array,(PetscInt*)cones->array,(PetscInt*)cone_orientations->array,(PetscScalar*)coords->array);CHKERRQ(ierr);
-    ierr  = PetscSFCreate(comm,&pointSF);CHKERRQ(ierr);
     ierr  = DMCreateReferenceTree_pforest(comm,&refTree);CHKERRQ(ierr);
     ierr  = DMPlexSetReferenceTree(newPlex,refTree);CHKERRQ(ierr);
     ierr  = PetscSectionCreate(comm,&parentSection);CHKERRQ(ierr);
@@ -4346,6 +4345,7 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
     ierr = PetscSectionSetUp(parentSection);CHKERRQ(ierr);
     ierr = DMPlexSetTree(newPlex,parentSection,(PetscInt*)parents->array,(PetscInt*)childids->array);CHKERRQ(ierr);
     ierr = PetscSectionDestroy(&parentSection);CHKERRQ(ierr);
+    ierr = PetscSFCreate(comm,&pointSF);CHKERRQ(ierr);
     ierr = PetscSFSetGraph(pointSF,pEnd - pStart,(PetscInt)leaves->elem_count,(PetscInt*)leaves->array,PETSC_COPY_VALUES,(PetscSFNode*)remotes->array,PETSC_COPY_VALUES);CHKERRQ(ierr);
     ierr = DMSetPointSF(newPlex,pointSF);CHKERRQ(ierr);
     ierr = DMSetPointSF(dm,pointSF);CHKERRQ(ierr);
@@ -4354,6 +4354,22 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
 
       ierr = DMGetCoordinateDM(newPlex,&coordDM);CHKERRQ(ierr);
       ierr = DMSetPointSF(coordDM,pointSF);CHKERRQ(ierr);
+      if (overlap > 0) { /* the p4est routine can't set all of the coordinates in its routine if there is overlap */
+        Vec coordsGlobal, coordsLocal;
+        const PetscScalar *globalArray;
+        PetscScalar *localArray;
+        PetscSF coordSF;
+
+        ierr = DMGetDefaultSF(coordDM,&coordSF);CHKERRQ(ierr);
+        ierr = DMGetCoordinates(newPlex, &coordsGlobal);CHKERRQ(ierr);
+        ierr = DMGetCoordinatesLocal(newPlex, &coordsLocal);CHKERRQ(ierr);
+        ierr = VecGetArrayRead(coordsGlobal, &globalArray);CHKERRQ(ierr);
+        ierr = VecGetArray(coordsLocal, &localArray);CHKERRQ(ierr);
+        ierr = PetscSFBcastBegin(coordSF,MPIU_SCALAR,globalArray,localArray);CHKERRQ(ierr);
+        ierr = PetscSFBcastEnd(coordSF,MPIU_SCALAR,globalArray,localArray);CHKERRQ(ierr);
+        ierr = VecRestoreArray(coordsLocal, &localArray);CHKERRQ(ierr);
+        ierr = VecRestoreArrayRead(coordsGlobal, &globalArray);CHKERRQ(ierr);
+      }
     }
     ierr = PetscSFDestroy(&pointSF);CHKERRQ(ierr);
     sc_array_destroy (points_per_dim);

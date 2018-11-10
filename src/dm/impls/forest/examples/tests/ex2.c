@@ -411,7 +411,6 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
-       TODO: broken (DMForestTransferVec fails)
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg2_coords
        args: -petscspace_type tensor -petscspace_degree 2 -dim 2 -coords
@@ -419,7 +418,6 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
-       TODO: broken (DMForestTransferVec fails)
        output_file: output/ex2_3d.out
        suffix: p4est_3d_deg2_coords
        args: -petscspace_type tensor -petscspace_degree 2 -dim 3 -coords
@@ -434,7 +432,6 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
-       TODO: broken (nans in coordinates vector!)
        suffix: p4est_3d_nans
        args: -dim 3 -dm_forest_partition_overlap 1 -test_convert -dm_conv_view ::ascii_info_detail -petscspace_type tensor -petscspace_degree 1
        nsize: 2
