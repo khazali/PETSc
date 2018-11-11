@@ -314,15 +314,15 @@ int main(int argc, char **argv)
     ierr = VecAXPY(postVecExact,-1.,postVecTransfer);CHKERRQ(ierr);
     ierr = VecViewFromOptions(postVecExact,NULL,"-vec_diff_view");CHKERRQ(ierr);
     ierr = VecNorm(postVecExact,NORM_2,&diff);CHKERRQ(ierr);
-    ierr = VecDestroy(&postVecExact);CHKERRQ(ierr);
 
     /* output */
     if (diff < tol) {
       ierr = PetscPrintf(comm,"DMForestTransferVec() passes.\n");CHKERRQ(ierr);
     } else {
       ierr = PetscPrintf(comm,"DMForestTransferVec() fails with error %g and tolerance %g\n",diff,tol);CHKERRQ(ierr);
-      ierr = IdentifyBadPoints(postForest, postVecTransfer, tol);CHKERRQ(ierr);
+      ierr = IdentifyBadPoints(postForest, postVecExact, tol);CHKERRQ(ierr);
     }
+    ierr = VecDestroy(&postVecExact);CHKERRQ(ierr);
 
     /* disconnect preForest from postForest */
     ierr = DMForestSetAdaptivityForest(postForest,NULL);CHKERRQ(ierr);
@@ -375,7 +375,6 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
-       TODO: broken
        output_file: output/ex2_steps2.out
        suffix: p4est_2d_deg2_steps2
        args: -petscspace_type tensor -petscspace_degree 2 -dim 2 -coords -adapt_steps 2
@@ -383,7 +382,6 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
-       TODO: broken
        output_file: output/ex2_steps3.out
        suffix: p4est_2d_deg3_steps3
        args: -petscspace_type tensor -petscspace_degree 3 -dim 2 -coords -adapt_steps 3
