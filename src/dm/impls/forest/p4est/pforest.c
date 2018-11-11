@@ -2618,6 +2618,7 @@ static PetscErrorCode DMPforestGetTransferSF_Point(DM coarse, DM fine, PetscSF *
           }
         } else {
           PetscInt levelDiff = quad->level - quadCoarse->level;
+          PetscInt proposedCids[P4EST_INSUL] = {0};
 
           if (formCids) {
             PetscInt cl;
@@ -2660,7 +2661,7 @@ static PetscErrorCode DMPforestGetTransferSF_Point(DM coarse, DM fine, PetscSF *
                 if (canonical) {
                   ierr = DMLabelGetValue(canonical,newcid,&newcid);CHKERRQ(ierr);
                 }
-                cids[p - pStartF] = newcid;
+                proposedCids[cl] = newcid;
               }
             }
             ierr = DMPlexRestoreTransitiveClosure(plexF,c + cLocalStartF,PETSC_TRUE,NULL,&pointClosure);CHKERRQ(ierr);
@@ -2783,6 +2784,7 @@ static PetscErrorCode DMPforestGetTransferSF_Point(DM coarse, DM fine, PetscSF *
                 roots[p-pStartF] = q;
                 rootType[p-pStartF] = l;
                 limit = transferIdent ? levelDiff : (levelDiff - 1);
+                if (formCids) cids[p - pStartF] = proposedCids[j];
                 for (k = 0; k < limit; k++) {
                   PetscInt parent;
 
