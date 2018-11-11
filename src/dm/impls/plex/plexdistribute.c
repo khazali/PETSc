@@ -2052,7 +2052,11 @@ PetscErrorCode DMPlexGetRedundantDM(DM dm, PetscSF *sf, DM *redundantMesh)
   if (dmCoord) {ierr = DMSetPointSF(dmCoord, sfPoint);CHKERRQ(ierr);}
   ierr = PetscSFDestroy(&sfPoint);CHKERRQ(ierr);
   if (sf) {
-    ierr = PetscSFCompose(gatherSF,migrationSF,sf);CHKERRQ(ierr);
+    PetscSF tsf;
+
+    ierr = PetscSFCompose(gatherSF,migrationSF,&tsf);CHKERRQ(ierr);
+    ierr = DMPlexStratifyMigrationSF(dm, tsf, sf);CHKERRQ(ierr);
+    ierr = PetscSFDestroy(&tsf);CHKERRQ(ierr);
   }
   ierr = PetscSFDestroy(&migrationSF);CHKERRQ(ierr);
   ierr = PetscSFDestroy(&gatherSF);CHKERRQ(ierr);
