@@ -783,7 +783,6 @@ int main(int argc, char **argv)
       nsize: 3
       args: -dim 3 -cell_simplex 0 -domain_box_sizes 2,2,1 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash  -petscpartitioner_type simple
     test:
-      TODO: broken (just passing a more complicated hex mesh to p4est corrupts the faces)
       suffix: p4est_gmsh_s2t_3d
       args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 0 -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/cube_periodic.msh
     test:
