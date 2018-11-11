@@ -413,7 +413,6 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
-       TODO: broken (zero cells on one process?)
        output_file: output/ex2_2d_fv.out
        suffix: p4est_2d_fv_zerocells
        args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
