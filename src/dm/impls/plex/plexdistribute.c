@@ -1085,7 +1085,8 @@ static PetscErrorCode DMPlexDistributeCones(DM dm, PetscSF migrationSF, ISLocalT
   if (original) {
     PetscInt numCones;
 
-    ierr = PetscSectionGetStorageSize(originalConeSection,&numCones);CHKERRQ(ierr); ierr = PetscMalloc1(numCones,&globCones);CHKERRQ(ierr);
+    ierr = PetscSectionGetStorageSize(originalConeSection,&numCones);CHKERRQ(ierr);
+    ierr = PetscMalloc1(numCones,&globCones);CHKERRQ(ierr);
     ierr = ISLocalToGlobalMappingApplyBlock(original, numCones, cones, globCones);CHKERRQ(ierr);
   } else {
     globCones = cones;
