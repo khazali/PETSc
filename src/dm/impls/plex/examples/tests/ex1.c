@@ -775,7 +775,6 @@ int main(int argc, char **argv)
       suffix: p4est_gmsh_surface
       args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/surfacesphere_bin.msh -dm_plex_gmsh_spacedim 3
     test:
-      TODO: broken
       suffix: p4est_s2t_bugfaces_3d
       args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 0 -dim 3 -domain_box_sizes 1,1 -cell_simplex
     test:
