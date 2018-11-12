@@ -1,5 +1,3 @@
-// - mpiexec -n 21 ./ex1  -dim 2 -interpolate -test_p4est_seq -test_shape -check_symmetry -check_skeleton -check_faces -cell_simplex 0 -x_periodicity periodic -y_periodicity periodic -z_periodicity -domain_box_sizes 5,4,5 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash  -petscpartitioner_type simple -dm_view glvis
-// - mpiexec -n 21 ./ex1  -dim 2 -interpolate -test_p4est_seq -test_shape -check_symmetry -check_skeleton -check_faces -cell_simplex 0 -domain_box_sizes 5,4,5 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash  -petscpartitioner_type simple
 static char help[] = "Run C version of TetGen to construct and refine a mesh\n\n";
 
 #include <petscdmplex.h>
@@ -768,4 +766,11 @@ int main(int argc, char **argv)
     test:
       suffix: p4est_gmsh_periodic_3d
       args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh -dm_plex_gmsh_periodic
+
+  test:
+    TODO: broken
+    nsize: 21
+    suffix: p4est_bug_labels
+    args: -dim 2 -interpolate -test_p4est_seq -test_shape -check_symmetry -check_skeleton -check_faces -cell_simplex 0 -domain_box_sizes 5,4,5 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash  -petscpartitioner_type simple
+
 TEST*/
