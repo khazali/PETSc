@@ -770,7 +770,7 @@ int main(int argc, char **argv)
   testset:
     requires: p4est
     nsize: 6
-    args: -interpolate -test_p4est_par -test_shape -check_symmetry -check_skeleton -check_faces -dm_forest_minimum_refinement 1 -overlap 0
+    args: -interpolate -test_p4est_par -test_shape -check_symmetry -check_skeleton -check_faces -dm_forest_minimum_refinement 1 -dm_forest_partition_overlap 0
     test:
       suffix: p4est_par_periodic
       args: -dim 2 -domain_shape box -cell_simplex 0 -x_periodicity periodic -y_periodicity periodic -domain_box_sizes 3,5 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 2 -dm_p4est_refine_pattern hash
@@ -791,6 +791,39 @@ int main(int argc, char **argv)
       args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh
     test:
       suffix: p4est_par_gmsh_periodic_3d
+      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh -dm_plex_gmsh_periodic
+
+  testset:
+    requires: p4est
+    nsize: 6
+    args: -interpolate -test_p4est_par -test_shape -check_symmetry -check_skeleton -check_faces -dm_forest_minimum_refinement 1 -dm_forest_partition_overlap 1
+    test:
+      TODO: broken
+      suffix: p4est_par_ovl_periodic
+      args: -dim 2 -domain_shape box -cell_simplex 0 -x_periodicity periodic -y_periodicity periodic -domain_box_sizes 3,5 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 2 -dm_p4est_refine_pattern hash
+    test:
+      TODO: broken
+      suffix: p4est_par_ovl_periodic_3d
+      args: -dim 3 -domain_shape box -cell_simplex 0 -x_periodicity periodic -y_periodicity periodic -z_periodicity -domain_box_sizes 3,5,4 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 2 -dm_p4est_refine_pattern hash
+    test:
+      TODO: broken
+      suffix: p4est_par_ovl_gmsh_periodic
+      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_periodic.msh -dm_plex_gmsh_periodic
+    test:
+      TODO: broken
+      suffix: p4est_par_ovl_gmsh_surface
+      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/surfacesphere_bin.msh -dm_plex_gmsh_spacedim 3
+    test:
+      TODO: broken
+      suffix: p4est_par_ovl_gmsh_s2t_3d
+      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 0 -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh
+    test:
+      TODO: broken
+      suffix: p4est_par_ovl_gmsh_s2t_3d_hash
+      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh
+    test:
+      TODO: broken
+      suffix: p4est_par_ovl_gmsh_periodic_3d
       args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh -dm_plex_gmsh_periodic
 
   test:
