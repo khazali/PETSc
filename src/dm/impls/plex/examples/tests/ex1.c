@@ -1,9 +1,5 @@
-// TODO
-// LABEL ERRORS:
 // - mpiexec -n 21 ./ex1  -dim 2 -interpolate -test_p4est_seq -test_shape -check_symmetry -check_skeleton -check_faces -cell_simplex 0 -x_periodicity periodic -y_periodicity periodic -z_periodicity -domain_box_sizes 5,4,5 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash  -petscpartitioner_type simple -dm_view glvis
 // - mpiexec -n 21 ./ex1  -dim 2 -interpolate -test_p4est_seq -test_shape -check_symmetry -check_skeleton -check_faces -cell_simplex 0 -domain_box_sizes 5,4,5 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash  -petscpartitioner_type simple
-// ADJ
-// -dm_forest_adjacency_codimension 1
 static char help[] = "Run C version of TetGen to construct and refine a mesh\n\n";
 
 #include <petscdmplex.h>
@@ -529,10 +525,10 @@ int main(int argc, char **argv)
     args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_bin_physnames.msh -interpolate 1 -dm_view
   test:
     suffix: gmsh_7
-    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/cube_periodic_bin.msh -dm_plex_gmsh_periodic -dm_view ::ascii_info_detail -interpolate -test_shape
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere_bin.msh -dm_plex_gmsh_periodic -dm_view ::ascii_info_detail -interpolate -test_shape
   test:
     suffix: gmsh_8
-    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/cube_periodic.msh -dm_plex_gmsh_periodic -dm_view ::ascii_info_detail -interpolate -test_shape
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh -dm_plex_gmsh_periodic -dm_view ::ascii_info_detail -interpolate -test_shape
   test:
     suffix: gmsh_9
     args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/square_periodic_bin.msh -dm_plex_gmsh_periodic -dm_view ::ascii_info_detail -interpolate -test_shape
@@ -718,16 +714,16 @@ int main(int argc, char **argv)
 
   test:
     suffix: glvis_3d_tet
-    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/cube_periodic_bin.msh -dm_view glvis:
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere_bin.msh -dm_view glvis:
 
   test:
     suffix: glvis_3d_tet_per
-    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/cube_periodic_bin.msh -dm_plex_gmsh_periodic -dm_view glvis: -interpolate -viewer_glvis_dm_plex_enable_boundary
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere_bin.msh -dm_plex_gmsh_periodic -dm_view glvis: -interpolate -viewer_glvis_dm_plex_enable_boundary
 
   test:
     suffix: glvis_3d_tet_per_mfem
     TODO: broken
-    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/cube_periodic_bin.msh -dm_plex_gmsh_periodic -viewer_glvis_dm_plex_enable_mfem -dm_view glvis: -interpolate
+    args: -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere_bin.msh -dm_plex_gmsh_periodic -viewer_glvis_dm_plex_enable_mfem -dm_view glvis: -interpolate
 
   test:
     suffix: glvis_3d_hex
@@ -765,9 +761,11 @@ int main(int argc, char **argv)
       args: -dim 3 -cell_simplex 0 -domain_box_sizes 2,2,1 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash  -petscpartitioner_type simple
     test:
       suffix: p4est_gmsh_s2t_3d
-      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 0 -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/cube_periodic.msh
+      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 0 -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh
     test:
-      TODO: broken (broken above, so not sure if this works)
+      suffix: p4est_gmsh_s2t_3d_hash
+      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh
+    test:
       suffix: p4est_gmsh_periodic_3d
-      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/cube_periodic.msh -dm_plex_gmsh_periodic
+      args: -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 1 -dm_p4est_refine_pattern hash -filename ${wPETSC_DIR}/share/petsc/datafiles/meshes/mesh-3d-box-innersphere.msh -dm_plex_gmsh_periodic
 TEST*/
