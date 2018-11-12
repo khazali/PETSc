@@ -850,6 +850,15 @@ static PetscErrorCode DMSetUp_pforest(DM dm)
         ierr = DMLabelGetDefaultValue(label,&defVal);CHKERRQ(ierr);
         ierr = DMLabelSetDefaultValue(labelNew,defVal);CHKERRQ(ierr);
       }
+      /* map dm points (internal plex) to base
+         we currently create the subpoint_map for the entire hierarchy, starting from the finest forest
+         and propagating back to the coarsest
+         This is not an optimal approach, since we need the map only on the coarsest level
+         during DMForestTransferVecFromBase */
+      ierr = DMForestGetMinimumRefinement(dm,&l);CHKERRQ(ierr);
+      if (!l) {
+        ierr = DMCreateLabel(dm,"_forest_base_subpoint_map");CHKERRQ(ierr);
+      }
     }
   } else { /* construct from topology name */
     DMFTopology_pforest *topo;
@@ -3222,7 +3231,7 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
   while (next) {
     DMLabel   baseLabel;
     DMLabel   label = next->label;
-    PetscBool isDepth, isGhost, isVTK;
+    PetscBool isDepth, isGhost, isVTK, isSpmap;
 
     ierr = PetscStrcmp(label->name,"depth",&isDepth);CHKERRQ(ierr);
     if (isDepth) {
@@ -3239,12 +3248,16 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
       next = next->next;
       continue;
     }
-    ierr = DMGetLabel(base,label->name,&baseLabel);CHKERRQ(ierr);
-    if (!baseLabel) {
-      next = next->next;
-      continue;
-    }
-    ierr = DMLabelCreateIndex(baseLabel,pStartBase,pEndBase);CHKERRQ(ierr);
+    ierr = PetscStrcmp(label->name,"_forest_base_subpoint_map",&isSpmap);CHKERRQ(ierr);
+    if (!isSpmap) {
+      ierr = DMGetLabel(base,label->name,&baseLabel);CHKERRQ(ierr);
+      if (!baseLabel) {
+        next = next->next;
+        continue;
+      }
+      ierr = DMLabelCreateIndex(baseLabel,pStartBase,pEndBase);CHKERRQ(ierr);
+    } else baseLabel = NULL;
+
     for (p = pStart; p < pEnd; p++) {
       PetscInt         s, c = -1, l;
       PetscInt         *closure = NULL, closureSize;
@@ -3325,7 +3338,11 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
       }
 
       if (l == 0) { /* cell */
-        ierr = DMLabelGetValue(baseLabel,t+cStartBase,&val);CHKERRQ(ierr);
+        if (baseLabel) {
+          ierr = DMLabelGetValue(baseLabel,t+cStartBase,&val);CHKERRQ(ierr);
+        } else {
+          val  = t+cStartBase;
+        }
         ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
       } else if (l >= 1 && l < 1 + P4EST_FACES) { /* facet */
         p4est_quadrant_t nq;
@@ -3336,12 +3353,20 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
         PetscStackCallP4estReturn(isInside,p4est_quadrant_is_inside_root,(&nq));
         if (isInside) {
           /* this facet is in the interior of a tree, so it inherits the label of the tree */
-          ierr = DMLabelGetValue(baseLabel,t+cStartBase,&val);CHKERRQ(ierr);
+          if (baseLabel) {
+            ierr = DMLabelGetValue(baseLabel,t+cStartBase,&val);CHKERRQ(ierr);
+          } else {
+            val  = t+cStartBase;
+          }
           ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
         } else {
           PetscInt f = pforest->topo->tree_face_to_uniq[P4EST_FACES * t + l];
 
-          ierr = DMLabelGetValue(baseLabel,f+fStartBase,&val);CHKERRQ(ierr);
+          if (baseLabel) {
+            ierr = DMLabelGetValue(baseLabel,f+fStartBase,&val);CHKERRQ(ierr);
+          } else {
+            val  = f+fStartBase;
+          }
           ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
         }
 #if defined(P4_TO_P8)
@@ -3354,7 +3379,11 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
         PetscStackCallP4estReturn(isInside,p4est_quadrant_is_inside_root,(&nq));
         if (isInside) {
           /* this edge is in the interior of a tree, so it inherits the label of the tree */
-          ierr = DMLabelGetValue(baseLabel,t+cStartBase,&val);CHKERRQ(ierr);
+          if (baseLabel) {
+            ierr = DMLabelGetValue(baseLabel,t+cStartBase,&val);CHKERRQ(ierr);
+          } else {
+            val  = t+cStartBase;
+          }
           ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
         } else {
           int isOutsideFace;
@@ -3377,12 +3406,20 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
               f = 5;
             }
             f    = pforest->topo->tree_face_to_uniq[P4EST_FACES * t + f];
-            ierr = DMLabelGetValue(baseLabel,f+fStartBase,&val);CHKERRQ(ierr);
+            if (baseLabel) {
+              ierr = DMLabelGetValue(baseLabel,f+fStartBase,&val);CHKERRQ(ierr);
+            } else {
+              val  = f+fStartBase;
+            }
             ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
           } else { /* the quadrant edge corresponds to the tree edge */
             PetscInt e = pforest->topo->conn->tree_to_edge[P8EST_EDGES * t + l];
 
-            ierr = DMLabelGetValue(baseLabel,e+eStartBase,&val);CHKERRQ(ierr);
+            if (baseLabel) {
+              ierr = DMLabelGetValue(baseLabel,e+eStartBase,&val);CHKERRQ(ierr);
+            } else {
+              val  = e+eStartBase;
+            }
             ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
           }
         }
@@ -3399,7 +3436,11 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
         PetscStackCallP4est(p4est_quadrant_corner_neighbor,(q,l,&nq));
         PetscStackCallP4estReturn(isInside,p4est_quadrant_is_inside_root,(&nq));
         if (isInside) {
-          ierr = DMLabelGetValue(baseLabel,t+cStartBase,&val);CHKERRQ(ierr);
+          if (baseLabel) {
+            ierr = DMLabelGetValue(baseLabel,t+cStartBase,&val);CHKERRQ(ierr);
+          } else {
+            val  = t+cStartBase;
+          }
           ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
         } else {
           int isOutside;
@@ -3424,7 +3465,11 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
 #endif
             }
             f    = pforest->topo->tree_face_to_uniq[P4EST_FACES * t + f];
-            ierr = DMLabelGetValue(baseLabel,f+fStartBase,&val);CHKERRQ(ierr);
+            if (baseLabel) {
+              ierr = DMLabelGetValue(baseLabel,f+fStartBase,&val);CHKERRQ(ierr);
+            } else {
+              val  = f+fStartBase;
+            }
             ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
             continue;
           }
@@ -3479,7 +3524,11 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
             }
 
             e    = pforest->topo->conn->tree_to_edge[P8EST_EDGES * t + e];
-            ierr = DMLabelGetValue(baseLabel,e+eStartBase,&val);CHKERRQ(ierr);
+            if (baseLabel) {
+              ierr = DMLabelGetValue(baseLabel,e+eStartBase,&val);CHKERRQ(ierr);
+            } else {
+              val  = e+eStartBase;
+            }
             ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
             continue;
           }
@@ -3488,7 +3537,11 @@ static PetscErrorCode DMPforestLabelsInitialize(DM dm, DM plex)
             /* outside vertex: same corner as quadrant corner */
             PetscInt v = pforest->topo->conn->tree_to_corner[P4EST_CHILDREN * t + l];
 
-            ierr = DMLabelGetValue(baseLabel,v+vStartBase,&val);CHKERRQ(ierr);
+            if (baseLabel) {
+              ierr = DMLabelGetValue(baseLabel,v+vStartBase,&val);CHKERRQ(ierr);
+            } else {
+              val  = v+vStartBase;
+            }
             ierr = DMLabelSetValue(label,p,val);CHKERRQ(ierr);
           }
         }
@@ -4458,7 +4511,7 @@ static PetscErrorCode DMPforestGetPlex(DM dm,DM *plex)
   if (!pforest->plex) {
     ierr = DMConvert_pforest_plex(dm,DMPLEX,NULL);CHKERRQ(ierr);
   }
-  ierr  = DMShareDiscretization(dm,pforest->plex);CHKERRQ(ierr);
+  ierr = DMShareDiscretization(dm,pforest->plex);CHKERRQ(ierr);
   if (plex) *plex = pforest->plex;
   PetscFunctionReturn(0);
 }
@@ -4551,6 +4604,140 @@ static PetscErrorCode DMHasCreateInjection_pforest(DM dm, PetscBool *flg)
   PetscValidHeaderSpecific(dm,DM_CLASSID,1);
   PetscValidPointer(flg,2);
   *flg = PETSC_TRUE;
+  PetscFunctionReturn(0);
+}
+
+static void transfer_func(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                          const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                          const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                          PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar uexact[])
+{
+  PetscInt i, oa, ou;
+  for (i=0;i<Nf;i++) for (ou = uOff[i], oa = aOff[i]; ou < uOff[i+1]; ou++, oa++) uexact[ou] = a[oa];
+}
+
+#define DMForestTransferVecFromBase_pforest _append_pforest(DMForestTransferVecFromBase)
+static PetscErrorCode DMForestTransferVecFromBase_pforest(DM dm, Vec vecIn, Vec vecOut)
+{
+  DM             dmIn, dmVecIn, base, basec, plex, dmAux, coarseDM;
+  PetscSF        sfRed = NULL;
+  PetscDS        ds;
+  Vec            dummy, vecInLocal, vecOutLocal;
+  DMLabel        subpointMap;
+  PetscInt       minLevel, mh;
+  PetscBool      hierarchy = PETSC_FALSE;
+  PetscErrorCode ierr;
+  void           (*funcs[1]) (PetscInt dim, PetscInt Nf, PetscInt NfAux,
+                              const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+                              const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+                              PetscReal t, const PetscReal x[], PetscInt numConstants, const PetscScalar constants[], PetscScalar uexact[]) = {transfer_func};
+
+  PetscFunctionBegin;
+  ierr = VecGetDM(vecIn,&dmVecIn);CHKERRQ(ierr);
+  ierr = DMGetDS(dmVecIn,&ds);CHKERRQ(ierr);
+  if (!ds) SETERRQ(PetscObjectComm((PetscObject)dmVecIn),PETSC_ERR_SUP,"Cannot transfer without a PetscDS object");CHKERRQ(ierr);
+  ierr = DMForestGetMinimumRefinement(dm,&minLevel);CHKERRQ(ierr);
+  if (minLevel) SETERRQ1(PetscObjectComm((PetscObject)dm),PETSC_ERR_SUP,"Cannot transfer with minimum refinement set to %D. Rerun with DMForestSetMinimumRefinement(dm,0)",minLevel);CHKERRQ(ierr);
+  ierr = DMForestGetBaseDM(dm,&base);CHKERRQ(ierr);
+  if (!base) SETERRQ(PetscObjectComm((PetscObject)dm),PETSC_ERR_SUP,"Missing base DM");CHKERRQ(ierr);
+
+  ierr = VecSet(vecOut,0.0);CHKERRQ(ierr);
+  if (dmVecIn == base) { /* sequential runs */
+    ierr = PetscObjectReference((PetscObject)vecIn);CHKERRQ(ierr);
+  } else {
+    PetscSection secIn, secInRed;
+    Vec          vecInRed, vecInLocal;
+
+    ierr = PetscObjectQuery((PetscObject)base,"_base_migration_sf",(PetscObject*)&sfRed);CHKERRQ(ierr);
+    if (!sfRed) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_SUP,"Not the DM set with DMForestSetBaseDM()");
+    ierr = PetscSectionCreate(PetscObjectComm((PetscObject)dmVecIn),&secInRed);CHKERRQ(ierr);
+    ierr = VecCreate(PETSC_COMM_SELF,&vecInRed);CHKERRQ(ierr);
+    ierr = DMGetSection(dmVecIn,&secIn);CHKERRQ(ierr);
+    ierr = DMGetLocalVector(dmVecIn,&vecInLocal);CHKERRQ(ierr);
+    ierr = DMGlobalToLocalBegin(dmVecIn,vecIn,INSERT_VALUES,vecInLocal);CHKERRQ(ierr);
+    ierr = DMGlobalToLocalEnd(dmVecIn,vecIn,INSERT_VALUES,vecInLocal);CHKERRQ(ierr);
+    ierr = DMPlexDistributeField(dmVecIn,sfRed,secIn,vecInLocal,secInRed,vecInRed);CHKERRQ(ierr);
+    ierr = DMRestoreLocalVector(dmVecIn,&vecInLocal);CHKERRQ(ierr);
+    ierr = PetscSectionDestroy(&secInRed);CHKERRQ(ierr);
+    vecIn = vecInRed;
+  }
+
+  /* upsweep to the coarsest forest */
+  ierr = DMGetCoarseDM(dm,&coarseDM);CHKERRQ(ierr);
+  dmIn = dm;
+  while (coarseDM) {
+    hierarchy = PETSC_TRUE;
+    /* need to call SetUp to have a the hierarchy recursively setup */
+    ierr = DMSetUp(coarseDM);CHKERRQ(ierr);
+    dmIn = coarseDM;
+    ierr = DMGetCoarseDM(dmIn,&coarseDM);CHKERRQ(ierr);
+  }
+
+  /* project base vector on the coarsest forest (minimum refinement = 0) */
+  ierr = DMPforestGetPlex(dmIn,&plex);CHKERRQ(ierr);
+  ierr = PetscObjectQuery((PetscObject)plex,"dmAux",(PetscObject*)&dmAux);CHKERRQ(ierr);
+  if (dmAux) SETERRQ(PetscObjectComm((PetscObject)dmAux),PETSC_ERR_SUP,"Cannot currently transfer from base when a dmAux is present");
+
+  ierr = DMGetLabel(dmIn,"_forest_base_subpoint_map",&subpointMap);CHKERRQ(ierr);
+  if (!subpointMap) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Missing _forest_base_subpoint_map label");CHKERRQ(ierr);
+
+  /* XXX */
+  ierr = DMPlexGetMaxProjectionHeight(base,&mh);CHKERRQ(ierr);
+  ierr = DMPlexSetMaxProjectionHeight(plex,mh);CHKERRQ(ierr);
+
+  ierr = DMClone(base,&basec);CHKERRQ(ierr);
+  ierr = DMGetDS(dmVecIn,&ds);CHKERRQ(ierr);
+  ierr = DMSetDS(basec,ds);CHKERRQ(ierr);
+  if (sfRed) {
+    ierr = PetscObjectReference((PetscObject)vecIn);CHKERRQ(ierr);
+    vecInLocal = vecIn;
+  } else {
+    ierr = DMCreateLocalVector(basec,&vecInLocal);CHKERRQ(ierr);
+    ierr = DMGlobalToLocalBegin(basec,vecIn,INSERT_VALUES,vecInLocal);CHKERRQ(ierr);
+    ierr = DMGlobalToLocalEnd(basec,vecIn,INSERT_VALUES,vecInLocal);CHKERRQ(ierr);
+  }
+  ierr = PetscObjectCompose((PetscObject)plex,"dmAux",(PetscObject)basec);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)plex,"A",(PetscObject)vecInLocal);CHKERRQ(ierr);
+  ierr = VecDestroy(&vecInLocal);CHKERRQ(ierr);
+  ierr = VecDestroy(&vecIn);CHKERRQ(ierr);
+  ierr = DMPlexSetSubpointMap(basec,subpointMap);CHKERRQ(ierr);
+  ierr = DMViewFromOptions(basec,NULL,"-dm_basec_view");CHKERRQ(ierr);
+  ierr = DMDestroy(&basec);CHKERRQ(ierr);
+
+  ierr = DMGetLocalVector(dmIn,&dummy);CHKERRQ(ierr);
+  ierr = DMGetLocalVector(dmIn,&vecOutLocal);CHKERRQ(ierr);
+  ierr = DMProjectFieldLocal(dmIn,0.0,dummy,funcs,INSERT_ALL_VALUES,vecOutLocal);CHKERRQ(ierr);
+  ierr = DMRestoreLocalVector(dmIn,&dummy);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)plex,"A",NULL);CHKERRQ(ierr);
+  ierr = PetscObjectCompose((PetscObject)plex,"dmAux",NULL);CHKERRQ(ierr);
+
+  /* output */
+  if (hierarchy) { /* downsweep to the finest forest */
+    Vec vecOut1, vecOut2;
+    DM  fineDM;
+
+    ierr = DMGetGlobalVector(dmIn,&vecOut1);CHKERRQ(ierr);
+    ierr = DMLocalToGlobal(dmIn,vecOutLocal,INSERT_VALUES,vecOut1);CHKERRQ(ierr);
+    ierr = DMRestoreLocalVector(dmIn,&vecOutLocal);CHKERRQ(ierr);
+    ierr = DMGetFineDM(dmIn,&fineDM);CHKERRQ(ierr);
+    if (!fineDM) SETERRQ(PetscObjectComm((PetscObject)dmIn),PETSC_ERR_PLIB,"Missing fine DM");
+    while (fineDM) {
+      if (fineDM == dm) {
+        ierr = DMForestTransferVec(dmIn,vecOut1,dm,vecOut,PETSC_TRUE,0.0);CHKERRQ(ierr);
+        ierr = DMRestoreGlobalVector(dmIn,&vecOut1);CHKERRQ(ierr);
+      } else {
+        ierr = DMGetGlobalVector(fineDM,&vecOut2);CHKERRQ(ierr);
+        ierr = DMForestTransferVec(dmIn,vecOut1,fineDM,vecOut2,PETSC_TRUE,0.0);CHKERRQ(ierr);
+        ierr = DMRestoreGlobalVector(dmIn,&vecOut1);CHKERRQ(ierr);
+        vecOut1 = vecOut2;
+      }
+      dmIn = fineDM;
+      ierr = DMGetFineDM(dmIn,&fineDM);CHKERRQ(ierr);
+    }
+  } else {
+    ierr = DMLocalToGlobal(dmIn,vecOutLocal,INSERT_VALUES,vecOut);CHKERRQ(ierr);
+    ierr = DMRestoreLocalVector(dmIn,&vecOutLocal);CHKERRQ(ierr);
+  }
   PetscFunctionReturn(0);
 }
 
@@ -5014,6 +5201,7 @@ PETSC_EXTERN PetscErrorCode DMCreate_pforest(DM dm)
   forest->destroy                   = DMForestDestroy_pforest;
   forest->ftemplate                 = DMForestTemplate_pforest;
   forest->transfervec               = DMForestTransferVec_pforest;
+  forest->transfervecfrombase       = DMForestTransferVecFromBase_pforest;
   forest->createcellchart           = DMForestCreateCellChart_pforest;
   forest->createcellsf              = DMForestCreateCellSF_pforest;
   forest->clearadaptivityforest     = DMForestClearAdaptivityForest_pforest;
