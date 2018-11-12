@@ -4070,7 +4070,8 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
             p4est_tree_t *tree;
             PetscInt     offset,numQuads;
 
-            if (cell < flt || cell > llt) { printf("[%d] BASE OUT: %d [%d %d]\n",PetscGlobalRank,cell,flt,llt); continue; } /* XXX GHOSTS ? */
+            /* if (cell < flt || cell > llt) { printf("[%d] BASE OUT: %d [%d %d]\n",PetscGlobalRank,cell,flt,llt); continue; } */
+            if (cell < flt || cell > llt) continue; /* XXX GHOSTS ? */
             tree     = &(trees[cell]);
             offset   = cLocalStart + tree->quadrants_offset;
             numQuads = (PetscInt) tree->quadrants.elem_count;
