@@ -390,6 +390,20 @@ int main(int argc, char **argv)
        requires: p4est
 
      test:
+       output_file: output/ex2_steps2.out
+       suffix: p4est_3d_deg2_steps2
+       args: -petscspace_type tensor -petscspace_degree 2 -dim 3 -coords -adapt_steps 2
+       nsize: 3
+       requires: p4est
+
+     test:
+       output_file: output/ex2_steps3.out
+       suffix: p4est_3d_deg3_steps3
+       args: -petscspace_type tensor -petscspace_degree 3 -dim 3 -coords -adapt_steps 3
+       nsize: 3
+       requires: p4est
+
+     test:
        output_file: output/ex2_2d_fv.out
        suffix: p4est_2d_fv
        args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
