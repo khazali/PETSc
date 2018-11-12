@@ -156,7 +156,7 @@ int main(int argc, char **argv)
   PetscBool      useFV = PETSC_FALSE;
   PetscBool      conv = PETSC_FALSE;
   PetscBool      distribute_base = PETSC_FALSE;
-  PetscBool      transfer_from_base = PETSC_FALSE;
+  PetscBool      transfer_from_base = PETSC_TRUE;
   PetscBool      use_bcs = PETSC_TRUE;
   PetscDS        ds;
   bc_func_ctx    bcCtx;
@@ -406,7 +406,7 @@ int main(int argc, char **argv)
      test:
        output_file: output/ex2_2d_fv.out
        suffix: p4est_2d_fv
-       args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
+       args: -transfer_from_base 0 -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
        nsize: 3
        requires: p4est
 
@@ -414,7 +414,7 @@ int main(int argc, char **argv)
        TODO: broken (codimension adjacency)
        output_file: output/ex2_2d_fv.out
        suffix: p4est_2d_fv_adjcodim
-       args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1 -dm_forest_adjacency_codimension 1
+       args: -transfer_from_base 0 -use_fv -linear -dim 2 -dm_forest_partition_overlap 1 -dm_forest_adjacency_codimension 1
        nsize: 2
        requires: p4est
 
@@ -422,14 +422,14 @@ int main(int argc, char **argv)
        TODO: broken (dimension adjacency)
        output_file: output/ex2_2d_fv.out
        suffix: p4est_2d_fv_adjdim
-       args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1 -dm_forest_adjacency_dimension 1
+       args: -transfer_from_base 0 -use_fv -linear -dim 2 -dm_forest_partition_overlap 1 -dm_forest_adjacency_dimension 1
        nsize: 2
        requires: p4est
 
      test:
        output_file: output/ex2_2d_fv.out
        suffix: p4est_2d_fv_zerocells
-       args: -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
+       args: -transfer_from_base 0 -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
        nsize: 10
        requires: p4est
 
@@ -464,13 +464,13 @@ int main(int argc, char **argv)
      test:
        output_file: output/ex2_3d_fv.out
        suffix: p4est_3d_fv
-       args: -use_fv -linear -dim 3 -dm_forest_partition_overlap 1
+       args: -transfer_from_base 0 -use_fv -linear -dim 3 -dm_forest_partition_overlap 1
        nsize: 3
        requires: p4est
 
      test:
        suffix: p4est_3d_nans
-       args: -dim 3 -dm_forest_partition_overlap 1 -test_convert -dm_conv_view ::ascii_info_detail -petscspace_type tensor -petscspace_degree 1
+       args: -dim 3 -dm_forest_partition_overlap 1 -test_convert -petscspace_type tensor -petscspace_degree 1
        nsize: 2
 
 TEST*/
