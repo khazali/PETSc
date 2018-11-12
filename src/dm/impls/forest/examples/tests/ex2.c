@@ -144,6 +144,7 @@ int main(int argc, char **argv)
   MPI_Comm       comm;
   DM             base, preForest, postForest;
   PetscInt       dim = 2, Nf = 1;
+  PetscInt       step, adaptSteps = 1;
   PetscInt       preCount, postCount;
   Vec            preVec, postVecTransfer, postVecExact;
   PetscErrorCode (*funcs[1]) (PetscInt,PetscReal,const PetscReal [],PetscInt,PetscScalar [], void *) = {MultiaffineFunction};
@@ -173,6 +174,7 @@ int main(int argc, char **argv)
   ierr = PetscOptionsBool("-distribute_base","Distribute base DM", "ex2.c", distribute_base, &distribute_base, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-transfer_from_base","Transfer a vector from base DM to DMForest", "ex2.c", transfer_from_base, &transfer_from_base, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsBool("-use_bcs","Use dirichlet boundary conditions", "ex2.c", use_bcs, &use_bcs, NULL);CHKERRQ(ierr);
+  ierr = PetscOptionsInt("-adapt_steps","Number of adaptivity steps", "ex2.c", adaptSteps, &adaptSteps, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
   if (linear) {
@@ -285,59 +287,66 @@ int main(int argc, char **argv)
     ierr = DMRestoreGlobalVector(preForest,&baseVecMapped);CHKERRQ(ierr);
   }
 
-  ierr = PetscObjectGetReference((PetscObject)preForest,&preCount);CHKERRQ(ierr);
+  for (step = 0; step < adaptSteps; ++step) {
 
-  /* adapt */
-  ierr = CreateAdaptivityLabel(preForest,&adaptLabel);CHKERRQ(ierr);
-  ierr = DMForestTemplate(preForest,comm,&postForest);CHKERRQ(ierr);
-  ierr = DMForestSetMinimumRefinement(postForest,0);CHKERRQ(ierr);
-  ierr = DMForestSetInitialRefinement(postForest,0);CHKERRQ(ierr);
-  ierr = DMForestSetAdaptivityLabel(postForest,adaptLabel);CHKERRQ(ierr);
-  ierr = DMLabelDestroy(&adaptLabel);CHKERRQ(ierr);
-  ierr = DMSetUp(postForest);CHKERRQ(ierr);
-  ierr = DMViewFromOptions(postForest,NULL,"-dm_post_view");CHKERRQ(ierr);
+    ierr = PetscObjectGetReference((PetscObject)preForest,&preCount);CHKERRQ(ierr);
 
-  /* transfer */
-  ierr = DMCreateGlobalVector(postForest,&postVecTransfer);CHKERRQ(ierr);
-  ierr = DMForestTransferVec(preForest,preVec,postForest,postVecTransfer,PETSC_TRUE,0.0);CHKERRQ(ierr);
-  ierr = VecViewFromOptions(postVecTransfer,NULL,"-vec_post_transfer_view");CHKERRQ(ierr);
+    /* adapt */
+    ierr = CreateAdaptivityLabel(preForest,&adaptLabel);CHKERRQ(ierr);
+    ierr = DMForestTemplate(preForest,comm,&postForest);CHKERRQ(ierr);
+    ierr = DMForestSetMinimumRefinement(postForest,0);CHKERRQ(ierr);
+    ierr = DMForestSetInitialRefinement(postForest,0);CHKERRQ(ierr);
+    ierr = DMForestSetAdaptivityLabel(postForest,adaptLabel);CHKERRQ(ierr);
+    ierr = DMLabelDestroy(&adaptLabel);CHKERRQ(ierr);
+    ierr = DMSetUp(postForest);CHKERRQ(ierr);
+    ierr = DMViewFromOptions(postForest,NULL,"-dm_post_view");CHKERRQ(ierr);
 
-  /* the exact post adaptivity field */
-  ierr = DMCreateGlobalVector(postForest,&postVecExact);CHKERRQ(ierr);
-  ierr = DMProjectFunction(postForest,0.,funcs,ctxs,INSERT_VALUES,postVecExact);CHKERRQ(ierr);
-  ierr = VecViewFromOptions(postVecExact,NULL,"-vec_post_exact_view");CHKERRQ(ierr);
+    /* transfer */
+    ierr = DMCreateGlobalVector(postForest,&postVecTransfer);CHKERRQ(ierr);
+    ierr = DMForestTransferVec(preForest,preVec,postForest,postVecTransfer,PETSC_TRUE,0.0);CHKERRQ(ierr);
+    ierr = VecViewFromOptions(postVecTransfer,NULL,"-vec_post_transfer_view");CHKERRQ(ierr);
 
-  /* compare */
-  ierr = VecAXPY(postVecTransfer,-1.,postVecExact);CHKERRQ(ierr);
-  ierr = VecViewFromOptions(postVecTransfer,NULL,"-vec_diff_view");CHKERRQ(ierr);
-  ierr = VecNorm(postVecTransfer,NORM_2,&diff);CHKERRQ(ierr);
+    /* the exact post adaptivity field */
+    ierr = DMCreateGlobalVector(postForest,&postVecExact);CHKERRQ(ierr);
+    ierr = DMProjectFunction(postForest,0.,funcs,ctxs,INSERT_VALUES,postVecExact);CHKERRQ(ierr);
+    ierr = VecViewFromOptions(postVecExact,NULL,"-vec_post_exact_view");CHKERRQ(ierr);
 
-  /* output */
-  if (diff < tol) {
-    ierr = PetscPrintf(comm,"DMForestTransferVec() passes.\n");CHKERRQ(ierr);
-  } else {
-    ierr = PetscPrintf(comm,"DMForestTransferVec() fails with error %g and tolerance %g\n",diff,tol);CHKERRQ(ierr);
-    ierr = IdentifyBadPoints(postForest, postVecTransfer, tol);CHKERRQ(ierr);
-  }
+    /* compare */
+    ierr = VecAXPY(postVecExact,-1.,postVecTransfer);CHKERRQ(ierr);
+    ierr = VecViewFromOptions(postVecExact,NULL,"-vec_diff_view");CHKERRQ(ierr);
+    ierr = VecNorm(postVecExact,NORM_2,&diff);CHKERRQ(ierr);
+    ierr = VecDestroy(&postVecExact);CHKERRQ(ierr);
 
-  /* disconnect preForest from postForest */
-  ierr = DMForestSetAdaptivityForest(postForest,NULL);CHKERRQ(ierr);
-  ierr = PetscObjectGetReference((PetscObject)preForest,&postCount);CHKERRQ(ierr);
-  if (postCount != preCount) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Adaptation not memory neutral: reference count increase from %d to %d\n",preCount,postCount);
+    /* output */
+    if (diff < tol) {
+      ierr = PetscPrintf(comm,"DMForestTransferVec() passes.\n");CHKERRQ(ierr);
+    } else {
+      ierr = PetscPrintf(comm,"DMForestTransferVec() fails with error %g and tolerance %g\n",diff,tol);CHKERRQ(ierr);
+      ierr = IdentifyBadPoints(postForest, postVecTransfer, tol);CHKERRQ(ierr);
+    }
 
-  if (conv) {
-    DM dmConv;
+    /* disconnect preForest from postForest */
+    ierr = DMForestSetAdaptivityForest(postForest,NULL);CHKERRQ(ierr);
+    ierr = PetscObjectGetReference((PetscObject)preForest,&postCount);CHKERRQ(ierr);
+    if (postCount != preCount) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Adaptation not memory neutral: reference count increase from %d to %d\n",preCount,postCount);
 
-    ierr = DMConvert(postForest,DMPLEX,&dmConv);CHKERRQ(ierr);
-    ierr = DMPlexCheckCellShape(dmConv,PETSC_TRUE);CHKERRQ(ierr);
-    ierr = DMViewFromOptions(dmConv,NULL,"-dm_conv_view");CHKERRQ(ierr);
-    ierr = DMDestroy(&dmConv);CHKERRQ(ierr);
+    if (conv) {
+      DM dmConv;
+
+      ierr = DMConvert(postForest,DMPLEX,&dmConv);CHKERRQ(ierr);
+      ierr = DMPlexCheckCellShape(dmConv,PETSC_TRUE);CHKERRQ(ierr);
+      ierr = DMViewFromOptions(dmConv,NULL,"-dm_conv_view");CHKERRQ(ierr);
+      ierr = DMDestroy(&dmConv);CHKERRQ(ierr);
+    }
+
+    ierr = VecDestroy(&preVec);CHKERRQ(ierr);
+    ierr = DMDestroy(&preForest);CHKERRQ(ierr);
+
+    preVec    = postVecTransfer;
+    preForest = postForest;
   }
 
   /* cleanup */
-  ierr = VecDestroy(&postVecExact);CHKERRQ(ierr);
-  ierr = VecDestroy(&postVecTransfer);CHKERRQ(ierr);
-  ierr = DMDestroy(&postForest);CHKERRQ(ierr);
   ierr = VecDestroy(&preVec);CHKERRQ(ierr);
   ierr = DMDestroy(&preForest);CHKERRQ(ierr);
   ierr = DMDestroy(&base);CHKERRQ(ierr);
@@ -364,6 +373,22 @@ int main(int argc, char **argv)
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg8
        args: -petscspace_type tensor -petscspace_degree 8 -dim 2
+       requires: p4est
+
+     test:
+       TODO: broken
+       output_file: output/ex2_steps2.out
+       suffix: p4est_2d_deg2_steps2
+       args: -petscspace_type tensor -petscspace_degree 2 -dim 2 -coords -adapt_steps 2
+       nsize: 3
+       requires: p4est
+
+     test:
+       TODO: broken
+       output_file: output/ex2_steps3.out
+       suffix: p4est_2d_deg3_steps3
+       args: -petscspace_type tensor -petscspace_degree 3 -dim 2 -coords -adapt_steps 3
+       nsize: 3
        requires: p4est
 
      test:
