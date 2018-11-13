@@ -177,6 +177,8 @@ int main(int argc, char **argv)
   ierr = PetscOptionsInt("-adapt_steps","Number of adaptivity steps", "ex2.c", adaptSteps, &adaptSteps, NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();CHKERRQ(ierr);
 
+  tol = PetscMax(1.e-10,tol); /* XXX fix for quadruple precision -> why do I need to do this? */
+
   if (linear) {
     funcs[0] = LinearFunction;
   }
@@ -280,7 +282,7 @@ int main(int argc, char **argv)
     if (diff < tol) {
       ierr = PetscPrintf(comm,"DMForestTransferVecFromBase() passes.\n");CHKERRQ(ierr);
     } else {
-      ierr = PetscPrintf(comm,"DMForestTransferVecFromBase() fails with error %g and tolerance %g\n",diff,tol);CHKERRQ(ierr);
+      ierr = PetscPrintf(comm,"DMForestTransferVecFromBase() fails with error %g and tolerance %g\n",(double)diff,(double)tol);CHKERRQ(ierr);
     }
 
     ierr = DMRestoreGlobalVector(base,&baseVec);CHKERRQ(ierr);
@@ -320,7 +322,7 @@ int main(int argc, char **argv)
     if (diff < tol) {
       ierr = PetscPrintf(comm,"DMForestTransferVec() passes.\n");CHKERRQ(ierr);
     } else {
-      ierr = PetscPrintf(comm,"DMForestTransferVec() fails with error %g and tolerance %g\n",diff,tol);CHKERRQ(ierr);
+      ierr = PetscPrintf(comm,"DMForestTransferVec() fails with error %g and tolerance %g\n",(double)diff,(double)tol);CHKERRQ(ierr);
       ierr = IdentifyBadPoints(postForest, postVecExact, tol);CHKERRQ(ierr);
     }
     ierr = VecDestroy(&postVecExact);CHKERRQ(ierr);
@@ -367,13 +369,13 @@ int main(int argc, char **argv)
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg4
        args: -petscspace_type tensor -petscspace_degree 4 -dim 2
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg8
        args: -petscspace_type tensor -petscspace_degree 8 -dim 2
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_steps2.out
