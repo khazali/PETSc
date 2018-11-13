@@ -6678,10 +6678,11 @@ PetscErrorCode DMPlexCreateRankField(DM dm, Vec *ranks)
 @*/
 PetscErrorCode DMPlexCheckSymmetry(DM dm)
 {
-  PetscSection    coneSection, supportSection, parentSection;
+  PetscSection    coneSection, supportSection;
   const PetscInt *cone, *support;
   PetscInt        coneSize, c, supportSize, s;
   PetscInt        pStart, pEnd, p, pp, csize, ssize;
+  PetscBool       storagecheck = PETSC_TRUE;
   PetscErrorCode  ierr;
 
   PetscFunctionBegin;
@@ -6720,7 +6721,7 @@ PetscErrorCode DMPlexCheckSymmetry(DM dm)
       }
     }
     ierr = DMPlexGetTreeParent(dm, p, &pp, NULL);CHKERRQ(ierr);
-    if (p != pp) continue;
+    if (p != pp) { storagecheck = PETSC_FALSE; continue; }
     ierr = DMPlexGetSupportSize(dm, p, &supportSize);CHKERRQ(ierr);
     ierr = DMPlexGetSupport(dm, p, &support);CHKERRQ(ierr);
     for (s = 0; s < supportSize; ++s) {
@@ -6746,8 +6747,7 @@ PetscErrorCode DMPlexCheckSymmetry(DM dm)
       }
     }
   }
-  ierr = DMPlexGetTree(dm,&parentSection,NULL,NULL,NULL,NULL);CHKERRQ(ierr);
-  if (!parentSection) {
+  if (storagecheck) {
     ierr = PetscSectionGetStorageSize(coneSection, &csize);CHKERRQ(ierr);
     ierr = PetscSectionGetStorageSize(supportSection, &ssize);CHKERRQ(ierr);
     if (csize != ssize) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_ARG_SIZ, "Total cone size %D != Total support size %D", csize, ssize);
