@@ -2627,7 +2627,7 @@ int initLinearWave(EulerNode *ux, const PetscReal gamma, const PetscReal coord[]
 
   test:
     suffix: adv_2d_quad_p4est_adapt_0
-    requires: p4est
+    requires: p4est !__float128 #broken for quad precision
     args: -ufv_vtk_interval 0 -dm_refine 3 -dm_type p4est -dm_plex_separate_marker -grid_bounds -0.5,0.5,-0.5,0.5 -bc_inflow 1,2,4 -bc_outflow 3 -advect_sol_type bump -advect_bump_center 0.25,0 -advect_bump_radius 0.1 -ufv_use_amr -refine_vec_tagger_box 0.005,inf -coarsen_vec_tagger_box 0,1.e-5 -petscfv_type leastsquares -ts_final_time 0.01
     timeoutfactor: 3
 
