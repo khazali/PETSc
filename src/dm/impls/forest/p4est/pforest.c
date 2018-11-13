@@ -4116,7 +4116,7 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
   /* Localize coordinates on cells if needed */
   for (t = flt; t <= llt; t++) {
     p4est_tree_t     *tree    = &(trees[t]);
-    const PetscScalar *v      = pforest->topo->conn->vertices;
+    const double     *v       = pforest->topo->conn->vertices;
     p4est_quadrant_t *quads   = (p4est_quadrant_t*) tree->quadrants.array;
     PetscInt         offset   = cLocalStart + tree->quadrants_offset;
     PetscInt         numQuads = (PetscInt) tree->quadrants.elem_count;
