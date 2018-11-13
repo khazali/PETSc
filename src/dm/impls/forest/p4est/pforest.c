@@ -4811,6 +4811,7 @@ static PetscErrorCode DMForestTransferVec_pforest(DM dmIn, Vec vecIn, DM dmOut, 
       ierr = PetscSFSetUp(inSF);CHKERRQ(ierr);
       break;
     case DM_ADAPT_COARSEN:
+    case DM_ADAPT_COARSEN_LAST:
       ierr = DMPforestGetTransferSF_Internal(dmOut,dmIn,dofPerDim,&outSF,PETSC_TRUE,&outCids);CHKERRQ(ierr);
       ierr = PetscSFSetUp(outSF);CHKERRQ(ierr);
       break;
@@ -4827,6 +4828,7 @@ static PetscErrorCode DMForestTransferVec_pforest(DM dmIn, Vec vecIn, DM dmOut, 
       ierr = PetscSFSetUp(outSF);CHKERRQ(ierr);
       break;
     case DM_ADAPT_COARSEN:
+    case DM_ADAPT_COARSEN_LAST:
       ierr = DMPforestGetTransferSF_Internal(dmIn,dmOut,dofPerDim,&inSF,PETSC_TRUE,&inCids);CHKERRQ(ierr);
       ierr = PetscSFSetUp(inSF);CHKERRQ(ierr);
       break;
