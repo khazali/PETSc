@@ -475,4 +475,16 @@ int main(int argc, char **argv)
        args: -dim 3 -dm_forest_partition_overlap 1 -test_convert -petscspace_type tensor -petscspace_degree 1
        nsize: 2
 
+     test:
+       output_file: output/ex2_steps2.out
+       suffix: p4est_2d_tfb_distributed_nc
+       args: -petscspace_type tensor -petscspace_degree 3 -dim 2 -dm_forest_maximum_refinement 2 -dm_p4est_refine_pattern hash -use_bcs 0 -coords -adapt_steps 2 -distribute_base -use_bcs 0
+       nsize: 3
+
+     test:
+       output_file: output/ex2_steps2.out
+       suffix: p4est_3d_tfb_distributed_nc
+       args: -petscspace_type tensor -petscspace_degree 2 -dim 3 -dm_forest_maximum_refinement 2 -dm_p4est_refine_pattern hash -use_bcs 0 -coords -adapt_steps 2 -distribute_base -use_bcs 0
+       nsize: 3
+
 TEST*/
