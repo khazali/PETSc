@@ -115,6 +115,11 @@ PetscErrorCode ProcessOptions(MPI_Comm comm, AppCtx *options)
   ierr = PetscOptionsBool("-test_p4est_par", "Test p4est with parallel base DM", "ex1.c", options->testp4est[1], &options->testp4est[1], NULL);CHKERRQ(ierr);
   ierr = PetscOptionsEnd();
 
+#if !defined(PETSC_HAVE_P4EST)
+  if (test_p4est_seq) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_SUP,"Recompile with --download-p4est");
+  if (test_p4est_par) SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_SUP,"Recompile with --download-p4est");
+#endif
+
   ierr = PetscLogEventRegister("CreateMesh", DM_CLASSID, &options->createMeshEvent);CHKERRQ(ierr);
   ierr = PetscLogStageRegister("MeshLoad",       &options->stages[STAGE_LOAD]);CHKERRQ(ierr);
   ierr = PetscLogStageRegister("MeshDistribute", &options->stages[STAGE_DISTRIBUTE]);CHKERRQ(ierr);
@@ -235,7 +240,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
   }
 
   ierr = PetscLogStagePop();CHKERRQ(ierr);
-  {
+  if (!testp4est_seq) {
     DM refinedMesh     = NULL;
     DM distributedMesh = NULL;
 
@@ -328,6 +333,7 @@ PetscErrorCode CreateMesh(MPI_Comm comm, AppCtx *user, DM *dm)
 
   if (user->overlap) {
     DM overlapMesh = NULL;
+
     /* Add the level-1 overlap to refined mesh */
     ierr = PetscLogStagePush(user->stages[STAGE_OVERLAP]);CHKERRQ(ierr);
     ierr = DMPlexDistributeOverlap(*dm, 1, NULL, &overlapMesh);CHKERRQ(ierr);
