@@ -3950,6 +3950,7 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
   PetscInt          cLocalStart, cLocalEnd, coarsePoint;
   PetscInt          cDim, newStart, newEnd, dof, cdof = -1;
   PetscInt          v, vStart, vEnd, cp, cStart, cEnd, cEndInterior, *coarsePoints;
+  PetscInt          *localize, overlap;
   p4est_topidx_t    flt, llt, t;
   p4est_tree_t      *trees;
   PetscBool         isper, baseLocalized = PETSC_FALSE;
@@ -3966,9 +3967,10 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
     ierr = DMGetCoordinatesLocalized(base,&baseLocalized);CHKERRQ(ierr);
   }
   if (!baseLocalized) base = NULL;
-
-  /* XXX SZ */
   ierr = DMPlexGetChart(plex, &newStart, &newEnd);CHKERRQ(ierr);
+
+  ierr = DMForestGetPartitionOverlap(dm,&overlap);CHKERRQ(ierr);
+  ierr = PetscCalloc1(overlap ? newEnd - newStart : 0,&localize);CHKERRQ(ierr);
 
   ierr = PetscSectionCreate(PetscObjectComm((PetscObject) dm), &newSection);CHKERRQ(ierr);
   ierr = PetscSectionSetNumFields(newSection, 1);CHKERRQ(ierr);
@@ -3982,6 +3984,7 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
     ierr = PetscSectionGetDof(oldSection, v, &dof);CHKERRQ(ierr);
     ierr = PetscSectionSetDof(newSection, v, dof);CHKERRQ(ierr);
     ierr = PetscSectionSetFieldDof(newSection, v, 0, dof);CHKERRQ(ierr);
+    if (overlap) localize[v] = dof;
   }
 
   forest      = (DM_Forest*) dm->data;
@@ -4009,6 +4012,7 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
       ierr = PetscSectionSetDof(newSection, count, cdof);CHKERRQ(ierr);
       ierr = PetscSectionSetFieldDof(newSection, count, 0, cdof);CHKERRQ(ierr);
       coarsePoints[cp++] = cdof ? coarsePoint : -1;
+      if (overlap) localize[count] = cdof;
     }
   }
   for (t = flt; t <= llt; t++) {
@@ -4026,6 +4030,7 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
       ierr = PetscSectionSetDof(newSection, newCell, cdof);CHKERRQ(ierr);
       ierr = PetscSectionSetFieldDof(newSection, newCell, 0, cdof);CHKERRQ(ierr);
       coarsePoints[cp++] = cdof ? coarsePoint : -1;
+      if (overlap) localize[newCell] = cdof;
     }
   }
   if (cLocalEnd - cLocalStart < cEnd - cStart) {
@@ -4042,6 +4047,7 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
       ierr = PetscSectionSetDof(newSection, newCell, cdof);CHKERRQ(ierr);
       ierr = PetscSectionSetFieldDof(newSection, newCell, 0, cdof);CHKERRQ(ierr);
       coarsePoints[cp++] = cdof ? coarsePoint : -1;
+      if (overlap) localize[newCell] = cdof;
     }
   }
   if (cp != cEnd - cStart) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_PLIB,"Unexpected number of fine cells %D != %D",cp,cEnd-cStart);
@@ -4070,8 +4076,7 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
             p4est_tree_t *tree;
             PetscInt     offset,numQuads;
 
-            /* if (cell < flt || cell > llt) { printf("[%d] BASE OUT: %d [%d %d]\n",PetscGlobalRank,cell,flt,llt); continue; } */
-            if (cell < flt || cell > llt) continue; /* XXX GHOSTS ? */
+            if (cell < flt || cell > llt) continue;
             tree     = &(trees[cell]);
             offset   = cLocalStart + tree->quadrants_offset;
             numQuads = (PetscInt) tree->quadrants.elem_count;
@@ -4080,6 +4085,7 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
 
               ierr = PetscSectionSetDof(newSection, newCell, cdof);CHKERRQ(ierr);
               ierr = PetscSectionSetFieldDof(newSection, newCell, 0, cdof);CHKERRQ(ierr);
+              if (overlap) localize[newCell] = cdof;
             }
           }
         }
@@ -4088,6 +4094,25 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
       ierr = DMPlexRestoreTransitiveClosure(base,coarsePoint,PETSC_TRUE,&closureSize,&closure);CHKERRQ(ierr);
     }
   }
+  ierr = PetscFree(coarsePoints);CHKERRQ(ierr);
+
+  /* final consensus with overlap */
+  if (overlap) {
+    PetscSF  sf;
+    PetscInt *localizeGlobal;
+
+    ierr = DMGetPointSF(plex,&sf);CHKERRQ(ierr);
+    ierr = PetscMalloc1(newEnd-newStart,&localizeGlobal);CHKERRQ(ierr);
+    for (v = newStart; v < newEnd; v++) localizeGlobal[v - newStart] = localize[v - newStart];
+    ierr = PetscSFBcastBegin(sf,MPIU_INT,localize,localizeGlobal);CHKERRQ(ierr);
+    ierr = PetscSFBcastEnd(sf,MPIU_INT,localize,localizeGlobal);CHKERRQ(ierr);
+    for (v = newStart; v < newEnd; v++) {
+      ierr = PetscSectionSetDof(newSection, v, localizeGlobal[v-newStart]);CHKERRQ(ierr);
+      ierr = PetscSectionSetFieldDof(newSection, v, 0, localizeGlobal[v-newStart]);CHKERRQ(ierr);
+    }
+    ierr = PetscFree(localizeGlobal);CHKERRQ(ierr);
+  }
+  ierr = PetscFree(localize);CHKERRQ(ierr);
   ierr = PetscSectionSetUp(newSection);CHKERRQ(ierr);
   ierr = PetscObjectReference((PetscObject)oldSection);CHKERRQ(ierr);
   ierr = DMSetCoordinateSection(plex, cDim, newSection);CHKERRQ(ierr);
@@ -4097,11 +4122,12 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
   ierr = VecSetBlockSize(cVec, cDim);CHKERRQ(ierr);
   ierr = VecSetSizes(cVec, v, PETSC_DETERMINE);CHKERRQ(ierr);
   ierr = VecSetType(cVec, VECSTANDARD);CHKERRQ(ierr);
-  ierr = VecGetArray(cVec, &coords2);CHKERRQ(ierr);
+  ierr = VecSet(cVec, PETSC_MIN_REAL);CHKERRQ(ierr);
 
   /* Copy over vertex coordinates */
   ierr = DMGetCoordinatesLocal(plex, &coordinates);CHKERRQ(ierr);
   if (!coordinates) SETERRQ(PetscObjectComm((PetscObject)plex),PETSC_ERR_SUP,"Missing local coordinates vector");
+  ierr = VecGetArray(cVec, &coords2);CHKERRQ(ierr);
   ierr = VecGetArrayRead(coordinates, &coords);CHKERRQ(ierr);
   for (v = vStart; v < vEnd; ++v) {
     PetscInt d, off,off2;
@@ -4176,43 +4202,11 @@ static PetscErrorCode DMPforestLocalizeCoordinates(DM dm, DM plex)
       }
     }
   }
-
-/*
-  if (cLocalStart > 0) {
-    p4est_quadrant_t *ghosts = (p4est_quadrant_t*) pforest->ghost->ghosts.array;
-    PetscInt         count;
-
-    for (count = 0; count < cLocalStart; count++) {
-      p4est_quadrant_t *quad = &ghosts[count];
-      PetscInt newCell = count;
-
-      coarsePoint = coarsePoints[newCell];
-      if (coarsePoint < 0) continue;
-      ierr = PetscSectionGetFieldDof(newSection, newCell, 0, &cdof);CHKERRQ(ierr);
-      (void)(quad);
-    }
-  }
-  if (cLocalEnd - cLocalStart < cEnd - cStart) {
-    p4est_quadrant_t *ghosts   = (p4est_quadrant_t*) pforest->ghost->ghosts.array;
-    PetscInt         numGhosts = (PetscInt) pforest->ghost->ghosts.elem_count;
-    PetscInt         count;
-
-    for (count = 0; count < numGhosts - cLocalStart; count++) {
-      p4est_quadrant_t *quad = &ghosts[count + cLocalStart];
-      PetscInt newCell = count + cLocalEnd;
-      coarsePoint = coarsePoints[newCell];
-
-      if (coarsePoint < 0) continue;
-      (void)(quad);
-    }
-  }
-*/
   ierr = VecRestoreArray(cVec, &coords2);CHKERRQ(ierr);
   ierr = DMSetCoordinatesLocal(plex, cVec);CHKERRQ(ierr);
   ierr = VecDestroy(&cVec);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&newSection);CHKERRQ(ierr);
   ierr = PetscSectionDestroy(&oldSection);CHKERRQ(ierr);
-  ierr = PetscFree(coarsePoints);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -4371,22 +4365,6 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
 
       ierr = DMGetCoordinateDM(newPlex,&coordDM);CHKERRQ(ierr);
       ierr = DMSetPointSF(coordDM,pointSF);CHKERRQ(ierr);
-      if (overlap > 0) { /* the p4est routine can't set all of the coordinates in its routine if there is overlap */
-        Vec coordsGlobal, coordsLocal;
-        const PetscScalar *globalArray;
-        PetscScalar *localArray;
-        PetscSF coordSF;
-
-        ierr = DMGetDefaultSF(coordDM,&coordSF);CHKERRQ(ierr);
-        ierr = DMGetCoordinates(newPlex, &coordsGlobal);CHKERRQ(ierr);
-        ierr = DMGetCoordinatesLocal(newPlex, &coordsLocal);CHKERRQ(ierr);
-        ierr = VecGetArrayRead(coordsGlobal, &globalArray);CHKERRQ(ierr);
-        ierr = VecGetArray(coordsLocal, &localArray);CHKERRQ(ierr);
-        ierr = PetscSFBcastBegin(coordSF,MPIU_SCALAR,globalArray,localArray);CHKERRQ(ierr);
-        ierr = PetscSFBcastEnd(coordSF,MPIU_SCALAR,globalArray,localArray);CHKERRQ(ierr);
-        ierr = VecRestoreArray(coordsLocal, &localArray);CHKERRQ(ierr);
-        ierr = VecRestoreArrayRead(coordsGlobal, &globalArray);CHKERRQ(ierr);
-      }
     }
     ierr = PetscSFDestroy(&pointSF);CHKERRQ(ierr);
     sc_array_destroy (points_per_dim);
@@ -4408,24 +4386,26 @@ static PetscErrorCode DMConvert_pforest_plex(DM dm, DMType newtype, DM *plex)
       ierr = DMGetPeriodicity(dm,&isper,&maxCell,&L,&bd);CHKERRQ(ierr);
       ierr = DMSetPeriodicity(newPlex,isper,maxCell,L,bd);CHKERRQ(ierr);
       ierr = DMPforestLocalizeCoordinates(dm,newPlex);CHKERRQ(ierr);
-      if (isper && overlap > 0) { /* BROKEN: need to properly localize on overlapping cells */
-        Vec coordsGlobal, coordsLocal;
-        const PetscScalar *globalArray;
-        PetscScalar *localArray;
-        PetscSF coordSF;
-        DM coordDM;
+    }
 
-        ierr = DMGetCoordinateDM(newPlex,&coordDM);CHKERRQ(ierr);
-        ierr = DMGetDefaultSF(coordDM,&coordSF);CHKERRQ(ierr);
-        ierr = DMGetCoordinates(newPlex, &coordsGlobal);CHKERRQ(ierr);
-        ierr = DMGetCoordinatesLocal(newPlex, &coordsLocal);CHKERRQ(ierr);
-        ierr = VecGetArrayRead(coordsGlobal, &globalArray);CHKERRQ(ierr);
-        ierr = VecGetArray(coordsLocal, &localArray);CHKERRQ(ierr);
-        ierr = PetscSFBcastBegin(coordSF,MPIU_SCALAR,globalArray,localArray);CHKERRQ(ierr);
-        ierr = PetscSFBcastEnd(coordSF,MPIU_SCALAR,globalArray,localArray);CHKERRQ(ierr);
-        ierr = VecRestoreArray(coordsLocal, &localArray);CHKERRQ(ierr);
-        ierr = VecRestoreArrayRead(coordsGlobal, &globalArray);CHKERRQ(ierr);
-      }
+    if (overlap > 0) { /* the p4est routine can't set all of the coordinates in its routine if there is overlap */
+      Vec               coordsGlobal, coordsLocal;
+      const PetscScalar *globalArray;
+      PetscScalar       *localArray;
+      PetscSF           coordSF;
+      DM                coordDM;
+
+      ierr = DMGetCoordinateDM(newPlex,&coordDM);CHKERRQ(ierr);
+      ierr = DMGetDefaultSF(coordDM,&coordSF);CHKERRQ(ierr);
+      ierr = DMGetCoordinates(newPlex, &coordsGlobal);CHKERRQ(ierr);
+      ierr = DMGetCoordinatesLocal(newPlex, &coordsLocal);CHKERRQ(ierr);
+      ierr = VecGetArrayRead(coordsGlobal, &globalArray);CHKERRQ(ierr);
+      ierr = VecGetArray(coordsLocal, &localArray);CHKERRQ(ierr);
+      ierr = PetscSFBcastBegin(coordSF,MPIU_SCALAR,globalArray,localArray);CHKERRQ(ierr);
+      ierr = PetscSFBcastEnd(coordSF,MPIU_SCALAR,globalArray,localArray);CHKERRQ(ierr);
+      ierr = VecRestoreArray(coordsLocal, &localArray);CHKERRQ(ierr);
+      ierr = VecRestoreArrayRead(coordsGlobal, &globalArray);CHKERRQ(ierr);
+      ierr = DMSetCoordinatesLocal(newPlex, coordsLocal);CHKERRQ(ierr);
     }
     ierr = DMPforestMapCoordinates(dm,newPlex);CHKERRQ(ierr);
 
