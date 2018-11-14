@@ -363,7 +363,7 @@ int main(int argc, char **argv)
        suffix: p4est_2d
        args: -petscspace_type tensor -petscspace_degree 2 -dim 2
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_2d.out
@@ -382,35 +382,35 @@ int main(int argc, char **argv)
        suffix: p4est_2d_deg2_steps2
        args: -petscspace_type tensor -petscspace_degree 2 -dim 2 -coords -adapt_steps 2
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_steps3.out
        suffix: p4est_2d_deg3_steps3
        args: -petscspace_type tensor -petscspace_degree 3 -dim 2 -coords -adapt_steps 3
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_steps2.out
        suffix: p4est_3d_deg2_steps2
        args: -petscspace_type tensor -petscspace_degree 2 -dim 3 -coords -adapt_steps 2
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_steps3.out
        suffix: p4est_3d_deg3_steps3
        args: -petscspace_type tensor -petscspace_degree 3 -dim 3 -coords -adapt_steps 3
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_2d_fv.out
        suffix: p4est_2d_fv
        args: -transfer_from_base 0 -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        TODO: broken (codimension adjacency)
@@ -418,7 +418,7 @@ int main(int argc, char **argv)
        suffix: p4est_2d_fv_adjcodim
        args: -transfer_from_base 0 -use_fv -linear -dim 2 -dm_forest_partition_overlap 1 -dm_forest_adjacency_codimension 1
        nsize: 2
-       requires: p4est
+       requires: p4est !single
 
      test:
        TODO: broken (dimension adjacency)
@@ -426,65 +426,68 @@ int main(int argc, char **argv)
        suffix: p4est_2d_fv_adjdim
        args: -transfer_from_base 0 -use_fv -linear -dim 2 -dm_forest_partition_overlap 1 -dm_forest_adjacency_dimension 1
        nsize: 2
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_2d_fv.out
        suffix: p4est_2d_fv_zerocells
        args: -transfer_from_base 0 -use_fv -linear -dim 2 -dm_forest_partition_overlap 1
        nsize: 10
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_3d.out
        suffix: p4est_3d
        args: -petscspace_type tensor -petscspace_degree 1 -dim 3
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_3d.out
        suffix: p4est_3d_deg3
        args: -petscspace_type tensor -petscspace_degree 3 -dim 3
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_2d.out
        suffix: p4est_2d_deg2_coords
        args: -petscspace_type tensor -petscspace_degree 2 -dim 2 -coords
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_3d.out
        suffix: p4est_3d_deg2_coords
        args: -petscspace_type tensor -petscspace_degree 2 -dim 3 -coords
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        output_file: output/ex2_3d_fv.out
        suffix: p4est_3d_fv
        args: -transfer_from_base 0 -use_fv -linear -dim 3 -dm_forest_partition_overlap 1
        nsize: 3
-       requires: p4est
+       requires: p4est !single
 
      test:
        suffix: p4est_3d_nans
        args: -dim 3 -dm_forest_partition_overlap 1 -test_convert -petscspace_type tensor -petscspace_degree 1
        nsize: 2
+       requires: p4est !single
 
      test:
        output_file: output/ex2_steps2.out
        suffix: p4est_2d_tfb_distributed_nc
        args: -petscspace_type tensor -petscspace_degree 3 -dim 2 -dm_forest_maximum_refinement 2 -dm_p4est_refine_pattern hash -use_bcs 0 -coords -adapt_steps 2 -distribute_base -use_bcs 0
        nsize: 3
+       requires: p4est !single
 
      test:
        output_file: output/ex2_steps2.out
        suffix: p4est_3d_tfb_distributed_nc
        args: -petscspace_type tensor -petscspace_degree 2 -dim 3 -dm_forest_maximum_refinement 2 -dm_p4est_refine_pattern hash -use_bcs 0 -coords -adapt_steps 2 -distribute_base -use_bcs 0
        nsize: 3
+       requires: p4est !single
 
 TEST*/
