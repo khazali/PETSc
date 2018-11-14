@@ -362,7 +362,7 @@ static PetscErrorCode DMPlexView_GLVis_ASCII(DM dm, PetscViewer viewer)
 
   /*
      a couple of sections of the mesh specification are disabled
-       - boundary: the boundary is not needed for proper mesh visualization unless we want to visualize boundary attributes
+       - boundary: the boundary is not needed for proper mesh visualization unless we want to visualize boundary attributes or we have high-order coordinates in 3D (topologically)
        - vertex_parents: used for non-conforming meshes only when we want to use MFEM as a discretization package
                          and be able to derefine the mesh (MFEM does not currently have to ability to read ncmeshes in parallel)
   */
@@ -523,7 +523,8 @@ static PetscErrorCode DMPlexView_GLVis_ASCII(DM dm, PetscViewer viewer)
       ierr = VecRestoreArray(hovec,&array);CHKERRQ(ierr);
     }
   }
-
+  /* if we have high-order coordinates in 3D, we need to specify the boundary */
+  if (hovec && dim == 3) enable_boundary = PETSC_TRUE;
 
   /* header */
   ierr = PetscViewerASCIIPrintf(viewer,"MFEM mesh v1.1\n");CHKERRQ(ierr);
