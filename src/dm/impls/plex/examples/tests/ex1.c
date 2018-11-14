@@ -840,4 +840,11 @@ int main(int argc, char **argv)
     suffix: p4est_bug_labels
     args: -dim 2 -interpolate -test_p4est_seq -test_shape -check_symmetry -check_skeleton -check_faces -cell_simplex 0 -domain_box_sizes 5,4,5 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 4 -dm_p4est_refine_pattern hash  -petscpartitioner_type simple -dm_forest_print_label_error
 
+  test:
+    TODO: broken
+    requires: p4est
+    nsize: 2
+    suffix: p4est_bug_distribute_overlap
+    args: -interpolate -test_p4est_seq -test_shape -check_symmetry -check_skeleton -check_faces -dm_forest_minimum_refinement 0 -dm_forest_partition_overlap 0 -dim 2 -domain_shape box -cell_simplex 0 -domain_box_sizes 3,3 -dm_forest_initial_refinement 0 -dm_forest_maximum_refinement 2 -dm_p4est_refine_pattern hash -petscpartitioner_type simple -overlap 1
+
 TEST*/
