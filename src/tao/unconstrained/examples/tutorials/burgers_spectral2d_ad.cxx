@@ -77,7 +77,7 @@ typedef char integer1;
   - Block dimensions are assumed square and identical.
   - Memory for the work array tmp should be preallocated.
 */
-template <class T> PetscErrorCode MTMV(const PetscBLASInt M,T alpha,T **A,T **B,T **U,T beta,T **tmp,T **V)
+template <class T> PetscErrorCode MTMV(integer M,T alpha,T **A,T **B,T **U,T beta,T **tmp,T **V)
 {
   T one = 1.,zero = 0.;
 
@@ -91,7 +91,7 @@ template <class T> PetscErrorCode MTMV(const PetscBLASInt M,T alpha,T **A,T **B,
   Forward mode derivative of MTMV w.r.t. the matrix argument U, given seed matrix Udot:
     vec(Vdot) = alpha * (A \otimes B) vec(Udot)  <=> Vdot = alpha * (B^T * Udot * A)
 */
-template <class T> PetscErrorCode MTMVDot(const PetscBLASInt M,T alpha,T **A,T **B,T **U,T **Udot,T beta,T **tmp,T **V,T **Vdot)
+template <class T> PetscErrorCode MTMVDot(integer M,T alpha,T **A,T **B,T **U,T **Udot,T beta,T **tmp,T **V,T **Vdot)
 {
   T one = 1.,zero = 0.;
 
@@ -115,7 +115,7 @@ template <class T> PetscErrorCode MTMVDot(const PetscBLASInt M,T alpha,T **A,T *
 
   NOTE the transposition of A and B: ["N","N";"N","T"] -> ["T","N";"N","N"]
 */
-template <class T> PetscErrorCode MTMVBar(const PetscBLASInt M,T alpha,T **A,T **B,T **U,T **Ubar,T beta,T **tmp,T **V,T **Vbar)
+template <class T> PetscErrorCode MTMVBar(integer M,T alpha,T **A,T **B,T **U,T **Ubar,T beta,T **tmp,T **V,T **Vbar)
 {
   T one = 1.,zero = 0.;
 
@@ -720,7 +720,7 @@ template <class T> PetscErrorCode ADRHSFunction (Field<T> **outl, Field<T> **ul,
   Vec             uloc, outloc, global, forcing;
   DMDACoor2d      **coors;
   PetscScalar     tt, alpha, beta, tempu, tempv,xpy;
-  T               aalpha, abeta; 
+  T               aalpha, abeta, one = 1.;
   PetscInt        inc;  
   static int its=0;
   char var[12] ;
@@ -845,67 +845,47 @@ template <class T> PetscErrorCode ADRHSFunction (Field<T> **outl, Field<T> **ul,
            
         //here the stifness matrix in 2d
         //first product (B x K_yy)u=W2 (u_yy)
-        aalpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&amass[0][0],&Nl,&ulb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
-        aalpha=2./appctx->param.Ley;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&astiff[0][0],&Nl,&abeta,&wrk2[0][0],&Nl);
-        //aalpha=appctx->param.Lex/appctx->param.Ley;
-        //MTMV(Nl,aalpha,astiff,amass,ulb,abeta,wrk1,wrk2);
+        aalpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,aalpha,astiff,amass,ulb,abeta,wrk1,wrk2);
 
         //second product (K_xx x B) u=W3 (u_xx)
-        aalpha=2.0/appctx->param.Lex;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&astiff[0][0],&Nl,&ulb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
-        aalpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&amass[0][0],&Nl,&abeta,&wrk3[0][0],&Nl);
+        aalpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,aalpha,amass,astiff,ulb,abeta,wrk1,wrk3);
 
-        aalpha=1.0;
-        BLASaxpy_(&Nl2,&aalpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the laplacian in wrk2
+        BLASaxpy_(&Nl2,&one,&wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the laplacian in wrk2
        
         // for the v component now 
         //first product (B x K_yy)v=W3
-        aalpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&amass[0][0],&Nl,&vlb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
-        aalpha=2.0/appctx->param.Ley;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&astiff[0][0],&Nl,&abeta,&wrk3[0][0],&Nl);
+        aalpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,aalpha,astiff,amass,vlb,abeta,wrk1,wrk3);
 
         //second product (K_xx x B)v=W4
-        aalpha=2.0/appctx->param.Lex;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&astiff[0][0],&Nl,&vlb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
-        aalpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&amass[0][0],&Nl,&abeta,&wrk4[0][0],&Nl);
+        aalpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,aalpha,amass,astiff,vlb,abeta,wrk1,wrk4);
 
-        aalpha=1.0;
-        BLASaxpy_(&Nl2,&aalpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the laplacian in wrk3
+        BLASaxpy_(&Nl2,&one, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the laplacian in wrk3
 
 
         //now the gradient operator for u
         // first (D_x x B) u =W4 this multiples u
         aalpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&amass[0][0],&Nl,&ulb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
-        aalpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&agrad[0][0],&Nl,&abeta,&wrk4[0][0],&Nl);
+        MTMV(Nl,aalpha,agrad,amass,ulb,abeta,wrk1,wrk4);
         
 
         // first (B x D_y) u =W5 this mutiplies v
-        aalpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&agrad[0][0],&Nl,&ulb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
         aalpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&amass[0][0],&Nl,&abeta,&wrk5[0][0],&Nl);
+        MTMV(Nl,aalpha,amass,agrad,ulb,abeta,wrk1,wrk5);
 
 
         //now the agradient operator for v
         // first (D_x x B) v =W6 this multiples u
         aalpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&amass[0][0],&Nl,&vlb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
-        aalpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&agrad[0][0],&Nl,&abeta,&wrk6[0][0],&Nl);
+        MTMV(Nl,aalpha,agrad,amass,vlb,abeta,wrk1,wrk6);
         
 
         // first (B x D_y) v =W7 this mutiplies v
-        aalpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&agrad[0][0],&Nl,&vlb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
         aalpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&amass[0][0],&Nl,&abeta,&wrk7[0][0],&Nl);
+        MTMV(Nl,aalpha,amass,agrad,vlb,abeta,wrk1,wrk7);
 
 
         for (jx=0; jx<appctx->param.N; jx++) 
