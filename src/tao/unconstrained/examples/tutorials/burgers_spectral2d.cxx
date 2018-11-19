@@ -107,6 +107,7 @@ extern PetscErrorCode RHSFunction(TS,PetscReal,Vec,Vec,void*);
 extern PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode MyMatMult(Mat,Vec,Vec);
 extern PetscErrorCode MyMatMultTransp(Mat,Vec,Vec);
+extern PetscErrorCode MTMV(const PetscBLASInt M,PetscScalar ALPHA,PetscScalar **A,PetscScalar **B,PetscScalar **U,PetscScalar BETA,PetscScalar **tmp,PetscScalar **V);
 
 int main(int argc,char **argv)
 {
@@ -616,7 +617,7 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
   DM              cda;
   Vec             uloc, outloc, global, forcing;
   DMDACoor2d      **coors;
-  PetscScalar     tt, alpha, beta, tempu, tempv,xpy; 
+  PetscScalar     tt, alpha, beta, tempu, tempv,xpy, one = 1.;
   PetscInt        inc;  
   static int its=0;
   char var[12] ;
@@ -714,65 +715,45 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
 
         //here the stifness matrix in 2d
         //first product (B x K_yy)u=W2 (u_yy)
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2./appctx->param.Ley;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
+        alpha = appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,alpha,stiff,mass,ulb,beta,wrk1,wrk2);
 
         //second product (K_xx x B) u=W3 (u_xx)
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,alpha,mass,stiff,ulb,beta,wrk1,wrk3);
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the laplacian in wrk2
+        BLASaxpy_(&Nl2,&one, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the laplacian in wrk2
        
         // for the v component now 
         //first product (B x K_yy)v=W3
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2.0/appctx->param.Ley;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,alpha,stiff,mass,vlb,beta,wrk1,wrk3);
 
         //second product (K_xx x B)v=W4
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,alpha,mass,stiff,vlb,beta,wrk1,wrk4);
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the laplacian in wrk3
+        BLASaxpy_(&Nl2,&one, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the laplacian in wrk3
 
 
         //now the gradient operator for u
         // first (D_x x B) u =W4 this multiples u
         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+        MTMV(Nl,alpha,grad,mass,ulb,beta,wrk1,wrk4);
         
-
         // first (B x D_y) u =W5 this mutiplies v
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+        MTMV(Nl,alpha,mass,grad,ulb,beta,wrk1,wrk5);
 
 
         //now the gradient operator for v
         // first (D_x x B) v =W6 this multiples u
         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
-        
+        MTMV(Nl,alpha,grad,mass,vlb,beta,wrk1,wrk6);
 
         // first (B x D_y) v =W7 this mutiplies v
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk7[0][0],&Nl);
+        MTMV(Nl,alpha,mass,grad,vlb,beta,wrk1,wrk7);
 
 
         for (jx=0; jx<appctx->param.N; jx++) 
@@ -844,7 +825,7 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
    PetscErrorCode  ierr;
    Vec             uloc, outloc, ujloc;
    PetscViewer     viewfile;
-   PetscScalar     alpha, beta;
+   PetscScalar     alpha, beta, one = 1.;
    static int its=0;
    char var[12] ;
 
@@ -955,35 +936,26 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
 
        //here the stifness matrix in 2d
         //first product (B x K_yy) u=W2 (u_yy)
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2./appctx->param.Ley;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,alpha,stiff,mass,ulb,beta,wrk1,wrk2);
 
         //second product (K_xx x B) u=W3 (u_xx)
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,alpha,mass,stiff,ulb,beta,wrk1,wrk3);
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
+        BLASaxpy_(&Nl2,&one, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
        
         // for the v component now 
         //first product (B x K_yy) v=W3
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2.0/appctx->param.Ley;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,alpha,stiff,mass,vlb,beta,wrk1,wrk3);
 
         //second product (K_xx x B) v=W4
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMV(Nl,alpha,mass,stiff,vlb,beta,wrk1,wrk4);
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
+        //alpha=1.0;
+        BLASaxpy_(&Nl2,&one, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -993,46 +965,35 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
        //now the gradient operator for u
         // first (D_x x B) wu the term ujb.(D_x x B) wu
         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+        MTMV(Nl,alpha,grad,mass,ulb,beta,wrk1,wrk4);
 
         PetscPointWiseMult(Nl2, &wrk4[0][0], &ujb[0][0], &wrk4[0][0]); 
         
        // (D_x x B) u the term ulb.(D_x x B) u
         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+        MTMV(Nl,alpha,grad,mass,ujb,beta,wrk1,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &ulb[0][0], &wrk5[0][0]); 
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
+        BLASaxpy_(&Nl2,&one, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
 
 
 
         // first (B x D_y) wu the term vjb.(B x D_x) wu 
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+        MTMV(Nl,alpha,mass,grad,ulb,beta,wrk1,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &vjb[0][0], &wrk5[0][0]); 
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
+        BLASaxpy_(&Nl2,&one, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
 
         // first (B x D_y) u the term vlb.(B x D_x) u !!!
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+        MTMV(Nl,alpha,mass,grad,ujb,beta,wrk1,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &vlb[0][0], &wrk5[0][0]); 
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
+        BLASaxpy_(&Nl2,&one, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
 
 
 //////////////////////////////////// the second equation
@@ -1040,46 +1001,34 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
 
        // (D_x x B) wv the term ujb.(D_x x B) wv
         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+        MTMV(Nl,alpha,grad,mass,vlb,beta,wrk1,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &ujb[0][0], &wrk5[0][0]); 
 
        // (D_x x B) v the term ulb.(D_x x B) v !!!
-         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
+        alpha=appctx->param.Lex/2.0;
+        MTMV(Nl,alpha,grad,mass,vjb,beta,wrk1,wrk6);
 
         PetscPointWiseMult(Nl2, &wrk6[0][0], &ulb[0][0], &wrk6[0][0]); 
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
+        BLASaxpy_(&Nl2,&one, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
 
         // first (B x D_y) v the term vlb.(B x D_x) v
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);         
+        MTMV(Nl,alpha,mass,grad,vjb,beta,wrk1,wrk6);
 
         PetscPointWiseMult(Nl2, &wrk6[0][0], &vlb[0][0], &wrk6[0][0]); 
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
+        BLASaxpy_(&Nl2,&one, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
 
       
         // first (B x D_y) wv the term vjb.(B x D_x) wv
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
-
+        MTMV(Nl,alpha,mass,grad,vlb,beta,wrk1,wrk6);
       
         PetscPointWiseMult(Nl2, &wrk6[0][0], &vjb[0][0], &wrk6[0][0]); 
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
+        BLASaxpy_(&Nl2,&one, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
 
 
 
@@ -1659,6 +1608,25 @@ PetscErrorCode MonitorError(Tao tao,void *ctx)
   ierr = PetscPrintf(PETSC_COMM_WORLD,"Error for initial conditions %g\n",(double)nrm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+/*
+  Wrapper for pair of BLASgemm calls, representing matrix-tensor-matrix-vector product
+    vec(V) := alpha * (A \otimes B) * vec(U) + beta * vec(V)  <=> V = alpha * B*U*A^T + beta * V
+
+  NOTES:
+  - Block dimensions are assumed square and identical.
+  - Memory for the work array tmp should be preallocated.
+*/
+PetscErrorCode MTMV(const PetscBLASInt M,PetscScalar alpha,PetscScalar **A,PetscScalar **B,PetscScalar **U,PetscScalar beta,PetscScalar **tmp,PetscScalar **V)
+{
+  PetscScalar    one = 1.,zero = 0.;
+
+  PetscFunctionBegin;
+  BLASgemm_("N","N",&M,&M,&M,&one,&B[0][0],&M,&U[0][0],&M,&zero,&tmp[0][0],&M);
+  BLASgemm_("N","T",&M,&M,&M,&alpha,&tmp[0][0],&M,&A[0][0],&M,&beta,&V[0][0],&M);
+  PetscFunctionReturn(0);
+}
+
 
 
 /*TEST
