@@ -1,0 +1,64 @@
+iteration=0	 cost function (TAO)=0., cost function (L2 4.96568e-05), ic error 0.0112013
+Error for initial conditions 0.0112013
+  0 TAO,  Function value: 4.96568e-05,  Residual: 0.0429415 
+iteration=0	 cost function (TAO)=4.96568e-05, cost function (L2 2.47755e-05), ic error 0.0112013
+Error for initial conditions 0.0102907
+  1 TAO,  Function value: 2.47755e-05,  Residual: 0.0217505 
+iteration=1	 cost function (TAO)=2.47755e-05, cost function (L2 7.72641e-06), ic error 0.0102907
+Error for initial conditions 0.00881849
+  2 TAO,  Function value: 7.72641e-06,  Residual: 0.0100867 
+iteration=2	 cost function (TAO)=7.72641e-06, cost function (L2 3.21884e-06), ic error 0.00881849
+Error for initial conditions 0.00783239
+  3 TAO,  Function value: 3.21884e-06,  Residual: 0.0056666 
+iteration=3	 cost function (TAO)=3.21884e-06, cost function (L2 2.39413e-06), ic error 0.00783239
+Error for initial conditions 0.00708504
+  4 TAO,  Function value: 2.39413e-06,  Residual: 0.00707662 
+iteration=4	 cost function (TAO)=2.39413e-06, cost function (L2 1.29543e-06), ic error 0.00708504
+Error for initial conditions 0.00672091
+  5 TAO,  Function value: 1.29543e-06,  Residual: 0.00325933 
+iteration=5	 cost function (TAO)=1.29543e-06, cost function (L2 7.72302e-07), ic error 0.00672091
+Error for initial conditions 0.00651904
+  6 TAO,  Function value: 7.72302e-07,  Residual: 0.0024333 
+iteration=6	 cost function (TAO)=7.72302e-07, cost function (L2 4.36647e-07), ic error 0.00651904
+Error for initial conditions 0.00624812
+  7 TAO,  Function value: 4.36647e-07,  Residual: 0.0020159 
+iteration=7	 cost function (TAO)=4.36647e-07, cost function (L2 1.15642e-07), ic error 0.00624812
+Error for initial conditions 0.00584633
+  8 TAO,  Function value: 1.15642e-07,  Residual: 0.00160177 
+iteration=8	 cost function (TAO)=1.15642e-07, cost function (L2 2.10499e-07), ic error 0.00584633
+iteration=8	 cost function (TAO)=1.15642e-07, cost function (L2 5.28932e-08), ic error 0.00584633
+Error for initial conditions 0.00563251
+  9 TAO,  Function value: 5.28932e-08,  Residual: 0.00130409 
+iteration=9	 cost function (TAO)=5.28932e-08, cost function (L2 2.51181e-08), ic error 0.00563251
+Error for initial conditions 0.0056255
+ 10 TAO,  Function value: 2.51181e-08,  Residual: 0.000586741 
+iteration=10	 cost function (TAO)=2.51181e-08, cost function (L2 1.34399e-08), ic error 0.0056255
+Error for initial conditions 0.00560138
+ 11 TAO,  Function value: 1.34399e-08,  Residual: 0.000351659 
+iteration=11	 cost function (TAO)=1.34399e-08, cost function (L2 6.86665e-09), ic error 0.00560138
+Error for initial conditions 0.00557336
+ 12 TAO,  Function value: 6.86665e-09,  Residual: 0.000372686 
+iteration=12	 cost function (TAO)=6.86665e-09, cost function (L2 3.44771e-09), ic error 0.00557336
+Error for initial conditions 0.00557123
+ 13 TAO,  Function value: 3.44771e-09,  Residual: 0.00022247 
+iteration=13	 cost function (TAO)=3.44771e-09, cost function (L2 1.71294e-09), ic error 0.00557123
+Error for initial conditions 0.00557806
+ 14 TAO,  Function value: 1.71294e-09,  Residual: 0.000110934 
+iteration=14	 cost function (TAO)=1.71294e-09, cost function (L2 1.04154e-09), ic error 0.00557806
+Error for initial conditions 0.00558007
+ 15 TAO,  Function value: 1.04154e-09,  Residual: 8.37471e-05 
+iteration=15	 cost function (TAO)=1.04154e-09, cost function (L2 6.08259e-10), ic error 0.00558007
+Error for initial conditions 0.00557745
+ 16 TAO,  Function value: 6.08259e-10,  Residual: 5.79482e-05 
+iteration=16	 cost function (TAO)=6.08259e-10, cost function (L2 3.13869e-10), ic error 0.00557745
+Error for initial conditions 0.00557246
+ 17 TAO,  Function value: 3.13869e-10,  Residual: 6.94516e-05 
+iteration=17	 cost function (TAO)=3.13869e-10, cost function (L2 2.89631e-10), ic error 0.00557246
+Error for initial conditions 0.00556922
+ 18 TAO,  Function value: 2.89631e-10,  Residual: 0.000106138 
+iteration=18	 cost function (TAO)=2.89631e-10, cost function (L2 1.28828e-10), ic error 0.00556922
+Error for initial conditions 0.00557022
+ 19 TAO,  Function value: 1.28828e-10,  Residual: 4.02235e-05 
+iteration=19	 cost function (TAO)=1.28828e-10, cost function (L2 7.77729e-11), ic error 0.00557022
+Error for initial conditions 0.00557143
+ 20 TAO,  Function value: 7.77729e-11,  Residual: 1.65295e-05 
