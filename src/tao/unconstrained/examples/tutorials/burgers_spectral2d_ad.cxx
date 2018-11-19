@@ -70,6 +70,62 @@ typedef char integer1;
           integer *incx, a1s *dy, integer *incy);
 
 /*
+  Wrapper for pair of BLASgemm calls, representing matrix-tensor-matrix-vector product
+    vec(V) := alpha * (A \otimes B) * vec(U) + beta * vec(V)  <=> V = alpha * B*U*A^T + beta * V
+
+  NOTES:
+  - Block dimensions are assumed square and identical.
+  - Memory for the work array tmp should be preallocated.
+*/
+template <class T> PetscErrorCode MTMV(const PetscBLASInt M,T alpha,T **A,T **B,T **U,T beta,T **tmp,T **V)
+{
+  T one = 1.,zero = 0.;
+
+  PetscFunctionBegin;
+  BLASgemm_("N","N",&M,&M,&M,&one,&B[0][0],&M,&U[0][0],&M,&zero,&tmp[0][0],&M);
+  BLASgemm_("N","T",&M,&M,&M,&alpha,&tmp[0][0],&M,&A[0][0],&M,&beta,&V[0][0],&M);
+  PetscFunctionReturn(0);
+}
+
+/*
+  Forward mode derivative of MTMV w.r.t. the matrix argument U, given seed matrix Udot:
+    vec(Vdot) = alpha * (A \otimes B) vec(Udot)  <=> Vdot = alpha * (B^T * Udot * A)
+*/
+template <class T> PetscErrorCode MTMVDot(const PetscBLASInt M,T alpha,T **A,T **B,T **U,T **Udot,T beta,T **tmp,T **V,T **Vdot)
+{
+  T one = 1.,zero = 0.;
+
+  PetscFunctionBegin;
+
+  /* Undifferentiated code */
+  if ((U) && (V)) {
+    BLASgemm_("N","N",&M,&M,&M,&one,&B[0][0],&M,&U[0][0],&M,&zero,&tmp[0][0],&M);
+    BLASgemm_("N","T",&M,&M,&M,&alpha,&tmp[0][0],&M,&A[0][0],&M,&beta,&V[0][0],&M);
+  }
+
+  /* Differentiated code */
+  BLASgemm_("N","N",&M,&M,&M,&one,&B[0][0],&M,&Udot[0][0],&M,&zero,&tmp[0][0],&M);
+  BLASgemm_("N","T",&M,&M,&M,&alpha,&tmp[0][0],&M,&A[0][0],&M,&beta,&Vdot[0][0],&M);
+  PetscFunctionReturn(0);
+}
+
+/*
+  Reverse mode derivative of MTMV w.r.t. the matrix argument U, given a seed matrix Vdot:
+    vec(Ubar) = alpha * (A^T \otimes B^T) vec(Vbar)  <=>  alpha * (A^T * Vbar * B)
+
+  NOTE the transposition of A and B: ["N","N";"N","T"] -> ["T","N";"N","N"]
+*/
+template <class T> PetscErrorCode MTMVBar(const PetscBLASInt M,T alpha,T **A,T **B,T **U,T **Ubar,T beta,T **tmp,T **V,T **Vbar)
+{
+  T one = 1.,zero = 0.;
+
+  PetscFunctionBegin;
+  BLASgemm_("T","N",&M,&M,&M,&one,&B[0][0],&M,&Vbar[0][0],&M,&zero,&tmp[0][0],&M);
+  BLASgemm_("N","N",&M,&M,&M,&alpha,&tmp[0][0],&M,&A[0][0],&M,&beta,&Ubar[0][0],&M);
+  PetscFunctionReturn(0);
+}
+
+/*
    User-defined application context - contains data needed by the
    application-provided call-back routines.
 */
@@ -653,7 +709,7 @@ template <class T> PetscErrorCode ADRHSFunction (Field<T> **outl, Field<T> **ul,
 {
   PetscErrorCode  ierr;
   AppCtx          *appctx = (AppCtx*)ctx;  
-  T               **wrk3, **wrk1, **wrk2, **wrk4, **wrk5, **wrk6, **wrk7;
+  T               **wrk1, **wrk2, **wrk3, **wrk4, **wrk5, **wrk6, **wrk7;
   PetscScalar     **stiff, **mass, **grad;
   T               **astiff, **amass, **agrad;
   T               **ulb, **vlb;
@@ -793,6 +849,8 @@ template <class T> PetscErrorCode ADRHSFunction (Field<T> **outl, Field<T> **ul,
         BLASgemm_("N","N",&Nl,&Nl,&Nl,&aalpha,&amass[0][0],&Nl,&ulb[0][0],&Nl,&abeta,&wrk1[0][0],&Nl);
         aalpha=2./appctx->param.Ley;
         BLASgemm_("N","T",&Nl,&Nl,&Nl,&aalpha,&wrk1[0][0],&Nl,&astiff[0][0],&Nl,&abeta,&wrk2[0][0],&Nl);
+        //aalpha=appctx->param.Lex/appctx->param.Ley;
+        //MTMV(Nl,aalpha,astiff,amass,ulb,abeta,wrk1,wrk2);
 
         //second product (K_xx x B) u=W3 (u_xx)
         aalpha=2.0/appctx->param.Lex;
