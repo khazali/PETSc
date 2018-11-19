@@ -35,6 +35,7 @@ static char help[] ="Solves a simple data assimilation problem with one dimensio
 #include <petscblaslapack.h>
 #include <petsc/private/petscimpl.h>
 #include <codi.hpp>
+#include <adblaslapack.hpp>
 
 typedef codi::RealForwardGen<double> t1s;
 typedef codi::RealForwardGen<t1s> t2s;
@@ -53,21 +54,6 @@ typedef short int shortlogical;
 typedef char logical1;
 typedef char integer1;
 
-/* Subroutine */ void dgemm_(char *transa, char *transb, integer *m, integer *
-          n, integer *k, t1s *alpha, t1s *a, integer *lda, 
-          t1s *b, integer *ldb, t1s *beta, t1s *c__, 
-          integer *ldc);
-          
-/* Subroutine */ void dgemm_(char *transa, char *transb, integer *m, integer *
-          n, integer *k, a1s *alpha, a1s *a, integer *lda, 
-          a1s *b, integer *ldb, a1s *beta, a1s *c__, 
-          integer *ldc);
-
-/* Subroutine */ void daxpy_(integer *n, t1s *da, t1s *dx,
-          integer *incx, t1s *dy, integer *incy);
-
-/* Subroutine */ void daxpy_(integer *n, a1s *da, a1s *dx,
-          integer *incx, a1s *dy, integer *incy);
 
 /*
   Wrapper for pair of BLASgemm calls, representing matrix-tensor-matrix-vector product
