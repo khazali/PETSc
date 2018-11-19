@@ -1113,7 +1113,7 @@ PetscErrorCode PetscOptionsFindPair(PetscOptions options,const char pre[],const 
   { /* slow search */
     int i, N = options->N;
     for (i=0; i<N; i++) {
-      int result = PetscOptNameCmp(options->names[i],name);CHKERRQ(ierr);
+      int result = PetscOptNameCmp(options->names[i],name);
       if (!result) {
         options->used[i]  = PETSC_TRUE;
         if (value) *value = options->values[i];
@@ -2801,7 +2801,7 @@ PetscErrorCode PetscOptionsDeprecated_Private(PetscOptionItems *PetscOptionsObje
     if (!quiet) {
       ierr = PetscStrcpy(msg,"** PETSc DEPRECATION WARNING ** : the option ");CHKERRQ(ierr);
       ierr = PetscStrcat(msg,oldname);CHKERRQ(ierr);
-      ierr = PetscStrcat(msg," is deprecated as of version ");
+      ierr = PetscStrcat(msg," is deprecated as of version ");CHKERRQ(ierr);
       ierr = PetscStrcat(msg,version);CHKERRQ(ierr);
       ierr = PetscStrcat(msg," and will be removed in a future release.");CHKERRQ(ierr);
       if (newname) {

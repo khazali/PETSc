@@ -566,10 +566,11 @@ PetscErrorCode SNESLineSearchPreCheckPicard(SNESLineSearch linesearch,Vec X,Vec 
     PetscReal alpha,ydiffnorm;
     ierr  = VecAXPY(Ylast,-1.0,Y);CHKERRQ(ierr);
     ierr  = VecNorm(Ylast,NORM_2,&ydiffnorm);CHKERRQ(ierr);
-    alpha = ylastnorm / ydiffnorm;
+    alpha = (ydiffnorm > .001*ylastnorm) ? ylastnorm / ydiffnorm : 1000.0;
     ierr  = VecCopy(Y,Ylast);CHKERRQ(ierr);
     ierr  = VecScale(Y,alpha);CHKERRQ(ierr);
     ierr  = PetscInfo3(snes,"Angle %14.12e degrees less than threshold %14.12e, corrected step by alpha=%14.12e\n",(double)(theta*180./PETSC_PI),(double)angle,(double)alpha);CHKERRQ(ierr);
+    *changed = PETSC_TRUE;
   } else {
     ierr     = PetscInfo2(snes,"Angle %14.12e degrees exceeds threshold %14.12e, no correction applied\n",(double)(theta*180./PETSC_PI),(double)angle);CHKERRQ(ierr);
     ierr     = VecCopy(Y,Ylast);CHKERRQ(ierr);
@@ -775,7 +776,7 @@ PetscErrorCode  SNESLineSearchMonitorSetFromOptions(SNESLineSearch ls,const char
   PetscBool         flg;
 
   PetscFunctionBegin;
-  ierr = PetscOptionsGetViewer(PetscObjectComm((PetscObject)ls),((PetscObject)ls)->prefix,name,&viewer,&format,&flg);CHKERRQ(ierr);
+  ierr = PetscOptionsGetViewer(PetscObjectComm((PetscObject)ls),((PetscObject) ls)->options,((PetscObject)ls)->prefix,name,&viewer,&format,&flg);CHKERRQ(ierr);
   if (flg) {
     PetscViewerAndFormat *vf;
     ierr = PetscViewerAndFormatCreate(viewer,format,&vf);CHKERRQ(ierr);
@@ -838,7 +839,7 @@ PetscErrorCode SNESLineSearchSetFromOptions(SNESLineSearch linesearch)
     ierr = SNESLineSearchSetType(linesearch,deft);CHKERRQ(ierr);
   }
 
-  ierr = PetscOptionsGetViewer(PetscObjectComm((PetscObject)linesearch),((PetscObject)linesearch)->prefix,"-snes_linesearch_monitor",&viewer,NULL,&set);CHKERRQ(ierr);
+  ierr = PetscOptionsGetViewer(PetscObjectComm((PetscObject)linesearch),((PetscObject) linesearch)->options,((PetscObject)linesearch)->prefix,"-snes_linesearch_monitor",&viewer,NULL,&set);CHKERRQ(ierr);
   if (set) {
     ierr = SNESLineSearchSetDefaultMonitor(linesearch,viewer);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);

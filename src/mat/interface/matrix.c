@@ -531,7 +531,7 @@ PetscErrorCode MatMissingDiagonal(Mat mat,PetscBool *missing,PetscInt *dd)
    matrix at a time, per processor. MatGetRow() can only obtain rows
    associated with the given processor, it cannot get rows from the
    other processors; for that we suggest using MatCreateSubMatrices(), then
-   MatGetRow() on the submatrix. The row index passed to MatGetRows()
+   MatGetRow() on the submatrix. The row index passed to MatGetRow()
    is in the global number of rows.
 
    Fortran Notes:
@@ -2617,7 +2617,7 @@ PetscErrorCode MatMultHermitianTransposeAdd(Mat mat,Vec v1,Vec v2,Vec v3)
   ierr = VecLockPush(v1);CHKERRQ(ierr);
   if (mat->ops->multhermitiantransposeadd) {
     ierr = (*mat->ops->multhermitiantransposeadd)(mat,v1,v2,v3);CHKERRQ(ierr);
-   } else {
+  } else {
     Vec w,z;
     ierr = VecDuplicate(v1,&w);CHKERRQ(ierr);
     ierr = VecCopy(v1,w);CHKERRQ(ierr);
@@ -2626,7 +2626,11 @@ PetscErrorCode MatMultHermitianTransposeAdd(Mat mat,Vec v1,Vec v2,Vec v3)
     ierr = MatMultTranspose(mat,w,z);CHKERRQ(ierr);
     ierr = VecDestroy(&w);CHKERRQ(ierr);
     ierr = VecConjugate(z);CHKERRQ(ierr);
-    ierr = VecWAXPY(v3,1.0,v2,z);CHKERRQ(ierr);
+    if (v2 != v3) {
+      ierr = VecWAXPY(v3,1.0,v2,z);CHKERRQ(ierr);
+    } else {
+      ierr = VecAXPY(v3,1.0,z);CHKERRQ(ierr);
+    }
     ierr = VecDestroy(&z);CHKERRQ(ierr);
   }
   ierr = VecLockPop(v1);CHKERRQ(ierr);
@@ -2727,8 +2731,7 @@ PetscErrorCode MatMultTransposeConstrained(Mat mat,Vec x,Vec y)
 /*@C
    MatGetFactorType - gets the type of factorization it is
 
-   Note Collective
-   as the flag
+   Not Collective
 
    Input Parameters:
 .  mat - the matrix
@@ -2736,16 +2739,39 @@ PetscErrorCode MatMultTransposeConstrained(Mat mat,Vec x,Vec y)
    Output Parameters:
 .  t - the type, one of MAT_FACTOR_NONE, MAT_FACTOR_LU, MAT_FACTOR_CHOLESKY, MAT_FACTOR_ILU, MAT_FACTOR_ICC,MAT_FACTOR_ILUDT
 
-    Level: intermediate
+   Level: intermediate
 
-.seealso:    MatFactorType, MatGetFactor()
+.seealso: MatFactorType, MatGetFactor(), MatSetFactorType()
 @*/
 PetscErrorCode MatGetFactorType(Mat mat,MatFactorType *t)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
   PetscValidType(mat,1);
+  PetscValidPointer(t,2);
   *t = mat->factortype;
+  PetscFunctionReturn(0);
+}
+
+/*@C
+   MatSetFactorType - sets the type of factorization it is
+
+   Logically Collective on Mat
+
+   Input Parameters:
++  mat - the matrix
+-  t - the type, one of MAT_FACTOR_NONE, MAT_FACTOR_LU, MAT_FACTOR_CHOLESKY, MAT_FACTOR_ILU, MAT_FACTOR_ICC,MAT_FACTOR_ILUDT
+
+   Level: intermediate
+
+.seealso: MatFactorType, MatGetFactor(), MatGetFactorType()
+@*/
+PetscErrorCode MatSetFactorType(Mat mat, MatFactorType t)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
+  PetscValidType(mat,1);
+  mat->factortype = t;
   PetscFunctionReturn(0);
 }
 
@@ -6121,7 +6147,7 @@ PetscErrorCode MatZeroRowsColumnsStencil(Mat mat,PetscInt numRows,const MatStenc
   PetscFunctionReturn(0);
 }
 
-/*@
+/*@C
    MatZeroRowsLocal - Zeros all entries (except possibly the main diagonal)
    of a set of rows of a matrix; using local numbering of rows.
 
@@ -7445,7 +7471,7 @@ PetscErrorCode MatResidual(Mat mat,Vec b,Vec x,Vec r)
 
     Output Parameters:
 +   n - number of rows in the (possibly compressed) matrix
-.   ia - the row pointers [of length n+1]
+.   ia - the row pointers; that is ia[0] = 0, ia[row] = ia[row-1] + number of elements in that row of the matrix
 .   ja - the column indices
 -   done - indicates if the routine actually worked and returned appropriate ia[] and ja[] arrays; callers
            are responsible for handling the case when done == PETSC_FALSE and ia and ja are not set
@@ -7509,16 +7535,11 @@ PetscErrorCode MatGetRowIJ(Mat mat,PetscInt shift,PetscBool symmetric,PetscBool 
                  inodes or the nonzero elements is wanted. For BAIJ matrices the compressed version is
                  always used.
 .   n - number of columns in the (possibly compressed) matrix
-.   ia - the column pointers
+.   ia - the column pointers; that is ia[0] = 0, ia[col] = i[col-1] + number of elements in that col of the matrix
 -   ja - the row indices
 
     Output Parameters:
 .   done - PETSC_TRUE or PETSC_FALSE, indicating whether the values have been returned
-
-    Note:
-    This routine zeros out n, ia, and ja. This is to prevent accidental
-    us of the array after it has been restored. If you pass NULL, it will
-    not zero the pointers.  Use of ia or ja after MatRestoreColumnIJ() is invalid.
 
     Level: developer
 
@@ -10523,9 +10544,7 @@ PetscErrorCode MatInvertBlockDiagonalMat(Mat A,Mat C)
   ierr = MatSetSizes(C,m,n,M,N);CHKERRQ(ierr);
   ierr = MatSetBlockSize(C,bs);CHKERRQ(ierr);
   ierr = PetscMalloc1(m/bs,&dnnz);CHKERRQ(ierr);
-  for(j = 0; j < m/bs; j++) {
-    dnnz[j] = 1;
-  }
+  for (j = 0; j < m/bs; j++) dnnz[j] = 1;
   ierr = MatXAIJSetPreallocation(C,bs,dnnz,NULL,NULL,NULL);CHKERRQ(ierr);
   ierr = PetscFree(dnnz);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(C,&rstart,&rend);CHKERRQ(ierr);

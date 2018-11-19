@@ -983,8 +983,8 @@ PetscErrorCode  VecReciprocal(Vec vec)
 
     Usage:
 $      PetscErrorCode userview(Vec,PetscViewer);
-$      ierr = VecCreateMPI(comm,m,M,&x);
-$      ierr = VecSetOperation(x,VECOP_VIEW,(void(*)(void))userview);
+$      ierr = VecCreateMPI(comm,m,M,&x);CHKERRQ(ierr);
+$      ierr = VecSetOperation(x,VECOP_VIEW,(void(*)(void))userview);CHKERRQ(ierr);
 
     Notes:
     See the file include/petscvec.h for a complete list of matrix
@@ -1702,7 +1702,7 @@ PetscErrorCode VecStashViewFromOptions(Vec obj,PetscObject bobj,const char optio
 
   PetscFunctionBegin;
   prefix = bobj ? bobj->prefix : ((PetscObject)obj)->prefix;
-  ierr   = PetscOptionsGetViewer(PetscObjectComm((PetscObject)obj),prefix,optionname,&viewer,&format,&flg);CHKERRQ(ierr);
+  ierr   = PetscOptionsGetViewer(PetscObjectComm((PetscObject)obj),((PetscObject)obj)->options,prefix,optionname,&viewer,&format,&flg);CHKERRQ(ierr);
   if (flg) {
     ierr = PetscViewerPushFormat(viewer,format);CHKERRQ(ierr);
     ierr = VecStashView(obj,viewer);CHKERRQ(ierr);

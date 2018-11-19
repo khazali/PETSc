@@ -59,6 +59,8 @@
 #define matzerorows_                     MATZEROROWS
 #define matzerorowsis_                   MATZEROROWSIS
 #define matzerorowslocal_                MATZEROROWSLOCAL
+#define matzerorowslocal0_               MATZEROROWSLOCAL0
+#define matzerorowslocal1_               MATZEROROWSLOCAL1
 #define matzerorowslocalis_              MATZEROROWSLOCALIS
 #define matzerorowscolumnslocal_         MATZEROROWSCOLUMNSLOCAL
 #define matzerorowscolumnslocalis_       MATZEROROWSCOLUMNSLOCALIS
@@ -79,9 +81,11 @@
 #define matfactorinfoinitialize_         MATFACTORINFOINITIALIZE
 #define matnullspacesetfunction_         MATNULLSPACESETFUNCTION
 #define matfindnonzerorows_              MATFINDNONZEROROWS
+#define matgetsize_                      MATGETSIZE
 #define matgetsize00_                    MATGETSIZE00
 #define matgetsize10_                    MATGETSIZE10
 #define matgetsize01_                    MATGETSIZE01
+#define matgetlocalsize_                 MATGETLOCALSIZE
 #define matgetlocalsize00_               MATGETLOCALSIZE00
 #define matgetlocalsize10_               MATGETLOCALSIZE10
 #define matgetlocalsize01_               MATGETLOCALSIZE01
@@ -166,9 +170,11 @@
 #define matfactorinfoinitialize_         matfactorinfoinitialize
 #define matnullspacesetfunction_         matnullspacesetfunction
 #define matfindnonzerorows_              matfindnonzerorows
+#define matgetsize_                      matgetsize
 #define matgetsize00_                    matgetsize00
 #define matgetsize10_                    matgetsize10
 #define matgetsize01_                    matgetsize01
+#define matgetlocalsize_                 matgetlocalsize
 #define matgetlocalsize00_               matgetlocalsize00
 #define matgetlocalsize10_               matgetlocalsize10
 #define matgetlocalsize01_               matgetlocalsize01
@@ -572,7 +578,7 @@ PETSC_EXTERN void PETSC_STDCALL matgetfactor_(Mat *mat,char* outtype PETSC_MIXED
 {
   char *t;
   FIXCHAR(outtype,len,t);
-  *ierr = MatGetFactor(*mat,t,*ftype,M);
+  *ierr = MatGetFactor(*mat,t,*ftype,M);if (*ierr) return;
   FREECHAR(outtype,t);
 }
 
@@ -580,7 +586,7 @@ PETSC_EXTERN void PETSC_STDCALL matconvert_(Mat *mat,char* outtype PETSC_MIXED_L
 {
   char *t;
   FIXCHAR(outtype,len,t);
-  *ierr = MatConvert(*mat,t,*reuse,M);
+  *ierr = MatConvert(*mat,t,*reuse,M);if (*ierr) return;
   FREECHAR(outtype,t);
 }
 
@@ -641,7 +647,7 @@ PETSC_EXTERN void PETSC_STDCALL matsetoptionsprefix_(Mat *mat,char* prefix PETSC
   char *t;
 
   FIXCHAR(prefix,len,t);
-  *ierr = MatSetOptionsPrefix(*mat,t);
+  *ierr = MatSetOptionsPrefix(*mat,t);if (*ierr) return;
   FREECHAR(prefix,t);
 }
 
@@ -709,4 +715,16 @@ PETSC_EXTERN void PETSC_STDCALL maticcfactor_(Mat *mat,IS *row,const MatFactorIn
 PETSC_EXTERN void PETSC_STDCALL matfactorinfoinitialize_(MatFactorInfo *info, int *ierr)
 {
   *ierr = MatFactorInfoInitialize(info);
+}
+PETSC_EXTERN void PETSC_STDCALL  matzerorowslocal_(Mat *mat,PetscInt *numRows, PetscInt rows[],PetscScalar *diag,Vec *x,Vec *b, int *ierr)
+{
+  *ierr = MatZeroRowsLocal(*mat,*numRows,rows,*diag,*x,*b);
+}
+PETSC_EXTERN void PETSC_STDCALL  matzerorowslocal0_(Mat *mat,PetscInt *numRows, PetscInt rows[],PetscScalar *diag,Vec *x,Vec *b, int *ierr)
+{
+  matzerorowslocal_(mat,numRows,rows,diag,x,b,ierr);
+}
+PETSC_EXTERN void PETSC_STDCALL  matzerorowslocal1_(Mat *mat,PetscInt *numRows, PetscInt rows[],PetscScalar *diag,Vec *x,Vec *b, int *ierr)
+{
+  matzerorowslocal_(mat,numRows,rows,diag,x,b,ierr);
 }

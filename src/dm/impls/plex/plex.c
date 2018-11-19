@@ -1078,7 +1078,8 @@ static PetscErrorCode DMPlexView_Draw(DM dm, PetscViewer viewer)
 PetscErrorCode DMView_Plex(DM dm, PetscViewer viewer)
 {
   PetscBool      iascii, ishdf5, isvtk, isdraw, flg, isglvis;
-  PetscErrorCode    ierr;
+  char           name[PETSC_MAX_PATH_LEN];
+  PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
@@ -1118,6 +1119,18 @@ PetscErrorCode DMView_Plex(DM dm, PetscViewer viewer)
     ierr = DMPlexCreateRankField(dm, &ranks);CHKERRQ(ierr);
     ierr = VecView(ranks, viewer);CHKERRQ(ierr);
     ierr = VecDestroy(&ranks);CHKERRQ(ierr);
+  }
+  /* Optionally view a label */
+  ierr = PetscOptionsGetString(((PetscObject) dm)->options, ((PetscObject) dm)->prefix, "-dm_label_view", name, PETSC_MAX_PATH_LEN, &flg);CHKERRQ(ierr);
+  if (flg) {
+    DMLabel label;
+    Vec     val;
+
+    ierr = DMGetLabel(dm, name, &label);CHKERRQ(ierr);
+    if (!label) SETERRQ1(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONG, "Label %s provided to -dm_label_view does not exist in this DM", name);
+    ierr = DMPlexCreateLabelField(dm, label, &val);CHKERRQ(ierr);
+    ierr = VecView(val, viewer);CHKERRQ(ierr);
+    ierr = VecDestroy(&val);CHKERRQ(ierr);
   }
   PetscFunctionReturn(0);
 }
@@ -1466,7 +1479,7 @@ PetscErrorCode DMPlexAddConeSize(DM dm, PetscInt p, PetscInt size)
   Not collective
 
   Input Parameters:
-+ mesh - The DMPlex
++ dm - The DMPlex
 - p - The point, which must lie in the chart set with DMPlexSetChart()
 
   Output Parameter:
@@ -1478,9 +1491,7 @@ PetscErrorCode DMPlexAddConeSize(DM dm, PetscInt p, PetscInt size)
   Since it returns an array, this routine is only available in Fortran 90, and you must
   include petsc.h90 in your code.
 
-  You must also call DMPlexRestoreCone() after you finish using the returned array.
-
-.seealso: DMPlexCreate(), DMPlexSetCone(), DMPlexSetChart()
+.seealso: DMPlexCreate(), DMPlexSetCone(), DMPlexGetConeTuple(), DMPlexSetChart()
 @*/
 PetscErrorCode DMPlexGetCone(DM dm, PetscInt p, const PetscInt *cone[])
 {
@@ -1493,6 +1504,109 @@ PetscErrorCode DMPlexGetCone(DM dm, PetscInt p, const PetscInt *cone[])
   PetscValidPointer(cone, 3);
   ierr  = PetscSectionGetOffset(mesh->coneSection, p, &off);CHKERRQ(ierr);
   *cone = &mesh->cones[off];
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  DMPlexGetConeTuple - Return the points on the in-edges of several points in the DAG
+
+  Not collective
+
+  Input Parameters:
++ dm - The DMPlex
+- p - The IS of points, which must lie in the chart set with DMPlexSetChart()
+
+  Output Parameter:
++ pConesSection - PetscSection describing the layout of pCones
+- pCones - An array of points which are on the in-edges for the point set p
+
+  Level: intermediate
+
+.seealso: DMPlexCreate(), DMPlexGetCone(), DMPlexGetConeRecursive(), DMPlexSetChart()
+@*/
+PetscErrorCode DMPlexGetConeTuple(DM dm, IS p, PetscSection *pConesSection, IS *pCones)
+{
+  PetscSection        cs, newcs;
+  PetscInt            *cones;
+  PetscInt            *newarr=NULL;
+  PetscInt            n;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  ierr = DMPlexGetCones(dm, &cones);CHKERRQ(ierr);
+  ierr = DMPlexGetConeSection(dm, &cs);CHKERRQ(ierr);
+  ierr = PetscSectionExtractDofsFromArray(cs, MPIU_INT, cones, p, &newcs, pCones ? ((void**)&newarr) : NULL);CHKERRQ(ierr);
+  if (pConesSection) *pConesSection = newcs;
+  if (pCones) {
+    ierr = PetscSectionGetStorageSize(newcs, &n);CHKERRQ(ierr);
+    ierr = ISCreateGeneral(PetscObjectComm((PetscObject)p), n, newarr, PETSC_OWN_POINTER, pCones);CHKERRQ(ierr);
+  }
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode DMPlexGetConeRecursive_Private(DM dm, PetscInt *n_inout, const PetscInt points[], PetscInt *offset_inout, PetscInt buf[])
+{
+  PetscInt p, n, cn, i;
+  const PetscInt *cone;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  n = *n_inout;
+  *n_inout = 0;
+  for (i=0; i<n; i++) {
+    p = points[i];
+    ierr = DMPlexGetConeSize(dm, p, &cn);CHKERRQ(ierr);
+    if (!cn) {
+      cn = 1;
+      if (buf) {
+        buf[*offset_inout] = p;
+        ++(*offset_inout);
+      }
+    } else {
+      ierr = DMPlexGetCone(dm, p, &cone);CHKERRQ(ierr);
+      ierr = DMPlexGetConeRecursive_Private(dm, &cn, cone, offset_inout, buf);CHKERRQ(ierr);
+    }
+    *n_inout += cn;
+  }
+  PetscFunctionReturn(0);
+}
+
+/*@C
+  DMPlexGetConeRecursive - Like DMPlexGetConeTuple() but recursive, i.e. each cone point is expanded into a set of its own cone points until a vertex (DAG point with no cone) is reached.
+
+  Not collective
+
+  Input Parameters:
++ dm - The DMPlex
+- p - The IS of points, which must lie in the chart set with DMPlexSetChart()
+
+  Output Parameter:
+. pCones - An array of recursively expanded cones, i.e. containing only vertices, and each of them can be present multiple times
+
+  Level: advanced
+
+.seealso: DMPlexCreate(), DMPlexGetCone(), DMPlexGetConeTuple()
+@*/
+PetscErrorCode DMPlexGetConeRecursive(DM dm, IS p, IS *pCones)
+{
+  const PetscInt      *arr=NULL;
+  PetscInt            *cpoints=NULL;
+  PetscInt            n, cn;
+  PetscInt            zero;
+  PetscErrorCode      ierr;
+
+  PetscFunctionBegin;
+  ierr = ISGetLocalSize(p, &n);CHKERRQ(ierr);
+  ierr = ISGetIndices(p, &arr);CHKERRQ(ierr);
+  zero = 0;
+  /* first figure out the total number of returned points */
+  cn = n;
+  ierr = DMPlexGetConeRecursive_Private(dm, &cn, arr, &zero, NULL);CHKERRQ(ierr);
+  ierr = PetscMalloc1(cn, &cpoints);CHKERRQ(ierr);
+  /* now get recursive cones themselves */
+  ierr = DMPlexGetConeRecursive_Private(dm, &n, arr, &zero, cpoints);CHKERRQ(ierr);
+  ierr = ISCreateGeneral(PetscObjectComm((PetscObject)p), n, cpoints, PETSC_OWN_POINTER, pCones);CHKERRQ(ierr);
+  ierr = ISRestoreIndices(p, &arr);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -2280,7 +2394,7 @@ PetscErrorCode DMCreateSuperDM_Plex(DM dms[], PetscInt len, IS **is, DM *superdm
   PetscInt       i = 0;
 
   PetscFunctionBegin;
-  if (superdm) {ierr = DMClone(dms[0], superdm);CHKERRQ(ierr);}
+  ierr = DMClone(dms[0], superdm);CHKERRQ(ierr);
   ierr = DMCreateSuperDM_Section_Private(dms, len, is, superdm);CHKERRQ(ierr);
   (*superdm)->useNatural = PETSC_FALSE;
   for (i = 0; i < len; i++){
@@ -6392,7 +6506,7 @@ PetscErrorCode DMPlexCreateCellNumbering_Internal(DM dm, PetscBool includeHybrid
   PetscFunctionReturn(0);
 }
 
-/*@C
+/*@
   DMPlexGetCellNumbering - Get a global cell numbering for all cells on this process
 
   Input Parameter:
@@ -6431,7 +6545,7 @@ PetscErrorCode DMPlexCreateVertexNumbering_Internal(DM dm, PetscBool includeHybr
   PetscFunctionReturn(0);
 }
 
-/*@C
+/*@
   DMPlexGetVertexNumbering - Get a global certex numbering for all vertices on this process
 
   Input Parameter:
@@ -6456,7 +6570,7 @@ PetscErrorCode DMPlexGetVertexNumbering(DM dm, IS *globalVertexNumbers)
   PetscFunctionReturn(0);
 }
 
-/*@C
+/*@
   DMPlexCreatePointNumbering - Create a global numbering for all points on this process
 
   Input Parameter:
@@ -6523,10 +6637,12 @@ PetscErrorCode DMPlexCreateRankField(DM dm, Vec *ranks)
   PetscErrorCode ierr;
 
   PetscFunctionBeginUser;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidPointer(ranks, 2);
   ierr = MPI_Comm_rank(PetscObjectComm((PetscObject) dm), &rank);CHKERRQ(ierr);
   ierr = DMClone(dm, &rdm);CHKERRQ(ierr);
   ierr = DMGetDimension(rdm, &dim);CHKERRQ(ierr);
-  ierr = PetscFECreateDefault(PetscObjectComm((PetscObject) rdm), dim, 1, PETSC_TRUE, NULL, -1, &fe);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(PetscObjectComm((PetscObject) rdm), dim, 1, PETSC_TRUE, "PETSc___rank_", -1, &fe);CHKERRQ(ierr);
   ierr = PetscObjectSetName((PetscObject) fe, "rank");CHKERRQ(ierr);
   ierr = DMGetDS(rdm, &prob);CHKERRQ(ierr);
   ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
@@ -6542,6 +6658,60 @@ PetscErrorCode DMPlexCreateRankField(DM dm, Vec *ranks)
     *lr = rank;
   }
   ierr = VecRestoreArray(*ranks, &r);CHKERRQ(ierr);
+  ierr = DMDestroy(&rdm);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
+  DMPlexCreateLabelField - Create a cell field whose value is the label value for that cell
+
+  Input Parameters:
++ dm    - The DMPlex
+- label - The DMLabel
+
+  Output Parameter:
+. val - The label value field
+
+  Options Database Keys:
+. -dm_label_view - Adds the label value field into the DM output from -dm_view using the same viewer
+
+  Level: intermediate
+
+.seealso: DMView()
+@*/
+PetscErrorCode DMPlexCreateLabelField(DM dm, DMLabel label, Vec *val)
+{
+  DM             rdm;
+  PetscDS        prob;
+  PetscFE        fe;
+  PetscScalar   *v;
+  PetscInt       dim, cStart, cEnd, c;
+  PetscErrorCode ierr;
+
+  PetscFunctionBeginUser;
+  PetscValidHeaderSpecific(dm, DM_CLASSID, 1);
+  PetscValidPointer(label, 2);
+  PetscValidPointer(val, 3);
+  ierr = DMClone(dm, &rdm);CHKERRQ(ierr);
+  ierr = DMGetDimension(rdm, &dim);CHKERRQ(ierr);
+  ierr = PetscFECreateDefault(PetscObjectComm((PetscObject) rdm), dim, 1, PETSC_TRUE, "PETSc___label_value_", -1, &fe);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) fe, "label_value");CHKERRQ(ierr);
+  ierr = DMGetDS(rdm, &prob);CHKERRQ(ierr);
+  ierr = PetscDSSetDiscretization(prob, 0, (PetscObject) fe);CHKERRQ(ierr);
+  ierr = PetscFEDestroy(&fe);CHKERRQ(ierr);
+  ierr = DMPlexGetHeightStratum(rdm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+  ierr = DMCreateGlobalVector(rdm, val);CHKERRQ(ierr);
+  ierr = PetscObjectSetName((PetscObject) *val, "label_value");CHKERRQ(ierr);
+  ierr = VecGetArray(*val, &v);CHKERRQ(ierr);
+  for (c = cStart; c < cEnd; ++c) {
+    PetscScalar *lv;
+    PetscInt     cval;
+
+    ierr = DMPlexPointGlobalRef(rdm, c, v, &lv);CHKERRQ(ierr);
+    ierr = DMLabelGetValue(label, c, &cval);CHKERRQ(ierr);
+    *lv = cval;
+  }
+  ierr = VecRestoreArray(*val, &v);CHKERRQ(ierr);
   ierr = DMDestroy(&rdm);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -6797,19 +6967,19 @@ PetscErrorCode DMPlexCheckPointSF(DM dm)
   ierr = DMGetPointSF(dm, &sf);CHKERRQ(ierr);
   ierr = PetscSFGetGraph(sf, NULL, &nleaves, &locals, NULL);CHKERRQ(ierr);
 
-  /* 1) if some point is in interface, then all its cone points must be also in interface  */
-  for (i=0; i<nleaves; i++) {
-    p = locals[i];
-    ierr = DMPlexAreAllConePointsInArray_Private(dm, p, nleaves, locals, &missingPoint);CHKERRQ(ierr);
-    if (missingPoint >= 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but not %d from its cone",p,missingPoint);
-  }
-
-  /* 2) check there are no faces in 2D, cells in 3D, in interface */
+  /* 1) check there are no faces in 2D, cells in 3D, in interface */
   ierr = DMPlexGetVTKCellHeight(dm, &d);CHKERRQ(ierr);
   ierr = DMPlexGetHeightStratum(dm, d, &plo, &phi);CHKERRQ(ierr);
   for (i=0; i<nleaves; i++) {
     p = locals[i];
     if (p >= plo && p < phi) SETERRQ1(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d which is a cell",p);
+  }
+
+  /* 2) if some point is in interface, then all its cone points must be also in interface  */
+  for (i=0; i<nleaves; i++) {
+    p = locals[i];
+    ierr = DMPlexAreAllConePointsInArray_Private(dm, p, nleaves, locals, &missingPoint);CHKERRQ(ierr);
+    if (missingPoint >= 0) SETERRQ2(PETSC_COMM_SELF, PETSC_ERR_PLIB, "point SF contains %d but not %d from its cone",p,missingPoint);
   }
   PetscFunctionReturn(0);
 }

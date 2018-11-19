@@ -492,7 +492,7 @@ PetscErrorCode KSPReasonViewFromOptions(KSP ksp)
   PetscErrorCode    ierr;
 
   PetscFunctionBegin;
-  ierr   = PetscOptionsGetViewer(PetscObjectComm((PetscObject)ksp),((PetscObject)ksp)->prefix,"-ksp_converged_reason",&viewer,&format,&flg);CHKERRQ(ierr);
+  ierr   = PetscOptionsGetViewer(PetscObjectComm((PetscObject)ksp),((PetscObject)ksp)->options,((PetscObject)ksp)->prefix,"-ksp_converged_reason",&viewer,&format,&flg);CHKERRQ(ierr);
   if (flg) {
     ierr = KSPReasonView_Internal(ksp, viewer, format);CHKERRQ(ierr);
     ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
@@ -933,6 +933,7 @@ PetscErrorCode  KSPSolveTranspose(KSP ksp,Vec b,Vec x)
   }
 
   ierr = (*ksp->ops->solve)(ksp);CHKERRQ(ierr);
+  ksp->totalits += ksp->its;
   if (nullsp) {
     ksp->vec_rhs = vec_rhs;
     ierr = VecDestroy(&btmp);CHKERRQ(ierr);
@@ -947,6 +948,7 @@ PetscErrorCode  KSPSolveTranspose(KSP ksp,Vec b,Vec x)
   if (ksp->viewPMat)     {ierr = ObjectView((PetscObject) pmat,         ksp->viewerPMat, ksp->formatPMat);CHKERRQ(ierr);}
   if (ksp->viewRhs)      {ierr = ObjectView((PetscObject) ksp->vec_rhs, ksp->viewerRhs,  ksp->formatRhs);CHKERRQ(ierr);}
   if (ksp->viewSol)      {ierr = ObjectView((PetscObject) ksp->vec_sol, ksp->viewerSol,  ksp->formatSol);CHKERRQ(ierr);}
+  if (ksp->view)         {ierr = ObjectView((PetscObject) ksp,          ksp->viewer,     ksp->format);CHKERRQ(ierr);}
 
   if (inXisinB) {
     ierr = VecCopy(x,b);CHKERRQ(ierr);
@@ -1683,6 +1685,7 @@ PetscErrorCode  KSPGetPC(KSP ksp,PC *pc)
     ierr = PCCreate(PetscObjectComm((PetscObject)ksp),&ksp->pc);CHKERRQ(ierr);
     ierr = PetscObjectIncrementTabLevel((PetscObject)ksp->pc,(PetscObject)ksp,0);CHKERRQ(ierr);
     ierr = PetscLogObjectParent((PetscObject)ksp,(PetscObject)ksp->pc);CHKERRQ(ierr);
+    ierr = PetscObjectSetOptions((PetscObject)ksp->pc,((PetscObject)ksp)->options);CHKERRQ(ierr);
   }
   *pc = ksp->pc;
   PetscFunctionReturn(0);

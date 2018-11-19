@@ -1,4 +1,5 @@
 #include <petsc/private/pcpatchimpl.h>     /*I "petscpc.h" I*/
+#include <petsc/private/kspimpl.h>         /* For ksp->setfromoptionscalled */
 #include <petsc/private/dmpleximpl.h> /* For DMPlexComputeJacobian_Patch_Internal() */
 #include <petscsf.h>
 #include <petscbt.h>
@@ -556,7 +557,13 @@ static PetscErrorCode PCPatchGetGlobalDofs(PC pc, PetscSection dofSection[], Pet
           *dof += fdof;
         }
       }
-      if (off) {ierr = PetscSectionGetOffset(dofSection[0], p, off);CHKERRQ(ierr);}
+      if (off) {
+        *off = 0;
+        for (g = 0; g < patch->nsubspaces; ++g) {
+          ierr = PetscSectionGetOffset(dofSection[g], p, &fdof);CHKERRQ(ierr);
+          *off += fdof;
+        }
+      }
     } else {
       if (dof) {ierr = PetscSectionGetDof(dofSection[f], p, dof);CHKERRQ(ierr);}
       if (off) {ierr = PetscSectionGetOffset(dofSection[f], p, off);CHKERRQ(ierr);}
@@ -570,7 +577,7 @@ static PetscErrorCode PCPatchGetGlobalDofs(PC pc, PetscSection dofSection[], Pet
    For Vanka smoothing, this needs to do something special: ignore dofs of the
    constraint subspace on entities that aren't the base entity we're building the patch
    around. */
-static PetscErrorCode PCPatchGetPointDofs(PC pc, PetscHSetI pts, PetscHSetI dofs, PetscInt base, PetscInt exclude_subspace)
+static PetscErrorCode PCPatchGetPointDofs(PC pc, PetscHSetI pts, PetscHSetI dofs, PetscInt base, PetscHSetI* subspaces_to_exclude)
 {
   PC_PATCH      *patch = (PC_PATCH *) pc->data;
   PetscHashIter  hi;
@@ -585,17 +592,21 @@ static PetscErrorCode PCPatchGetPointDofs(PC pc, PetscHSetI pts, PetscHSetI dofs
     PetscInt bs             = patch->bs[k];
     PetscInt j, l;
 
-    if (k == exclude_subspace) {
-      /* only get this subspace dofs at the base entity, not any others */
-      ierr = PCPatchGetGlobalDofs(pc, patch->dofSection, k, patch->combined, base, &ldof, &loff);CHKERRQ(ierr);
-      if (0 == ldof) continue;
-      for (j = loff; j < ldof + loff; ++j) {
-        for (l = 0; l < bs; ++l) {
-          PetscInt dof = bs*j + l + subspaceOffset;
-          ierr = PetscHSetIAdd(dofs, dof);CHKERRQ(ierr);
+    if (subspaces_to_exclude != NULL) {
+      PetscBool should_exclude_k = PETSC_FALSE;
+      PetscHSetIHas(*subspaces_to_exclude, k, &should_exclude_k);
+      if (should_exclude_k) {
+        /* only get this subspace dofs at the base entity, not any others */
+        ierr = PCPatchGetGlobalDofs(pc, patch->dofSection, k, patch->combined, base, &ldof, &loff);CHKERRQ(ierr);
+        if (0 == ldof) continue;
+        for (j = loff; j < ldof + loff; ++j) {
+          for (l = 0; l < bs; ++l) {
+            PetscInt dof = bs*j + l + subspaceOffset;
+            ierr = PetscHSetIAdd(dofs, dof);CHKERRQ(ierr);
+          }
         }
+        continue; /* skip the other dofs of this subspace */
       }
-      continue; /* skip the other dofs of this subspace */
     }
 
     PetscHashIterBegin(pts, hi);
@@ -710,7 +721,7 @@ static PetscErrorCode PCPatchCreateCellPatches(PC pc)
 
     if (!patch->user_patches) {
       if (ghost) {ierr = DMLabelHasPoint(ghost, v, &flg);CHKERRQ(ierr);}
-      else       {ierr = PetscFindInt(v, nleaves, leaves, &loc); flg = loc >=0 ? PETSC_TRUE : PETSC_FALSE;}
+      else       {ierr = PetscFindInt(v, nleaves, leaves, &loc);CHKERRQ(ierr); flg = loc >=0 ? PETSC_TRUE : PETSC_FALSE;}
       /* Not an owned entity, don't make a cell patch. */
       if (flg) continue;
     }
@@ -885,8 +896,8 @@ static PetscErrorCode PCPatchCreateCellPatchDiscretisationInfo(PC pc)
     /* Calculate the global numbers of the artificial BC dofs here first */
     ierr = patch->patchconstructop((void*)patch, dm, v, ownedpts); CHKERRQ(ierr);
     ierr = PCPatchCompleteCellPatch(pc, ownedpts, seenpts); CHKERRQ(ierr);
-    ierr = PCPatchGetPointDofs(pc, ownedpts, owneddofs, v, patch->exclude_subspace); CHKERRQ(ierr);
-    ierr = PCPatchGetPointDofs(pc, seenpts, seendofs, v, -1); CHKERRQ(ierr);
+    ierr = PCPatchGetPointDofs(pc, ownedpts, owneddofs, v, &patch->subspaces_to_exclude); CHKERRQ(ierr);
+    ierr = PCPatchGetPointDofs(pc, seenpts, seendofs, v, NULL); CHKERRQ(ierr);
     ierr = PCPatchComputeSetDifference_Private(owneddofs, seendofs, artificialbcs); CHKERRQ(ierr);
     if (patch->viewPatches) {
       PetscHSetI globalbcdofs;
@@ -1107,21 +1118,39 @@ static PetscErrorCode PCPatchCreateCellPatchDiscretisationInfo(PC pc)
   /* Create placeholder section for map from points to patch dofs */
   ierr = PetscSectionCreate(PETSC_COMM_SELF, &patch->patchSection);CHKERRQ(ierr);
   ierr = PetscSectionSetNumFields(patch->patchSection, patch->nsubspaces);CHKERRQ(ierr);
-  ierr = PetscSectionGetChart(patch->dofSection[0], &pStart, &pEnd);CHKERRQ(ierr);
-  ierr = PetscSectionSetChart(patch->patchSection, pStart, pEnd);CHKERRQ(ierr);
-  for (p = pStart; p < pEnd; ++p) {
-    PetscInt dof, fdof, f;
+  if (patch->combined) {
+    PetscInt numFields;
+    ierr = PetscSectionGetNumFields(patch->dofSection[0], &numFields);CHKERRQ(ierr);
+    if (numFields != patch->nsubspaces) SETERRQ2(PetscObjectComm((PetscObject)pc), PETSC_ERR_ARG_WRONG, "Mismatch between number of section fields %D and number of subspaces %D", numFields, patch->nsubspaces);
+    ierr = PetscSectionGetChart(patch->dofSection[0], &pStart, &pEnd);CHKERRQ(ierr);
+    ierr = PetscSectionSetChart(patch->patchSection, pStart, pEnd);CHKERRQ(ierr);
+    for (p = pStart; p < pEnd; ++p) {
+      PetscInt dof, fdof, f;
 
-    ierr = PetscSectionGetDof(patch->dofSection[0], p, &dof);CHKERRQ(ierr);
-    ierr = PetscSectionSetDof(patch->patchSection, p, dof);CHKERRQ(ierr);
-    for (f = 0; f < patch->nsubspaces; ++f) {
-      ierr = PetscSectionGetFieldDof(patch->dofSection[0], p, f, &fdof);
-      if (ierr == 0) {
+      ierr = PetscSectionGetDof(patch->dofSection[0], p, &dof);CHKERRQ(ierr);
+      ierr = PetscSectionSetDof(patch->patchSection, p, dof);CHKERRQ(ierr);
+      for (f = 0; f < patch->nsubspaces; ++f) {
+        ierr = PetscSectionGetFieldDof(patch->dofSection[0], p, f, &fdof);CHKERRQ(ierr);
         ierr = PetscSectionSetFieldDof(patch->patchSection, p, f, fdof);CHKERRQ(ierr);
       }
-      else {
-        /* assume only one field */
-        ierr = PetscSectionSetFieldDof(patch->patchSection, p, f, dof);CHKERRQ(ierr);
+    }
+  } else {
+    PetscInt pStartf, pEndf, f;
+    pStart = PETSC_MAX_INT;
+    pEnd = PETSC_MIN_INT;
+    for (f = 0; f < patch->nsubspaces; ++f) {
+      ierr = PetscSectionGetChart(patch->dofSection[f], &pStartf, &pEndf);CHKERRQ(ierr);
+      pStart = PetscMin(pStart, pStartf);
+      pEnd = PetscMax(pEnd, pEndf);
+    }
+    ierr = PetscSectionSetChart(patch->patchSection, pStart, pEnd);CHKERRQ(ierr);
+    for (f = 0; f < patch->nsubspaces; ++f) {
+      ierr = PetscSectionGetChart(patch->dofSection[f], &pStartf, &pEndf);CHKERRQ(ierr);
+      for (p = pStartf; p < pEndf; ++p) {
+        PetscInt fdof;
+        ierr = PetscSectionGetDof(patch->dofSection[f], p, &fdof);CHKERRQ(ierr);
+        ierr = PetscSectionAddDof(patch->patchSection, p, fdof);CHKERRQ(ierr);
+        ierr = PetscSectionSetFieldDof(patch->patchSection, p, f, fdof);CHKERRQ(ierr);
       }
     }
   }
@@ -1481,7 +1510,6 @@ static PetscErrorCode PCSetUp_PATCH(PC pc)
       ierr = KSPSetOperators(patch->ksp[i], patch->mat[i], patch->mat[i]);CHKERRQ(ierr);
     }
   }
-  if (!pc->setupcalled && patch->optionsSet) for (i = 0; i < patch->npatch; ++i) {ierr = KSPSetFromOptions(patch->ksp[i]);CHKERRQ(ierr);}
   PetscFunctionReturn(0);
 }
 
@@ -1538,11 +1566,14 @@ static PetscErrorCode PCApply_PATCH(PC pc, Vec x, Vec y)
         ierr = PCPatchCreateMatrix_Private(pc, i, &mat);CHKERRQ(ierr);
         /* Populate operator here. */
         ierr = PCPatchComputeOperator_Private(pc, mat, i);CHKERRQ(ierr);
-        ierr = KSPSetOperators(patch->ksp[i], mat, mat);
+        ierr = KSPSetOperators(patch->ksp[i], mat, mat);CHKERRQ(ierr);
         /* Drop reference so the KSPSetOperators below will blow it away. */
         ierr = MatDestroy(&mat);CHKERRQ(ierr);
       }
       ierr = PetscLogEventBegin(PC_Patch_Solve, pc, 0, 0, 0);CHKERRQ(ierr);
+      if (!patch->ksp[i]->setfromoptionscalled) {
+        ierr = KSPSetFromOptions(patch->ksp[i]);CHKERRQ(ierr);
+      }
       ierr = KSPSolve(patch->ksp[i], patch->patchX[i], patch->patchY[i]);CHKERRQ(ierr);
       ierr = PetscLogEventEnd(PC_Patch_Solve, pc, 0, 0, 0);CHKERRQ(ierr);
 
@@ -1623,6 +1654,10 @@ static PetscErrorCode PCReset_PATCH(PC pc)
     for (i = 0; i < patch->npatch; ++i) {ierr = KSPReset(patch->ksp[i]);CHKERRQ(ierr);}
   }
 
+  if (patch->subspaces_to_exclude) {
+    PetscHSetIDestroy(&patch->subspaces_to_exclude);
+  }
+
   ierr = VecDestroy(&patch->localX);CHKERRQ(ierr);
   ierr = VecDestroy(&patch->localY);CHKERRQ(ierr);
   if (patch->patchX) {
@@ -1680,6 +1715,7 @@ static PetscErrorCode PCSetFromOptions_PATCH(PetscOptionItems *PetscOptionsObjec
   const char          *prefix;
   PetscBool            flg, dimflg, codimflg;
   MPI_Comm             comm;
+  PetscInt            *ifields, nfields, k;
   PetscErrorCode       ierr;
 
   PetscFunctionBegin;
@@ -1698,14 +1734,30 @@ static PetscErrorCode PCSetFromOptions_PATCH(PetscOptionItems *PetscOptionsObjec
   ierr = PetscOptionsFList("-pc_patch_sub_mat_type", "Matrix type for patch solves", "PCPatchSetSubMatType", MatList, NULL, sub_mat_type, PETSC_MAX_PATH_LEN, &flg);CHKERRQ(ierr);
   if (flg) {ierr = PCPatchSetSubMatType(pc, sub_mat_type);CHKERRQ(ierr);}
   ierr = PetscOptionsBool("-pc_patch_symmetrise_sweep", "Go start->end, end->start?", "PCPATCH", patch->symmetrise_sweep, &patch->symmetrise_sweep, &flg);CHKERRQ(ierr);
-  ierr = PetscOptionsInt("-pc_patch_exclude_subspace", "What subspace (if any) to exclude in construction?", "PCPATCH", patch->exclude_subspace, &patch->exclude_subspace, &flg);CHKERRQ(ierr);
-  if (patch->exclude_subspace && (patchConstructionType == PC_PATCH_USER)) SETERRQ(comm, PETSC_ERR_ARG_INCOMP, "We cannot support excluding a subspace with user patches because we do not index patches with a mesh point");
+
+  /* If the user has set the number of subspaces, use that for the buffer size,
+     otherwise use a large number */
+  if (patch->nsubspaces <= 0) {
+    nfields = 128;
+  } else {
+    nfields = patch->nsubspaces;
+  }
+  ierr = PetscMalloc1(nfields, &ifields);CHKERRQ(ierr);
+  ierr = PetscOptionsGetIntArray(((PetscObject)pc)->options,((PetscObject)pc)->prefix,"-pc_patch_exclude_subspaces",ifields,&nfields,&flg);CHKERRQ(ierr);
+  if (flg && (patchConstructionType == PC_PATCH_USER)) SETERRQ(comm, PETSC_ERR_ARG_INCOMP, "We cannot support excluding a subspace with user patches because we do not index patches with a mesh point");
+  if (flg) {
+    PetscHSetIClear(patch->subspaces_to_exclude);
+    for (k = 0; k < nfields; k++) {
+      PetscHSetIAdd(patch->subspaces_to_exclude, ifields[k]);
+    }
+  }
+  ierr = PetscFree(ifields);CHKERRQ(ierr);
 
   ierr = PetscOptionsBool("-pc_patch_patches_view", "Print out information during patch construction", "PCPATCH", patch->viewPatches, &patch->viewPatches, &flg);CHKERRQ(ierr);
-  ierr = PetscOptionsGetViewer(comm, prefix, "-pc_patch_cells_view",   &patch->viewerCells,   &patch->formatCells,   &patch->viewCells);CHKERRQ(ierr);
-  ierr = PetscOptionsGetViewer(comm, prefix, "-pc_patch_points_view",  &patch->viewerPoints,  &patch->formatPoints,  &patch->viewPoints);CHKERRQ(ierr);
-  ierr = PetscOptionsGetViewer(comm, prefix, "-pc_patch_section_view", &patch->viewerSection, &patch->formatSection, &patch->viewSection);CHKERRQ(ierr);
-  ierr = PetscOptionsGetViewer(comm, prefix, "-pc_patch_mat_view",     &patch->viewerMatrix,  &patch->formatMatrix,  &patch->viewMatrix);CHKERRQ(ierr);
+  ierr = PetscOptionsGetViewer(comm,((PetscObject) pc)->options,prefix, "-pc_patch_cells_view",   &patch->viewerCells,   &patch->formatCells,   &patch->viewCells);CHKERRQ(ierr);
+  ierr = PetscOptionsGetViewer(comm,((PetscObject) pc)->options,prefix, "-pc_patch_points_view",  &patch->viewerPoints,  &patch->formatPoints,  &patch->viewPoints);CHKERRQ(ierr);
+  ierr = PetscOptionsGetViewer(comm,((PetscObject) pc)->options,prefix, "-pc_patch_section_view", &patch->viewerSection, &patch->formatSection, &patch->viewSection);CHKERRQ(ierr);
+  ierr = PetscOptionsGetViewer(comm,((PetscObject) pc)->options,prefix, "-pc_patch_mat_view",     &patch->viewerMatrix,  &patch->formatMatrix,  &patch->viewMatrix);CHKERRQ(ierr);
   ierr = PetscOptionsTail();CHKERRQ(ierr);
   patch->optionsSet = PETSC_TRUE;
   PetscFunctionReturn(0);
@@ -1719,7 +1771,14 @@ static PetscErrorCode PCSetUpOnBlocks_PATCH(PC pc)
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
+  if (!patch->save_operators) {
+    /* Can't do this here because the sub KSPs don't have an operator attached yet. */
+    PetscFunctionReturn(0);
+  }
   for (i = 0; i < patch->npatch; ++i) {
+    if (!patch->ksp[i]->setfromoptionscalled) {
+      ierr = KSPSetFromOptions(patch->ksp[i]);CHKERRQ(ierr);
+    }
     ierr = KSPSetUp(patch->ksp[i]);CHKERRQ(ierr);
     ierr = KSPGetConvergedReason(patch->ksp[i], &reason);CHKERRQ(ierr);
     if (reason == KSP_DIVERGED_PCSETUP_FAILED) pc->failedreason = PC_SUBPC_ERROR;
@@ -1795,13 +1854,17 @@ PETSC_EXTERN PetscErrorCode PCCreate_Patch(PC pc)
   PetscFunctionBegin;
   ierr = PetscNewLog(pc, &patch);CHKERRQ(ierr);
 
+  if (patch->subspaces_to_exclude) {
+    PetscHSetIDestroy(&patch->subspaces_to_exclude);
+  }
+  PetscHSetICreate(&patch->subspaces_to_exclude);
+
   /* Set some defaults */
   patch->combined           = PETSC_FALSE;
   patch->save_operators     = PETSC_TRUE;
   patch->partition_of_unity = PETSC_FALSE;
   patch->codim              = -1;
   patch->dim                = -1;
-  patch->exclude_subspace   = -1;
   patch->vankadim           = -1;
   patch->ignoredim          = -1;
   patch->patchconstructop   = PCPatchConstruct_Star;

@@ -3,13 +3,17 @@
 /*@
   DMPlexSetMigrationSF - Sets the SF for migrating from a parent DM into this DM
 
-+ dm          - The DM
-. naturalSF   - The PetscSF
+  Input Parameters:
++ dm        - The DM
+- naturalSF - The PetscSF
+
+  Note: It is necessary to call this in order to have DMCreateSubDM() or DMCreateSuperDM() build the Global-To-Natural map
+
   Level: intermediate
 
 .seealso: DMPlexDistribute(), DMPlexDistributeField(), DMPlexCreateMigrationSF(), DMPlexGetMigrationSF()
 @*/
-PetscErrorCode DMPlexSetMigrationSF(DM dm, PetscSF migrationSF) 
+PetscErrorCode DMPlexSetMigrationSF(DM dm, PetscSF migrationSF)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
@@ -21,13 +25,17 @@ PetscErrorCode DMPlexSetMigrationSF(DM dm, PetscSF migrationSF)
 /*@
   DMPlexGetMigrationSF - Gets the SF for migrating from a parent DM into this DM
 
-+ dm          - The DM
-. *migrationSF   - The PetscSF
+  Input Parameter:
+. dm          - The DM
+
+  Output Parameter:
+. migrationSF - The PetscSF
+
   Level: intermediate
 
 .seealso: DMPlexDistribute(), DMPlexDistributeField(), DMPlexCreateMigrationSF(), DMPlexSetMigrationSF
 @*/
-PetscErrorCode DMPlexGetMigrationSF(DM dm, PetscSF *migrationSF) 
+PetscErrorCode DMPlexGetMigrationSF(DM dm, PetscSF *migrationSF)
 {
   PetscFunctionBegin;
   *migrationSF = dm->sfMigration;
@@ -37,13 +45,15 @@ PetscErrorCode DMPlexGetMigrationSF(DM dm, PetscSF *migrationSF)
 /*@
   DMPlexSetGlobalToNaturalSF - Sets the SF for mapping Global Vec to the Natural Vec
 
+  Input Parameters:
 + dm          - The DM
-. naturalSF   - The PetscSF
+- naturalSF   - The PetscSF
+
   Level: intermediate
 
 .seealso: DMPlexDistribute(), DMPlexDistributeField(), DMPlexCreateGlobalToNaturalSF(), DMPlexGetGlobaltoNaturalSF()
 @*/
-PetscErrorCode DMPlexSetGlobalToNaturalSF(DM dm, PetscSF naturalSF) 
+PetscErrorCode DMPlexSetGlobalToNaturalSF(DM dm, PetscSF naturalSF)
 {
   PetscErrorCode ierr;
   PetscFunctionBegin;
@@ -56,13 +66,17 @@ PetscErrorCode DMPlexSetGlobalToNaturalSF(DM dm, PetscSF naturalSF)
 /*@
   DMPlexGetGlobalToNaturalSF - Gets the SF for mapping Global Vec to the Natural Vec
 
-+ dm          - The DM
-. *naturalSF   - The PetscSF
+  Input Parameter:
+. dm          - The DM
+
+  Output Parameter:
+. naturalSF   - The PetscSF
+
   Level: intermediate
 
 .seealso: DMPlexDistribute(), DMPlexDistributeField(), DMPlexCreateGlobalToNaturalSF(), DMPlexSetGlobaltoNaturalSF
 @*/
-PetscErrorCode DMPlexGetGlobalToNaturalSF(DM dm, PetscSF *naturalSF) 
+PetscErrorCode DMPlexGetGlobalToNaturalSF(DM dm, PetscSF *naturalSF)
 {
   PetscFunctionBegin;
   *naturalSF = dm->sfNatural;
@@ -74,11 +88,13 @@ PetscErrorCode DMPlexGetGlobalToNaturalSF(DM dm, PetscSF *naturalSF)
 
   Input Parameters:
 + dm          - The DM
-. section     - The PetscSection before the mesh was distributed
+. section     - The PetscSection describing the Vec before the mesh was distributed
 - sfMigration - The PetscSF used to distribute the mesh
 
-  Output Parameters:
-. sfNatural - PetscSF for mapping the Vec in PETSc ordering to the canonical ordering
+  Output Parameter:
+. sfNatural   - PetscSF for mapping the Vec in PETSc ordering to the canonical ordering
+
+  Note: This is not typically called by the user.
 
   Level: intermediate
 
@@ -168,7 +184,7 @@ PetscErrorCode DMPlexCreateGlobalToNaturalSF(DM dm, PetscSection section, PetscS
   Output Parameters:
 . nv - Vec in the canonical ordering distributed over all processors associated with gv
 
-  Note: The user must call DMPlexSetUseNaturalSF(dm, PETSC_TRUE) before DMPlexDistribute().
+  Note: The user must call DMSetUseNatural(dm, PETSC_TRUE) before DMPlexDistribute().
 
   Level: intermediate
 
@@ -205,7 +221,7 @@ PetscErrorCode DMPlexGlobalToNaturalBegin(DM dm, Vec gv, Vec nv)
   Output Parameters:
 . nv - The natural Vec
 
-  Note: The user must call DMPlexSetUseNaturalSF(dm, PETSC_TRUE) before DMPlexDistribute().
+  Note: The user must call DMSetUseNatural(dm, PETSC_TRUE) before DMPlexDistribute().
 
   Level: intermediate
 
@@ -242,7 +258,7 @@ PetscErrorCode DMPlexGlobalToNaturalEnd(DM dm, Vec gv, Vec nv)
   Output Parameters:
 . gv - The global Vec
 
-  Note: The user must call DMPlexSetUseNaturalSF(dm, PETSC_TRUE) before DMPlexDistribute().
+  Note: The user must call DMSetUseNatural(dm, PETSC_TRUE) before DMPlexDistribute().
 
   Level: intermediate
 
@@ -266,7 +282,7 @@ PetscErrorCode DMPlexNaturalToGlobalBegin(DM dm, Vec nv, Vec gv)
     ierr = PetscSFReduceBegin(dm->sfNatural, MPIU_SCALAR, (PetscScalar *) inarray, outarray, MPI_SUM);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(nv, &inarray);CHKERRQ(ierr);
     ierr = VecRestoreArray(gv, &outarray);CHKERRQ(ierr);
-  } else SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONGSTATE, "DM global to natural SF was not created.\nYou must call DMPlexSetUseNaturalSF() before DMPlexDistribute().\n");
+  } else SETERRQ(PetscObjectComm((PetscObject) dm), PETSC_ERR_ARG_WRONGSTATE, "DM global to natural SF was not created.\nYou must call DMSetUseNatural() before DMPlexDistribute().\n");
   ierr = PetscLogEventEnd(DMPLEX_NaturalToGlobalBegin,dm,0,0,0);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
@@ -283,7 +299,7 @@ PetscErrorCode DMPlexNaturalToGlobalBegin(DM dm, Vec nv, Vec gv)
   Output Parameters:
 . gv - The global Vec
 
-  Note: The user must call DMPlexSetUseNaturalSF(dm, PETSC_TRUE) before DMPlexDistribute().
+  Note: The user must call DMSetUseNatural(dm, PETSC_TRUE) before DMPlexDistribute().
 
   Level: intermediate
 

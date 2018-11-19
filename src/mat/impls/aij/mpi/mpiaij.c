@@ -3905,10 +3905,10 @@ PetscErrorCode MatMPIAIJSetPreallocationCSR_MPIAIJ(Mat B,const PetscInt Ii[],con
   cend   = B->cmap->rend;
   rstart = B->rmap->rstart;
 
-  ierr = PetscMalloc2(m,&d_nnz,m,&o_nnz);CHKERRQ(ierr);
+  ierr = PetscCalloc2(m,&d_nnz,m,&o_nnz);CHKERRQ(ierr);
 
 #if defined(PETSC_USE_DEBUG)
-  for (i=0; i<m; i++) {
+  for (i=0; i<m && Ii; i++) {
     nnz = Ii[i+1]- Ii[i];
     JJ  = J + Ii[i];
     if (nnz < 0) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Local row %D has a negative %D number of columns",i,nnz);
@@ -3917,7 +3917,7 @@ PetscErrorCode MatMPIAIJSetPreallocationCSR_MPIAIJ(Mat B,const PetscInt Ii[],con
   }
 #endif
 
-  for (i=0; i<m; i++) {
+  for (i=0; i<m && Ii; i++) {
     nnz     = Ii[i+1]- Ii[i];
     JJ      = J + Ii[i];
     nnz_max = PetscMax(nnz_max,nnz);
@@ -3936,7 +3936,7 @@ PetscErrorCode MatMPIAIJSetPreallocationCSR_MPIAIJ(Mat B,const PetscInt Ii[],con
     ierr = PetscCalloc1(nnz_max+1,&values);CHKERRQ(ierr);
   }
 
-  for (i=0; i<m; i++) {
+  for (i=0; i<m && Ii; i++) {
     ii   = i + rstart;
     nnz  = Ii[i+1]- Ii[i];
     ierr = MatSetValues_MPIAIJ(B,1,&ii,nnz,J+Ii[i],values+(v ? Ii[i] : 0),INSERT_VALUES);CHKERRQ(ierr);
@@ -4164,7 +4164,7 @@ PetscErrorCode MatMPIAIJSetPreallocation(Mat B,PetscInt d_nz,const PetscInt d_nn
        calculated if N is given) For square matrices n is almost always m.
 .  M - number of global rows (or PETSC_DETERMINE to have calculated if m is given)
 .  N - number of global columns (or PETSC_DETERMINE to have calculated if n is given)
-.   i - row indices
+.   i - row indices; that is i[0] = 0, i[row] = i[row-1] + number of elements in that row of the matrix
 .   j - column indices
 -   a - matrix values
 
@@ -4990,7 +4990,7 @@ PetscErrorCode MatCreateMPIAIJSumSeqAIJ(MPI_Comm comm,Mat seqmat,PetscInt m,Pets
 
     Level: developer
 
-.seealso: MatGetOwnerShipRange(), MatMPIAIJGetLocalMatCondensed()
+.seealso: MatGetOwnershipRange(), MatMPIAIJGetLocalMatCondensed()
 
 @*/
 PetscErrorCode MatMPIAIJGetLocalMat(Mat A,MatReuse scall,Mat *A_loc)
@@ -5705,10 +5705,10 @@ PETSC_EXTERN PetscErrorCode MatCreate_MPIAIJ(Mat B)
        calculated if N is given) For square matrices n is almost always m.
 .  M - number of global rows (or PETSC_DETERMINE to have calculated if m is given)
 .  N - number of global columns (or PETSC_DETERMINE to have calculated if n is given)
-.   i - row indices for "diagonal" portion of matrix
+.   i - row indices for "diagonal" portion of matrix; that is i[0] = 0, i[row] = i[row-1] + number of elements in that row of the matrix
 .   j - column indices
 .   a - matrix values
-.   oi - row indices for "off-diagonal" portion of matrix
+.   oi - row indices for "off-diagonal" portion of matrix; that is oi[0] = 0, oi[row] = oi[row-1] + number of elements in that row of the matrix
 .   oj - column indices
 -   oa - matrix values
 

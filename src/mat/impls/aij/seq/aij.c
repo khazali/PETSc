@@ -3073,7 +3073,7 @@ PetscErrorCode MatInvertBlockDiagonal_SeqAIJ(Mat A,const PetscScalar **values)
   switch (bs) {
   case 1:
     for (i=0; i<mbs; i++) {
-      ierr    = MatGetValues(A,1,&i,1,&i,diag+i);CHKERRQ(ierr);
+      ierr = MatGetValues(A,1,&i,1,&i,diag+i);CHKERRQ(ierr);
       if (PetscAbsScalar(diag[i] + shift) < PETSC_MACHINE_EPSILON) {
         if (allowzeropivot) {
           A->factorerrortype             = MAT_FACTOR_NUMERIC_ZEROPIVOT;
@@ -4384,7 +4384,7 @@ PetscErrorCode MatEqual_SeqAIJ(Mat A,Mat B,PetscBool * flg)
 +   comm - must be an MPI communicator of size 1
 .   m - number of rows
 .   n - number of columns
-.   i - row indices
+.   i - row indices; that is i[0] = 0, i[row] = i[row-1] + number of elements in that row of the matrix
 .   j - column indices
 -   a - matrix values
 
