@@ -992,22 +992,22 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
        //here the stifness matrix in 2d
         //first product (B x K_yy) u=W2 (u_yy)
         alpha=appctx->param.Lex/appctx->param.Ley;
-        MTMV(Nl,alpha,stiff,mass,ulb,beta,wrk1,wrk2);
+        MTMVDot(Nl,alpha,stiff,mass,NULL,ulb,beta,wrk1,NULL,wrk2);
 
         //second product (K_xx x B) u=W3 (u_xx)
         alpha=appctx->param.Lex/appctx->param.Ley;
-        MTMV(Nl,alpha,mass,stiff,ulb,beta,wrk1,wrk3);
+        MTMVDot(Nl,alpha,mass,stiff,NULL,ulb,beta,wrk1,NULL,wrk3);
 
         BLASaxpy_(&Nl2,&one, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
        
         // for the v component now 
         //first product (B x K_yy) v=W3
         alpha=appctx->param.Lex/appctx->param.Ley;
-        MTMV(Nl,alpha,stiff,mass,vlb,beta,wrk1,wrk3);
+        MTMVDot(Nl,alpha,stiff,mass,NULL,vlb,beta,wrk1,NULL,wrk3);
 
         //second product (K_xx x B) v=W4
         alpha=appctx->param.Lex/appctx->param.Ley;
-        MTMV(Nl,alpha,mass,stiff,vlb,beta,wrk1,wrk4);
+        MTMVDot(Nl,alpha,mass,stiff,NULL,vlb,beta,wrk1,NULL,wrk4);
 
         //alpha=1.0;
         BLASaxpy_(&Nl2,&one, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
