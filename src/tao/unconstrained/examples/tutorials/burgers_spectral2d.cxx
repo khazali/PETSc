@@ -795,10 +795,16 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
         // first (D_x x B) u =W4 this multiples u
         alpha=appctx->param.Lex/2.0;
         MTMV(Nl,alpha,grad,mass,ulb,beta,wrk1,wrk4);
+
+        PetscPointWiseMult(Nl2, &wrk4[0][0], &ulb[0][0], &wrk4[0][0]);
         
         // first (B x D_y) u =W5 this mutiplies v
         alpha=appctx->param.Ley/2.0;
         MTMV(Nl,alpha,mass,grad,ulb,beta,wrk1,wrk5);
+
+        PetscPointWiseMult(Nl2, &wrk5[0][0], &vlb[0][0], &wrk5[0][0]);
+
+        BLASaxpy_(&Nl2,&one, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
 
 
         //now the gradient operator for v
@@ -806,9 +812,15 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
         alpha=appctx->param.Lex/2.0;
         MTMV(Nl,alpha,grad,mass,vlb,beta,wrk1,wrk6);
 
+        PetscPointWiseMult(Nl2, &wrk6[0][0], &ulb[0][0], &wrk6[0][0]);
+
         // first (B x D_y) v =W7 this mutiplies v
         alpha=appctx->param.Ley/2.0;
         MTMV(Nl,alpha,mass,grad,vlb,beta,wrk1,wrk7);
+
+        PetscPointWiseMult(Nl2, &wrk7[0][0], &vlb[0][0], &wrk7[0][0]);
+
+        BLASaxpy_(&Nl2,&one, &wrk7[0][0],&inc,&wrk6[0][0],&inc); // saving in wrk6
 
 
         for (jx=0; jx<appctx->param.N; jx++) 
@@ -816,8 +828,8 @@ PetscErrorCode RHSFunction(TS ts,PetscReal t,Vec globalin,Vec globalout,void *ct
            {indx=ix*(appctx->param.N-1)+jx;
             indy=iy*(appctx->param.N-1)+jy;
             
-            outl[indy][indx].u +=appctx->param.mu*(wrk2[jy][jx])+vlb[jy][jx]*wrk5[jy][jx]+ulb[jy][jx]*wrk4[jy][jx];//+rr.u*mass[jy][jx];  
-            outl[indy][indx].v +=appctx->param.mu*(wrk3[jy][jx])+ulb[jy][jx]*wrk6[jy][jx]+vlb[jy][jx]*wrk7[jy][jx];//+rr.v*mass[jy][jx];    
+            outl[indy][indx].u +=appctx->param.mu*(wrk2[jy][jx])+wrk4[jy][jx];//+rr.u*mass[jy][jx];  
+            outl[indy][indx].v +=appctx->param.mu*(wrk3[jy][jx])+wrk6[jy][jx];//+rr.v*mass[jy][jx];    
            }}
         }
      }
