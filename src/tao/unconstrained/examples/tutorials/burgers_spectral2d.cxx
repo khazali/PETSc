@@ -108,6 +108,8 @@ extern PetscErrorCode RHSJacobian(TS,PetscReal,Vec,Mat,Mat,void*);
 extern PetscErrorCode MyMatMult(Mat,Vec,Vec);
 extern PetscErrorCode MyMatMultTransp(Mat,Vec,Vec);
 extern PetscErrorCode MTMV(const PetscBLASInt M,PetscScalar ALPHA,PetscScalar **A,PetscScalar **B,PetscScalar **U,PetscScalar BETA,PetscScalar **tmp,PetscScalar **V);
+extern PetscErrorCode MTMVDot(const PetscBLASInt M,PetscScalar alpha,PetscScalar **A,PetscScalar **B,PetscScalar **U,PetscScalar **Udot,PetscScalar beta,PetscScalar **tmp,PetscScalar **V,PetscScalar **Vdot);
+extern PetscErrorCode MTMVBar(const PetscBLASInt M,PetscScalar alpha,PetscScalar **A,PetscScalar **B,PetscScalar **U,PetscScalar **Ubar,PetscScalar beta,PetscScalar **tmp,PetscScalar **V,PetscScalar **Vbar);
 
 int main(int argc,char **argv)
 {
@@ -965,13 +967,13 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
        //now the gradient operator for u
         // first (D_x x B) wu the term ujb.(D_x x B) wu
         alpha=appctx->param.Lex/2.0;
-        MTMV(Nl,alpha,grad,mass,ulb,beta,wrk1,wrk4);
+        MTMVDot(Nl,alpha,grad,mass,NULL,ulb,beta,wrk1,NULL,wrk4);
 
         PetscPointWiseMult(Nl2, &wrk4[0][0], &ujb[0][0], &wrk4[0][0]); 
         
        // (D_x x B) u the term ulb.(D_x x B) u
         alpha=appctx->param.Lex/2.0;
-        MTMV(Nl,alpha,grad,mass,ujb,beta,wrk1,wrk5);
+        MTMVDot(Nl,alpha,grad,mass,NULL,ujb,beta,wrk1,NULL,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &ulb[0][0], &wrk5[0][0]); 
 
@@ -981,7 +983,7 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
 
         // first (B x D_y) wu the term vjb.(B x D_x) wu 
         alpha=appctx->param.Ley/2.0;
-        MTMV(Nl,alpha,mass,grad,ulb,beta,wrk1,wrk5);
+        MTMVDot(Nl,alpha,mass,grad,NULL,ulb,beta,wrk1,NULL,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &vjb[0][0], &wrk5[0][0]); 
 
@@ -989,7 +991,7 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
 
         // first (B x D_y) u the term vlb.(B x D_x) u !!!
         alpha=appctx->param.Ley/2.0;
-        MTMV(Nl,alpha,mass,grad,ujb,beta,wrk1,wrk5);
+        MTMVDot(Nl,alpha,mass,grad,NULL,ujb,beta,wrk1,NULL,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &vlb[0][0], &wrk5[0][0]); 
 
@@ -1001,13 +1003,13 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
 
        // (D_x x B) wv the term ujb.(D_x x B) wv
         alpha=appctx->param.Lex/2.0;
-        MTMV(Nl,alpha,grad,mass,vlb,beta,wrk1,wrk5);
+        MTMVDot(Nl,alpha,grad,mass,NULL,vlb,beta,wrk1,NULL,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &ujb[0][0], &wrk5[0][0]); 
 
        // (D_x x B) v the term ulb.(D_x x B) v !!!
         alpha=appctx->param.Lex/2.0;
-        MTMV(Nl,alpha,grad,mass,vjb,beta,wrk1,wrk6);
+        MTMVDot(Nl,alpha,grad,mass,NULL,vjb,beta,wrk1,NULL,wrk6);
 
         PetscPointWiseMult(Nl2, &wrk6[0][0], &ulb[0][0], &wrk6[0][0]); 
 
@@ -1015,7 +1017,7 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
 
         // first (B x D_y) v the term vlb.(B x D_x) v
         alpha=appctx->param.Ley/2.0;
-        MTMV(Nl,alpha,mass,grad,vjb,beta,wrk1,wrk6);
+        MTMVDot(Nl,alpha,mass,grad,NULL,vjb,beta,wrk1,NULL,wrk6);
 
         PetscPointWiseMult(Nl2, &wrk6[0][0], &vlb[0][0], &wrk6[0][0]); 
 
@@ -1024,7 +1026,7 @@ PetscErrorCode MyMatMult(Mat H, Vec in, Vec out)
       
         // first (B x D_y) wv the term vjb.(B x D_x) wv
         alpha=appctx->param.Ley/2.0;
-        MTMV(Nl,alpha,mass,grad,vlb,beta,wrk1,wrk6);
+        MTMVDot(Nl,alpha,mass,grad,NULL,vlb,beta,wrk1,NULL,wrk6);
       
         PetscPointWiseMult(Nl2, &wrk6[0][0], &vjb[0][0], &wrk6[0][0]); 
 
@@ -1115,7 +1117,7 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
    PetscErrorCode  ierr;
    Vec             uloc, outloc, ujloc, incopy;
    PetscViewer     viewfile;
-   PetscScalar     alpha, beta;
+   PetscScalar     alpha, beta, one = 1.;
    static int its=0;
    char var[12] ;
 
@@ -1234,35 +1236,25 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
 
        //here the stifness matrix in 2d
         //first product (B x K_yy)u=W2 (u_yy)
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2./appctx->param.Ley;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk2[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMVBar(Nl,alpha,stiff,mass,NULL,wrk2,beta,wrk1,NULL,ulb);
 
         //second product (K_xx x B) u=W3 (u_xx)
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&ulb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMVBar(Nl,alpha,mass,stiff,NULL,wrk3,beta,wrk1,NULL,ulb);
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
+        BLASaxpy_(&Nl2,&one, &wrk3[0][0],&inc,&wrk2[0][0],&inc); //I freed wrk3 and saved the lalplacian in wrk2
        
         // for the v component now 
         //first product (B x K_yy)v=W3
-        alpha=appctx->param.Lex/2.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=2.0/appctx->param.Ley;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&stiff[0][0],&Nl,&beta,&wrk3[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMVBar(Nl,alpha,stiff,mass,NULL,wrk3,beta,wrk1,NULL,vlb);
 
         //second product (K_xx x B)v=W4
-        alpha=2.0/appctx->param.Lex;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&stiff[0][0],&Nl,&vlb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+        alpha=appctx->param.Lex/appctx->param.Ley;
+        MTMVBar(Nl,alpha,mass,stiff,NULL,wrk4,beta,wrk1,NULL,vlb);
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
+        BLASaxpy_(&Nl2,&one, &wrk4[0][0],&inc,&wrk3[0][0],&inc); //I freed wrk4 and saved the lalplacian in wrk3
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1275,45 +1267,34 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
         PetscPointWiseMult(Nl2, &ulb[0][0], &ujb[0][0], &wrk6[0][0]); 
 
         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&wrk6[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk4[0][0],&Nl);
+        MTMVBar(Nl,alpha,grad,mass,NULL,wrk4,beta,wrk1,NULL,wrk6);
 
         
         // (D_x x B) u the term ulb.(D_x x B) u
         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+        MTMV(Nl,alpha,grad,mass,ujb,beta,wrk1,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &ulb[0][0], &wrk5[0][0]); //same term
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
+        BLASaxpy_(&Nl2,&one, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
 
 
         // first (B x D_y) wu the term vjb.(B x D_x) wu 
 
         PetscPointWiseMult(Nl2, &ulb[0][0], &vjb[0][0], &wrk6[0][0]); 
 
-        alpha=1.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&wrk6[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+        alpha=appctx->param.Ley/2.0;
+        MTMVBar(Nl,alpha,mass,grad,NULL,wrk5,beta,wrk1,NULL,wrk6);
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
+        BLASaxpy_(&Nl2,&one, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk4
 
          // (D_x x B) v the term vlb.(D_x x B) v
         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
+        MTMV(Nl,alpha,grad,mass,vjb,beta,wrk1,wrk5);
 
         PetscPointWiseMult(Nl2, &wrk5[0][0], &vlb[0][0], &wrk5[0][0]); 
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk5
+        BLASaxpy_(&Nl2,&one, &wrk5[0][0],&inc,&wrk4[0][0],&inc); // saving in wrk5
 
 
 //////////////////////////////////// the second equation
@@ -1323,46 +1304,35 @@ PetscErrorCode MyMatMultTransp(Mat H, Vec in, Vec out)
 
         PetscPointWiseMult(Nl2, &vlb[0][0], &ujb[0][0], &wrk7[0][0]); 
         alpha=appctx->param.Lex/2.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&mass[0][0],&Nl,&wrk7[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&grad[0][0],&Nl,&beta,&wrk5[0][0],&Nl);
-
+        MTMVBar(Nl,alpha,grad,mass,NULL,wrk5,beta,wrk1,NULL,wrk7);
      
 
         // first (B x D_y) u the term ulb.(B x D_x) u       /////////same term B
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&ujb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
+        MTMV(Nl,alpha,mass,grad,ujb,beta,wrk1,wrk6);
 
         PetscPointWiseMult(Nl2, &wrk6[0][0], &ulb[0][0], &wrk6[0][0]); 
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
+        BLASaxpy_(&Nl2,&one, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
 
 
         
         // first (B x D_y) v the term vjb.(B x D_x) wv
         PetscPointWiseMult(Nl2, &vlb[0][0], &vjb[0][0], &wrk7[0][0]); 
-        alpha=1.0;
-        BLASgemm_("T","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&wrk7[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);         
+        MTMVBar(Nl,alpha,mass,grad,NULL,wrk6,beta,wrk1,NULL,wrk7);
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
+
+        BLASaxpy_(&Nl2,&one, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
         
         // first (B x D_y) wv the term vlb.(B x D_x) v
-        alpha=1.0;
-        BLASgemm_("N","N",&Nl,&Nl,&Nl,&alpha,&grad[0][0],&Nl,&vjb[0][0],&Nl,&beta,&wrk1[0][0],&Nl);
         alpha=appctx->param.Ley/2.0;
-        BLASgemm_("N","T",&Nl,&Nl,&Nl,&alpha,&wrk1[0][0],&Nl,&mass[0][0],&Nl,&beta,&wrk6[0][0],&Nl);
+        MTMV(Nl,alpha,mass,grad,vjb,beta,wrk1,wrk6);
 
       
         PetscPointWiseMult(Nl2, &wrk6[0][0], &vlb[0][0], &wrk6[0][0]); 
 
-        alpha=1.0;
-        BLASaxpy_(&Nl2,&alpha, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
+        BLASaxpy_(&Nl2,&one, &wrk6[0][0],&inc,&wrk5[0][0],&inc); // saving in wrk5
 
 
         for (jx=0; jx<appctx->param.N; jx++) 
@@ -1624,6 +1594,44 @@ PetscErrorCode MTMV(const PetscBLASInt M,PetscScalar alpha,PetscScalar **A,Petsc
   PetscFunctionBegin;
   BLASgemm_("N","N",&M,&M,&M,&one,&B[0][0],&M,&U[0][0],&M,&zero,&tmp[0][0],&M);
   BLASgemm_("N","T",&M,&M,&M,&alpha,&tmp[0][0],&M,&A[0][0],&M,&beta,&V[0][0],&M);
+  PetscFunctionReturn(0);
+}
+
+/*
+  Forward mode derivative of MTMV w.r.t. the matrix argument U, given seed matrix Udot:
+    vec(Vdot) = alpha * (A \otimes B) vec(Udot)  <=> Vdot = alpha * (B^T * Udot * A)
+*/
+PetscErrorCode MTMVDot(const PetscBLASInt M,PetscScalar alpha,PetscScalar **A,PetscScalar **B,PetscScalar **U,PetscScalar **Udot,PetscScalar beta,PetscScalar **tmp,PetscScalar **V,PetscScalar **Vdot)
+{
+  PetscScalar one = 1.,zero = 0.;
+
+  PetscFunctionBegin;
+
+  /* Undifferentiated code */
+  if ((U) && (V)) {
+    BLASgemm_("N","N",&M,&M,&M,&one,&B[0][0],&M,&U[0][0],&M,&zero,&tmp[0][0],&M);
+    BLASgemm_("N","T",&M,&M,&M,&alpha,&tmp[0][0],&M,&A[0][0],&M,&beta,&V[0][0],&M);
+  }
+
+  /* Differentiated code */
+  BLASgemm_("N","N",&M,&M,&M,&one,&B[0][0],&M,&Udot[0][0],&M,&zero,&tmp[0][0],&M);
+  BLASgemm_("N","T",&M,&M,&M,&alpha,&tmp[0][0],&M,&A[0][0],&M,&beta,&Vdot[0][0],&M);
+  PetscFunctionReturn(0);
+}
+
+/*
+  Reverse mode derivative of MTMV w.r.t. the matrix argument U, given a seed matrix Vdot:
+    vec(Ubar) = alpha * (A^T \otimes B^T) vec(Vbar)  <=>  alpha * (A^T * Vbar * B)
+
+  NOTE the transposition of A and B: ["N","N";"N","T"] -> ["T","N";"N","N"]
+*/
+PetscErrorCode MTMVBar(const PetscBLASInt M,PetscScalar alpha,PetscScalar **A,PetscScalar **B,PetscScalar **U,PetscScalar **Ubar,PetscScalar beta,PetscScalar **tmp,PetscScalar **V,PetscScalar **Vbar)
+{
+  PetscScalar one = 1.,zero = 0.;
+
+  PetscFunctionBegin;
+  BLASgemm_("T","N",&M,&M,&M,&one,&B[0][0],&M,&Vbar[0][0],&M,&zero,&tmp[0][0],&M);
+  BLASgemm_("N","N",&M,&M,&M,&alpha,&tmp[0][0],&M,&A[0][0],&M,&beta,&Ubar[0][0],&M);
   PetscFunctionReturn(0);
 }
 
