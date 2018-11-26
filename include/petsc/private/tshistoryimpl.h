@@ -10,8 +10,8 @@ struct _p_TSHistory {
   PetscInt  *hist_id; /* stores the stepid in time history */
   PetscInt  n;        /* current number of steps registered */
   PetscBool sorted;   /* if the history is sorted in ascending order */
-  PetscReal c;        /* current capacity of hist */
-  PetscReal s;        /* reallocation size */
+  PetscInt  c;        /* current capacity of hist */
+  PetscInt  s;        /* reallocation size */
 };
 
 PETSC_INTERN PetscErrorCode TSHistoryCreate(MPI_Comm,TSHistory*);
