@@ -15,7 +15,7 @@ int main(int argc,char **argv)
   Vec            W,W2,Wdot;
   TSTrajectory   tj;
   PetscReal      times[10];
-  PetscReal      TT[10] = { 0.2, 0.9, 0.1, 0.3, 0.6, 0.7, 0.5, 1.0, 0.4, 0.8 };
+  PetscReal      TT[10] = { 2, 9, 1, 3, 6, 7, 5, 10, 4, 8 };
   PetscInt       i, p = 1, Nt = 10;
   PetscInt       II[10] = { 1, 4, 9, 2, 3, 6, 5, 8, 0, 7 };
   PetscBool      sort,use1,use2;
@@ -63,8 +63,8 @@ int main(int argc,char **argv)
     ierr = TSTrajectoryGetVecs(tj,ts,PETSC_DECIDE,&testtime,W,Wdot);CHKERRQ(ierr);
     ierr = VecGetArrayRead(W,&aW);CHKERRQ(ierr);
     ierr = VecGetArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",(double)testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",(double)testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(W,&aW);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
   }
@@ -74,7 +74,7 @@ int main(int argc,char **argv)
 
     ierr = TSTrajectoryGetVecs(tj,ts,PETSC_DECIDE,&testtime,W,NULL);CHKERRQ(ierr);
     ierr = VecGetArrayRead(W,&aW);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",(double)testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(W,&aW);CHKERRQ(ierr);
   }
   for (i = Nt-1; i >= 0; i--) {
@@ -83,7 +83,7 @@ int main(int argc,char **argv)
 
     ierr = TSTrajectoryGetVecs(tj,ts,PETSC_DECIDE,&testtime,NULL,Wdot);CHKERRQ(ierr);
     ierr = VecGetArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",(double)testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(Wdot,&aWdot);CHKERRQ(ierr);
   }
   for (i = 0; i < Nt; i++) {
@@ -94,8 +94,8 @@ int main(int argc,char **argv)
     ierr = TSTrajectoryGetUpdatedHistoryVecs(tj,ts,testtime,&hW,&hWdot);CHKERRQ(ierr);
     ierr = VecGetArrayRead(hW,&aW);CHKERRQ(ierr);
     ierr = VecGetArrayRead(hWdot,&aWdot);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",(double)testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",(double)testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(hW,&aW);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(hWdot,&aWdot);CHKERRQ(ierr);
     ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tj,&hW,&hWdot);CHKERRQ(ierr);
@@ -130,12 +130,12 @@ int main(int argc,char **argv)
       ierr = TSTrajectoryGetUpdatedHistoryVecs(tj,ts,testtime,use1 ? &hW : NULL,use2 ? &hWdot : NULL);CHKERRQ(ierr);
       if (use1) {
         ierr = VecGetArrayRead(hW,&aW);CHKERRQ(ierr);
-        ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));CHKERRQ(ierr);
+        ierr = PetscPrintf(PETSC_COMM_WORLD," f(%g) = %g (reconstructed %g)\n",(double)testtime,(double)PetscRealPart(func(p,testtime)),(double)PetscRealPart(aW[0]));CHKERRQ(ierr);
         ierr = VecRestoreArrayRead(hW,&aW);CHKERRQ(ierr);
       }
       if (use2) {
         ierr = VecGetArrayRead(hWdot,&aWdot);CHKERRQ(ierr);
-        ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));CHKERRQ(ierr);
+        ierr = PetscPrintf(PETSC_COMM_WORLD,"df(%g) = %g (reconstructed %g)\n",(double)testtime,(double)PetscRealPart(dfunc(p,testtime)),(double)PetscRealPart(aWdot[0]));CHKERRQ(ierr);
         ierr = VecRestoreArrayRead(hWdot,&aWdot);CHKERRQ(ierr);
       }
       ierr = TSTrajectoryRestoreUpdatedHistoryVecs(tj,use1 ? &hW : NULL,use2 ? &hWdot : NULL);CHKERRQ(ierr);
@@ -153,10 +153,10 @@ int main(int argc,char **argv)
 
 test:
   suffix: 1
-  args: -ts_trajectory_monitor -p 3 -ts_trajectory_reconstruction_order 3 -interptimes 0.1,0.99,0.3,0.11,0.11,0.56
+  args: -ts_trajectory_monitor -p 3 -ts_trajectory_reconstruction_order 3 -interptimes 1,9.9,3,1.1,1.1,5.6
 
 test:
   suffix: 2
-  args: -sortkeys -ts_trajectory_monitor -ts_trajectory_type memory -p 3 -ts_trajectory_reconstruction_order 3 -ts_trajectory_adjointmode 0 -interptimes 0.1,0.99,0.3,0.11,0.11,0.56
+  args: -sortkeys -ts_trajectory_monitor -ts_trajectory_type memory -p 3 -ts_trajectory_reconstruction_order 3 -ts_trajectory_adjointmode 0 -interptimes 1,9.9,3,1.1,1.1,5.6
 
 TEST*/
