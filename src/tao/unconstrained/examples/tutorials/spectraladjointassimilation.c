@@ -768,7 +768,7 @@ PetscErrorCode MonitorDestroy(void **ctx)
 
    testset:
      requires: !single
-     args:  -ts_type cn -ts_dt .003 -pc_type lu -E 10 -N 8 -ncoeff 5
+     args:  -ts_type cn -ts_dt .003 -pc_type lu -E 10 -N 8 -ncoeff 5 -tao_bqnls_mat_lmvm_scale_type none
      output_file: output/spectraladjointassimilation_cn.out
      test:
        suffix: cn
@@ -779,7 +779,7 @@ PetscErrorCode MonitorDestroy(void **ctx)
 
    testset:
      requires: !single
-     args:  -ts_adapt_dt_max 3.e-3 -E 10 -N 8 -ncoeff 5  -a .1
+     args:  -ts_adapt_dt_max 3.e-3 -E 10 -N 8 -ncoeff 5  -a .1 -tao_bqnls_mat_lmvm_scale_type none
      output_file: output/spectraladjointassimilation_2.out
      test:
        suffix: 2
