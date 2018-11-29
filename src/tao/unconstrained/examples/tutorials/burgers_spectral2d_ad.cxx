@@ -7,18 +7,17 @@ static char help[] ="Solves a simple data assimilation problem with one dimensio
 
 */
 /*
-   Concepts: TS^time-dependent linear problems
-   Concepts: TS^heat equation
-   Concepts: TS^diffusion equation
+   Concepts: TS^time-dependent nonlinear problems
+   Concepts: TS^Burgers equation
    Concepts: adjoints
+   Concepts: automatic differentiation using CoDiPack
    Processors: n
 */
-
 /* ------------------------------------------------------------------------
 
-   This program uses the one-dimensional advection-diffusion equation),
-       u_t = mu*u_xx - a u_x,
-   on the domain 0 <= x <= 1, with periodic boundary conditions
+   This program solves the two-dimensional Burgers' equation,
+       u_t = mu * \Delta u - u \cdot \nabla(u),
+   on the domain 0 <= x,y <= 1, with periodic boundary conditions
 
    to demonstrate solving a data assimilation problem of finding the initial conditions
    to produce a given solution at a fixed time.
