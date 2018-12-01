@@ -2210,6 +2210,13 @@ $PETSC_DIR/src/sys/classes/viewer/examples/tests/output/ex4a.out
 \item Repeat for other errors.
 \end{enumerate}
 
+New tests added to existing source files are automatically discovered by the testing system.
+If you add tests to a new source file or rename a file that contains tests, run
+\begin{bashlisting}
+  make cleantest
+\end{bashlisting}
+before \texttt{test} or \texttt{print-test} targets.
+
 \subsection{Additional Tips}
 To rerun just the reporting use
 \begin{bashlisting}
