@@ -2198,7 +2198,6 @@ cd $PETSC_ARCH/tests/sys/classes/viewer/examples/tests/
 (Note that the default number of MPI processes is 1.)
 \item We can deduce now that the command to rerun the example is
 \begin{outputlisting}
-make ex4
 $PETSC_DIR/$PETSC_ARCH/bin/mpiexec -n 1 ./ex4 -myviewer ascii:ex4a1.tmp::append
 cat ex4a1.tmp
 \end{outputlisting}
