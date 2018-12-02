@@ -67,6 +67,7 @@ PetscErrorCode MatLoad_AIJ_HDF5(Mat mat, PetscViewer viewer)
 
   /* Read array i (array of row indices) */
   ierr = PetscMalloc1(m+1, &i);CHKERRQ(ierr); /* allocate i with one more position for local number of nonzeros on each rank */
+  i[0] = i[m] = 0; /* make the last entry always defined - the code block below overwrites it just on last rank */
   if (rank == size-1) m++; /* in the loaded array i_glob, only the last rank has one more position with the global number of nonzeros */
   M++;
   ierr = ISCreate(comm,&is_i);CHKERRQ(ierr);
@@ -81,17 +82,17 @@ PetscErrorCode MatLoad_AIJ_HDF5(Mat mat, PetscViewer viewer)
   m = mat->rmap->n;
   M--;
 
-  /* Determine offset and count of elements for reading local part of array data */
   /* Create PetscLayout for j and a vectors; construct ranges first */
   ierr = PetscLayoutCreate(comm,&jmap);CHKERRQ(ierr);
   ierr = PetscCalloc1(size+1, &jmap->range);CHKERRQ(ierr);
   ierr = MPI_Allgather(&i[0], 1, MPIU_INT, jmap->range, 1, MPIU_INT, comm);CHKERRQ(ierr);
+  /* Last rank has global number of nonzeros (= length of j and a arrays) in i[m] (last i entry) so broadcast it */
   jmap->range[size] = i[m];
   ierr = MPI_Bcast(&jmap->range[size], 1, MPIU_INT, size-1, comm);CHKERRQ(ierr);
   for (p=size-1; p>0; p--) {
     if (!jmap->range[p]) jmap->range[p] = jmap->range[p+1]; /* for ranks with 0 rows, take the value from the next processor */
   }
-  i[m] = jmap->range[rank+1];
+  i[m] = jmap->range[rank+1]; /* i[m] (last i entry) is equal to next rank's offset */
   /* Deduce rstart, rend, n and N from the ranges */
   ierr = PetscLayoutSetUp(jmap);CHKERRQ(ierr);
 
