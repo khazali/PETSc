@@ -9,17 +9,19 @@
    SuperLU_dist uses a common flag for both Fortran mangling and BLAS/LAPACK mangling which
    corresponds to the PETSc BLAS/LAPACK mangling flag (we pass this flag to configure SuperLU_dist)
 */
-
+#if defined (_WIN32)
+  # include <superlu_defs.h>
+#elif
 /* Why not incude superlu_dist inludes? */
-#  if defined(PETSC_BLASLAPACK_CAPS)
-#    define mc64id_dist     MC64ID_DIST
-#    define mc64ad_dist     MC64AD_DIST
+  #  if defined(PETSC_BLASLAPACK_CAPS)
+  #    define mc64id_dist     MC64ID_DIST
+  #    define mc64ad_dist     MC64AD_DIST
 
-#  elif !defined(PETSC_BLASLAPACK_UNDERSCORE)
-#    define mc64id_dist     mc64id_dist
-#    define mc64ad_dist     mc64ad_dist
-
-#  endif
+  #  elif !defined(PETSC_BLASLAPACK_UNDERSCORE)
+  #    define mc64id_dist     mc64id_dist
+  #    define mc64ad_dist     mc64ad_dist
+  #  endif
+#endif
 
 PETSC_EXTERN PetscInt mc64id_dist(PetscInt*);
 PETSC_EXTERN PetscInt mc64ad_dist(const PetscInt*, PetscInt*, PetscInt*, const PetscInt*, const PetscInt*n, PetscScalar*, PetscInt*,
