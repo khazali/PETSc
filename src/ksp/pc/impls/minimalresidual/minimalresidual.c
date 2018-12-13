@@ -12,6 +12,7 @@
 typedef struct {
   Mat premr;
   PetscInt nnz;
+  MatScalar *diag;
 } PC_MinimalResidual;
 
 
@@ -172,9 +173,9 @@ static PetscErrorCode PCDestroy_VPBJacobi(PC pc)
 
 M*/
 
-PETSC_EXTERN PetscErrorCode PCCreate_VPBJacobi(PC pc)
+PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
 {
-  PC_VPBJacobi   *jac;
+  PC_MinimalResidual   *jac;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -190,6 +191,8 @@ PETSC_EXTERN PetscErrorCode PCCreate_VPBJacobi(PC pc)
      diagonal entries of the matrix for fast preconditioner application.
   */
   jac->diag = NULL;
+  jac->nnz = 1;
+  jac->premr = NULL;
 
   /*
       Set the pointers for the functions that are provided above.
@@ -198,10 +201,10 @@ PETSC_EXTERN PetscErrorCode PCCreate_VPBJacobi(PC pc)
       choose not to provide a couple of these functions since they are
       not needed.
   */
-  pc->ops->apply               = PCApply_VPBJacobi;
+  pc->ops->apply               = PCApply_MinimalResidual;
   pc->ops->applytranspose      = 0;
-  pc->ops->setup               = PCSetUp_VPBJacobi;
-  pc->ops->destroy             = PCDestroy_VPBJacobi;
+  pc->ops->setup               = PCSetUp_MinimalResidual;
+  pc->ops->destroy             = PCDestroy_MinimalResidual;
   pc->ops->setfromoptions      = 0;
   pc->ops->applyrichardson     = 0;
   pc->ops->applysymmetricleft  = 0;
