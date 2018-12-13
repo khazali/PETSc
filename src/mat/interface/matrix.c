@@ -7291,6 +7291,7 @@ PetscErrorCode MatSetVariableBlockSizes(Mat mat,PetscInt nblocks,PetscInt *bsize
   PetscFunctionReturn(0);
 }
 
+
 /*@C
    MatGetVariableBlockSizes - Gets a diagonal blocks of the matrix that need not be of the same size
 
@@ -7319,6 +7320,43 @@ PetscErrorCode MatGetVariableBlockSizes(Mat mat,PetscInt *nblocks,const PetscInt
   *bsizes  = mat->bsizes;
   PetscFunctionReturn(0);
 }
+
+/*@
+   I'll add the descriptions later
+@*/
+ 
+PetscErrorCode MatSetMRLine(Mat mat,PetscInt nMRrows,PetscInt *MRrows)
+{
+  PetscErrorCode ierr;
+  PetscInt       i,ncnt = 0, nlocal;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
+  if (nMRrows < 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Row numbers must be great than or equal to zero");
+  ierr = MatGetLocalSize(mat,&nlocal,NULL);CHKERRQ(ierr);
+  for (i=0; i<nMRrows; i++) 
+  {
+    if ((MRrows[i] < 0) || ((MRrows[i] >= nlocal))) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Matrix row %D does not exist", MRrows[i]);
+  }
+  ierr = PetscFree(mat->MRrows);CHKERRQ(ierr);
+  mat->nMRrows = nMRrows;
+  ierr = PetscMalloc1(nMRrows,&mat->MRrows);CHKERRQ(ierr);
+  ierr = PetscMemcpy(mat->MRrows,MRrows,nMRrows*sizeof(PetscInt));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+/*@
+   I'll add the descriptions later
+@*/
+PetscErrorCode MatGetMRLine(Mat mat,PetscInt *nMRrows,const PetscInt **MRrows)
+{
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
+  *nblocks = mat->nMRrows;
+  *bsizes  = mat->MRrows;
+  PetscFunctionReturn(0);
+}
+
 
 /*@
    MatSetBlockSizes - Sets the matrix block row and column sizes.

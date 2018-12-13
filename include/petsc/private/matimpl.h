@@ -411,6 +411,7 @@ struct _p_Mat {
   PetscReal              factorerror_zeropivot_value;   /* If numerical zero pivot was detected this is the computed value */
   PetscInt               factorerror_zeropivot_row;     /* Row where zero pivot was detected */
   PetscInt               nblocks,*bsizes;   /* support for MatSetVariableBlockSizes() */
+  PetscInt               nMRrows,*MRrows;             /* support for selective Minimal Residual */
   char                   *defaultvectype;
 };
 
