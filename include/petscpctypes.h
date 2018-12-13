@@ -72,6 +72,8 @@ typedef const char* PCType;
 #define PCPATCH           "patch"
 #define PCLMVM            "lmvm"
 
+
+
 /*E
     PCSide - If the preconditioner is to be applied to the left, right
      or symmetrically around the operator.

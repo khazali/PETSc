@@ -12,6 +12,7 @@
 
 #define PCSide PetscEnum
 #define PCJacobiType PetscEnum
+//#define MinimalResidualNNZ PetscInt
 #define PCASMType PetscEnum
 #define PCGASMType PetscEnum
 #define PCCompositeType PetscEnum

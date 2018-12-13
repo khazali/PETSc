@@ -10,8 +10,9 @@
    Private context (data structure) for the VPBJacobi preconditioner.
 */
 typedef struct {
-  MatScalar *diag;
-} PC_VPBJacobi;
+  Mat premr;
+  PetscInt nnz;
+} PC_MinimalResidual;
 
 
 static PetscErrorCode PCApply_VPBJacobi(PC pc,Vec x,Vec y)
