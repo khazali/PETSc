@@ -5,6 +5,7 @@ PETSC_EXTERN PetscErrorCode PCCreate_Jacobi(PC);
 PETSC_EXTERN PetscErrorCode PCCreate_BJacobi(PC);
 PETSC_EXTERN PetscErrorCode PCCreate_PBJacobi(PC);
 PETSC_EXTERN PetscErrorCode PCCreate_VPBJacobi(PC);
+PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC);
 PETSC_EXTERN PetscErrorCode PCCreate_ILU(PC);
 PETSC_EXTERN PetscErrorCode PCCreate_None(PC);
 PETSC_EXTERN PetscErrorCode PCCreate_LU(PC);
@@ -84,6 +85,7 @@ PetscErrorCode  PCRegisterAll(void)
   ierr = PCRegister(PCJACOBI       ,PCCreate_Jacobi);CHKERRQ(ierr);
   ierr = PCRegister(PCPBJACOBI     ,PCCreate_PBJacobi);CHKERRQ(ierr);
   ierr = PCRegister(PCVPBJACOBI    ,PCCreate_VPBJacobi);CHKERRQ(ierr);
+  ierr = PCRegister(PCMINIMALRESIDUAL    ,PCCreate_MinimalResidual);CHKERRQ(ierr);
   ierr = PCRegister(PCBJACOBI      ,PCCreate_BJacobi);CHKERRQ(ierr);
   ierr = PCRegister(PCSOR          ,PCCreate_SOR);CHKERRQ(ierr);
   ierr = PCRegister(PCLU           ,PCCreate_LU);CHKERRQ(ierr);

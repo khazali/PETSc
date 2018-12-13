@@ -45,6 +45,7 @@ typedef const char* PCType;
 #define PCCHOLESKY        "cholesky"
 #define PCPBJACOBI        "pbjacobi"
 #define PCVPBJACOBI       "vpbjacobi"
+#define PCMINIMALRESIDUAL "minimalresidual"
 #define PCMAT             "mat"
 #define PCHYPRE           "hypre"
 #define PCPARMS           "parms"
