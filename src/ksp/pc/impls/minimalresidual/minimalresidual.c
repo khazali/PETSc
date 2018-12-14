@@ -103,20 +103,22 @@ static PetscErrorCode PCApply_VPBJacobi(PC pc,Vec x,Vec y)
 
 
 /* -------------------------------------------------------------------------- */
-static PetscErrorCode PCSetUp_VPBJacobi(PC pc)
+static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 {
-  PC_VPBJacobi    *jac = (PC_VPBJacobi*)pc->data;
+  PC_MinimalResidual    *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode ierr;
   Mat            A = pc->pmat;
   MatFactorError err;
-  PetscInt       i,nsize = 0,nlocal;
+  PetscInt       i,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal;
   PetscInt       nblocks;
   const PetscInt *bsizes;
+  MPI_Comm       *comm;
 
   PetscFunctionBegin;
   ierr = MatGetVariableBlockSizes(pc->pmat,&nblocks,&bsizes);CHKERRQ(ierr);
-  ierr = MatGetLocalSize(pc->pmat,&nlocal,NULL);CHKERRQ(ierr);
-  if (nlocal && !nblocks) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call MatSetVariableBlockSizes() before using PCVPBJACOBI");
+  ierr = MatGetLocalSize(pc->pmat,&nrlocal,&nclocal);CHKERRQ(ierr);
+  ierr = MatGetSize(pc->pmat,&nrglobal,&ncglobal);CHKERRQ(ierr);
+  if (nrlocal && !nblocks) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call MatSetVariableBlockSizes() before using PCVPBJACOBI");
   if (!jac->diag) {
     for (i=0; i<nblocks; i++) nsize += bsizes[i]*bsizes[i];
     ierr = PetscMalloc1(nsize,&jac->diag);CHKERRQ(ierr);
@@ -124,7 +126,16 @@ static PetscErrorCode PCSetUp_VPBJacobi(PC pc)
   ierr = MatInvertVariableBlockDiagonal(A,nblocks,bsizes,jac->diag);CHKERRQ(ierr);
   ierr = MatFactorGetError(A,&err);CHKERRQ(ierr);
   if (err) pc->failedreason = (PCFailedReason)err;
-  pc->ops->apply = PCApply_VPBJacobi;
+  ierr = PetscObjectGetComm(((PetscObject) (jac->premr)),&comm);CHKERRQ(ierr);
+  ierr = MatCreateAIJ(comm,nrlocal,nclocal,nrglobal,ncglobal..);CHKERRQ(ierr);
+  
+  
+
+
+
+
+
+  pc->ops->apply = PCApply_MinimalResidual;
   PetscFunctionReturn(0);
 }
 /* -------------------------------------------------------------------------- */
