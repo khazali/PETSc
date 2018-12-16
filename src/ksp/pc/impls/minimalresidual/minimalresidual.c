@@ -13,6 +13,7 @@ typedef struct {
   Mat premr;
   PetscInt nnz;
   MatScalar *diag;
+  PetscInt initer;
 } PC_MinimalResidual;
 
 
@@ -109,10 +110,15 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscErrorCode ierr;
   Mat            A = pc->pmat;
   MatFactorError err;
-  PetscInt       i,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal;
+  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row;
   PetscInt       nblocks;
   const PetscInt *bsizes;
   MPI_Comm       *comm;
+  MatScalar      *ptodiag;
+  PetscInt       nMRrows,*MRrows;
+  PetscScalar    *workrow;
+  PetscInt       *nncols;
+  Vec            workvec_s,workvec_r,workvec_e,workvec_z,workvec_q;
 
   PetscFunctionBegin;
   ierr = MatGetVariableBlockSizes(pc->pmat,&nblocks,&bsizes);CHKERRQ(ierr);
@@ -127,14 +133,71 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = MatFactorGetError(A,&err);CHKERRQ(ierr);
   if (err) pc->failedreason = (PCFailedReason)err;
   ierr = PetscObjectGetComm(((PetscObject) (jac->premr)),&comm);CHKERRQ(ierr);
-  ierr = MatCreateAIJ(comm,nrlocal,nclocal,nrglobal,ncglobal..);CHKERRQ(ierr);
+  ierr = MatDuplicate(pc->pmat,MAT_DO_NOT_COPY_VALUES,jac->premr);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRange(pc->pmat,&startrow,&endrow);CHKERRQ(ierr);
+
+  j = 0;
+  ptodiag=jac->diag;
+  bs = bsizes[0];
+  n = 0;
+  m = startrow;
+  for (i=startrow; i<endrow; i++)
+  {
+    if (n == bs)
+    {
+      ptodiag += bs*bs;
+      m += bs;
+      j++;
+      bs = bsizes[j];
+      n = 0;
+    }
+    for (k=0; k<bs; k++)
+    {
+      col = k+m;
+      ierr = MatSetValues(jac->premr,1,&i,1,&col,&(ptodiag[n+k*bs]),INSERT_VALUES);CHKERRQ(ierr);
+    }
+    n++;
+  }
+
+  ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+	ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+  ierr = MatCreateVecs(jac->premr,NULL,workvec_s);CHKERRQ(ierr);
+  ierr = VecDuplicate(workvec_s,&workvec_r);CHKERRQ(ierr);
+  ierr = VecDuplicate(workvec_s,&workvec_e);CHKERRQ(ierr);
+  ierr = VecDuplicate(workvec_s,&workvec_z);CHKERRQ(ierr);
+  ierr = VecDuplicate(workvec_s,&workvec_q);CHKERRQ(ierr);
+  ierr = MatGetMRLine(pc->pmat,&nMRrows,&MRrows);CHKERRQ(ierr);
+  ierr = PetscMalloc1(ncglobal, &workrow);CHKERRQ(ierr);
+  ierr = PetscMalloc1(ncglobal, &nncols);CHKERRQ(ierr);
+  for (i=0; i<ncglobal; i++) nncols[i] = i;
+  for (i=0; i<nMRrows; i++)
+  {
+    row = startrow+MRrows[i];       //local rows in MRrows
+    ierr = MatGetValues(jac->premr,1,&row,ncglobal,nncols,workrow);CHKERRQ(ierr);
+    ierr = VecSetValues(workvec,ncglobal,nncols,workrow, INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(workvec);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(workvec);CHKERRQ(ierr);
+
+
+  }
+
+
+
+
   
   
 
 
 
 
-
+  ierr = PetscFree(workrow);CHKERRQ(ierr);
+  ierr = PetscFree(nnclos);CHKERRQ(ierr);
+  ierr = VecDestroy(workvec_s);CHKERRQ(ierr);
+  ierr = VecDestroy(workvec_r);CHKERRQ(ierr);
+  ierr = VecDestroy(workvec_e);CHKERRQ(ierr);
+  ierr = VecDestroy(workvec_z);CHKERRQ(ierr);
+  ierr = VecDestroy(workvec_q);CHKERRQ(ierr);
   pc->ops->apply = PCApply_MinimalResidual;
   PetscFunctionReturn(0);
 }

@@ -1245,6 +1245,7 @@ PetscErrorCode MatDestroy(Mat *A)
 
   ierr = PetscFree((*A)->defaultvectype);CHKERRQ(ierr);
   ierr = PetscFree((*A)->bsizes);CHKERRQ(ierr);
+  ierr = PetscFree((*A)->MRrows);CHKERRQ(ierr);
   ierr = PetscFree((*A)->solvertype);CHKERRQ(ierr);
   ierr = MatDestroy_Redundant(&(*A)->redundant);CHKERRQ(ierr);
   ierr = MatNullSpaceDestroy(&(*A)->nullsp);CHKERRQ(ierr);
