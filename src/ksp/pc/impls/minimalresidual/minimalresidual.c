@@ -19,85 +19,11 @@ typedef struct {
 
 static PetscErrorCode PCApply_VPBJacobi(PC pc,Vec x,Vec y)
 {
-  PC_VPBJacobi      *jac = (PC_VPBJacobi*)pc->data;
+  PC_VPBJacobi      *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode    ierr;
-  PetscInt          i,ncnt = 0;
-  const MatScalar   *diag = jac->diag;
-  PetscInt          ib,jb,bs;
-  const PetscScalar *xx;
-  PetscScalar       *yy,x0,x1,x2,x3,x4,x5,x6;
-  PetscInt          nblocks;
-  const PetscInt    *bsizes;
-
+  
   PetscFunctionBegin;
-  ierr = MatGetVariableBlockSizes(pc->pmat,&nblocks,&bsizes);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(x,&xx);CHKERRQ(ierr);
-  ierr = VecGetArray(y,&yy);CHKERRQ(ierr);
-  for (i=0; i<nblocks; i++) {
-    bs = bsizes[i];
-    switch (bs) {
-    case 1:
-      yy[ncnt] = *diag*xx[ncnt];
-      break;
-    case 2:
-      x0         = xx[ncnt]; x1 = xx[ncnt+1];
-      yy[ncnt]   = diag[0]*x0 + diag[2]*x1;
-      yy[ncnt+1] = diag[1]*x0 + diag[3]*x1;
-      break;
-    case 3:
-      x0 = xx[ncnt]; x1 = xx[ncnt+1]; x2 = xx[ncnt+2];
-      yy[ncnt]   = diag[0]*x0 + diag[3]*x1 + diag[6]*x2;
-      yy[ncnt+1] = diag[1]*x0 + diag[4]*x1 + diag[7]*x2;
-      yy[ncnt+2] = diag[2]*x0 + diag[5]*x1 + diag[8]*x2;
-      break;
-    case 4:
-      x0 = xx[ncnt]; x1 = xx[ncnt+1]; x2 = xx[ncnt+2]; x3 = xx[ncnt+3];
-      yy[ncnt]   = diag[0]*x0 + diag[4]*x1 + diag[8]*x2  + diag[12]*x3;
-      yy[ncnt+1] = diag[1]*x0 + diag[5]*x1 + diag[9]*x2  + diag[13]*x3;
-      yy[ncnt+2] = diag[2]*x0 + diag[6]*x1 + diag[10]*x2 + diag[14]*x3;
-      yy[ncnt+3] = diag[3]*x0 + diag[7]*x1 + diag[11]*x2 + diag[15]*x3;
-      break;
-    case 5:
-      x0 = xx[ncnt]; x1 = xx[ncnt+1]; x2 = xx[ncnt+2]; x3 = xx[ncnt+3]; x4 = xx[ncnt+4];
-      yy[ncnt]   = diag[0]*x0 + diag[5]*x1 + diag[10]*x2  + diag[15]*x3 + diag[20]*x4;
-      yy[ncnt+1] = diag[1]*x0 + diag[6]*x1 + diag[11]*x2  + diag[16]*x3 + diag[21]*x4;
-      yy[ncnt+2] = diag[2]*x0 + diag[7]*x1 + diag[12]*x2 + diag[17]*x3 + diag[22]*x4;
-      yy[ncnt+3] = diag[3]*x0 + diag[8]*x1 + diag[13]*x2 + diag[18]*x3 + diag[23]*x4;
-      yy[ncnt+4] = diag[4]*x0 + diag[9]*x1 + diag[14]*x2 + diag[19]*x3 + diag[24]*x4;
-      break;
-    case 6:
-      x0 = xx[ncnt]; x1 = xx[ncnt+1]; x2 = xx[ncnt+2]; x3 = xx[ncnt+3]; x4 = xx[ncnt+4]; x5 = xx[ncnt+5];
-      yy[ncnt]   = diag[0]*x0 + diag[6]*x1  + diag[12]*x2  + diag[18]*x3 + diag[24]*x4 + diag[30]*x5;
-      yy[ncnt+1] = diag[1]*x0 + diag[7]*x1  + diag[13]*x2  + diag[19]*x3 + diag[25]*x4 + diag[31]*x5;
-      yy[ncnt+2] = diag[2]*x0 + diag[8]*x1  + diag[14]*x2  + diag[20]*x3 + diag[26]*x4 + diag[32]*x5;
-      yy[ncnt+3] = diag[3]*x0 + diag[9]*x1  + diag[15]*x2  + diag[21]*x3 + diag[27]*x4 + diag[33]*x5;
-      yy[ncnt+4] = diag[4]*x0 + diag[10]*x1 + diag[16]*x2  + diag[22]*x3 + diag[28]*x4 + diag[34]*x5;
-      yy[ncnt+5] = diag[5]*x0 + diag[11]*x1 + diag[17]*x2  + diag[23]*x3 + diag[29]*x4 + diag[35]*x5;
-      break;
-    case 7:
-      x0 = xx[ncnt]; x1 = xx[ncnt+1]; x2 = xx[ncnt+2]; x3 = xx[ncnt+3]; x4 = xx[ncnt+4]; x5 = xx[ncnt+5]; x6 = xx[ncnt+6];
-      yy[ncnt]   = diag[0]*x0 + diag[7]*x1  + diag[14]*x2  + diag[21]*x3 + diag[28]*x4 + diag[35]*x5 + diag[42]*x6;
-      yy[ncnt+1] = diag[1]*x0 + diag[8]*x1  + diag[15]*x2  + diag[22]*x3 + diag[29]*x4 + diag[36]*x5 + diag[43]*x6;
-      yy[ncnt+2] = diag[2]*x0 + diag[9]*x1  + diag[16]*x2  + diag[23]*x3 + diag[30]*x4 + diag[37]*x5 + diag[44]*x6;
-      yy[ncnt+3] = diag[3]*x0 + diag[10]*x1 + diag[17]*x2  + diag[24]*x3 + diag[31]*x4 + diag[38]*x5 + diag[45]*x6;
-      yy[ncnt+4] = diag[4]*x0 + diag[11]*x1 + diag[18]*x2  + diag[25]*x3 + diag[32]*x4 + diag[39]*x5 + diag[46]*x6;
-      yy[ncnt+5] = diag[5]*x0 + diag[12]*x1 + diag[19]*x2  + diag[26]*x3 + diag[33]*x4 + diag[40]*x5 + diag[47]*x6;
-      yy[ncnt+6] = diag[6]*x0 + diag[13]*x1 + diag[20]*x2  + diag[27]*x3 + diag[34]*x4 + diag[41]*x5 + diag[48]*x6;
-      break;
-    default:
-      for (ib=0; ib<bs; ib++){
-        PetscScalar rowsum = 0;
-        for (jb=0; jb<bs; jb++){
-          rowsum += diag[ib+jb*bs] * xx[ncnt+jb];
-        }
-        yy[ncnt+ib] = rowsum;
-      }
-    }
-    ncnt += bsizes[i];
-    diag += bsizes[i]*bsizes[i];
-  }
-  ierr = VecRestoreArrayRead(x,&xx);CHKERRQ(ierr);
-  ierr = VecRestoreArray(y,&yy);CHKERRQ(ierr);
+  ierr = MatMult(jac->premr,x,y);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -110,15 +36,16 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscErrorCode ierr;
   Mat            A = pc->pmat;
   MatFactorError err;
-  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row;
+  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vstart,vend;
   PetscInt       nblocks;
   const PetscInt *bsizes;
   MPI_Comm       *comm;
-  MatScalar      *ptodiag;
+  MatScalar      *ptodiag, aalpha = -1;
   PetscInt       nMRrows,*MRrows;
   PetscScalar    *workrow;
   PetscInt       *nncols;
   Vec            workvec_s,workvec_r,workvec_e,workvec_z,workvec_q;
+  PetscScalar    inprod1,inprod2,inq,*vecpart;
 
   PetscFunctionBegin;
   ierr = MatGetVariableBlockSizes(pc->pmat,&nblocks,&bsizes);CHKERRQ(ierr);
@@ -171,25 +98,40 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = PetscMalloc1(ncglobal, &workrow);CHKERRQ(ierr);
   ierr = PetscMalloc1(ncglobal, &nncols);CHKERRQ(ierr);
   for (i=0; i<ncglobal; i++) nncols[i] = i;
-  for (i=0; i<nMRrows; i++)
+  for (j=0; j<nMRrows; j++)
   {
-    row = startrow+MRrows[i];       //local rows in MRrows
+    row = startrow+MRrows[j];       //local rows in MRrows
     ierr = MatGetValues(jac->premr,1,&row,ncglobal,nncols,workrow);CHKERRQ(ierr);
-    ierr = VecSetValues(workvec,ncglobal,nncols,workrow, INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecAssemblyBegin(workvec);CHKERRQ(ierr);
-    ierr = VecAssemblyEnd(workvec);CHKERRQ(ierr);
-
-
+    ierr = VecSetValues(workvec_s,ncglobal,nncols,workrow, INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(workvec_s);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(workvec_s);CHKERRQ(ierr);
+    for (i=0; i<ncglobal; i++)
+    {
+      workrow[i] = (i==j) ? 1:0;
+    }
+    ierr = VecSetValues(workvec_e,ncglobal,nncols,workrow, INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecAssemblyBegin(workvec_e);CHKERRQ(ierr);
+    ierr = VecAssemblyEnd(workvec_e);CHKERRQ(ierr);
+    for (i=0;i<jac->initer;i++)
+    {
+      ierr = MatMultTranspose(pc->pmat,workvec_s,workvec_z);CHKERRQ(ierr);
+      ierr = VecAYPX(workvec_z,aalpha,workvec_e);CHKERRQ(ierr);
+      ierr = MatMultTranspose(jac->premr,workvec_z,workvec_q);CHKERRQ(ierr);
+      ierr = MatMultTranspose(pc->pmat,workvec_q,workvec_r);CHKERRQ(ierr);
+      ierr = VecDot(workvec_z, workvec_r, &inprod1);CHKERRQ(ierr);
+      ierr = VecDot(workvec_r, workvec_r, &inprod2);CHKERRQ(ierr);
+      inq = inprod1/inprod2;
+      ierr = VecAYPX(workvec_s,inq,workvec_q);CHKERRQ(ierr);
+    }
+    ierr = VecGetOwnershipRange(workvec_s,&vecstart,&vecend);CHKERRQ(ierr);    
+    col = vecend-vstart;
+    for (i=vecstart; i<vecend; i++) nncols[i] = i;
+    ierr = VecGetArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
+    ierr = MatSetValues(jac->premr,1,&row,col,nncols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
+    ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+	  ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
-
-
-
-
-  
-  
-
-
-
 
   ierr = PetscFree(workrow);CHKERRQ(ierr);
   ierr = PetscFree(nnclos);CHKERRQ(ierr);
@@ -204,7 +146,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 /* -------------------------------------------------------------------------- */
 static PetscErrorCode PCDestroy_VPBJacobi(PC pc)
 {
-  PC_VPBJacobi    *jac = (PC_VPBJacobi*)pc->data;
+  PC_VPBJacobi    *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -212,7 +154,9 @@ static PetscErrorCode PCDestroy_VPBJacobi(PC pc)
       Free the private data structure that was hanging off the PC
   */
   ierr = PetscFree(jac->diag);CHKERRQ(ierr);
+  ierr = MatDestroy(jac->premr);CHKERRQ(ierr);
   ierr = PetscFree(pc->data);CHKERRQ(ierr);
+  
   PetscFunctionReturn(0);
 }
 
