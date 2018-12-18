@@ -7322,8 +7322,9 @@ PetscErrorCode MatGetVariableBlockSizes(Mat mat,PetscInt *nblocks,const PetscInt
   PetscFunctionReturn(0);
 }
 
-/*@
-   I'll add the descriptions later
+/*@C
+   MatSetMRLine - Sets line numbers that are to be modified by preconditioned Minimal Residual algorithm
+
 @*/
  
 PetscErrorCode MatSetMRLine(Mat mat,PetscInt nMRrows,PetscInt *MRrows)
@@ -7337,7 +7338,7 @@ PetscErrorCode MatSetMRLine(Mat mat,PetscInt nMRrows,PetscInt *MRrows)
   ierr = MatGetLocalSize(mat,&nlocal,NULL);CHKERRQ(ierr);
   for (i=0; i<nMRrows; i++) 
   {
-    if ((MRrows[i] < 0) || ((MRrows[i] >= nlocal))) SETERRQ2(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Matrix row %D does not exist", MRrows[i]);
+    if ((MRrows[i] < 0) || ((MRrows[i] >= nlocal))) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Matrix row %D does not exist", MRrows[i]);
   }
   ierr = PetscFree(mat->MRrows);CHKERRQ(ierr);
   mat->nMRrows = nMRrows;
@@ -7346,15 +7347,16 @@ PetscErrorCode MatSetMRLine(Mat mat,PetscInt nMRrows,PetscInt *MRrows)
   PetscFunctionReturn(0);
 }
 
-/*@
-   I'll add the descriptions later
+/*@C
+   MatGetMRLine - Gets line numbers that are to be modified by preconditioned Minimal Residual algorithm
+
 @*/
 PetscErrorCode MatGetMRLine(Mat mat,PetscInt *nMRrows,const PetscInt **MRrows)
 {
   PetscFunctionBegin;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
-  *nblocks = mat->nMRrows;
-  *bsizes  = mat->MRrows;
+  *nMRrows = mat->nMRrows;
+  *MRrows  = mat->MRrows;
   PetscFunctionReturn(0);
 }
 

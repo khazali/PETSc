@@ -75,16 +75,18 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscErrorCode ierr;
   Mat            A = pc->pmat;
   MatFactorError err;
-  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vstart,vend;
+  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend;
   PetscInt       nblocks;
   const PetscInt *bsizes;
-  MPI_Comm       *comm;
+  MPI_Comm       comm;
   MatScalar      *ptodiag, aalpha = -1;
-  PetscInt       nMRrows,*MRrows;
+  PetscInt       nMRrows;
+  const PetscInt *MRrows;
   PetscScalar    *workrow;
   PetscInt       *nncols;
   Vec            workvec_s,workvec_r,workvec_e,workvec_z,workvec_q;
-  PetscScalar    inprod1,inprod2,inq,*vecpart;
+  PetscScalar    inprod1,inprod2,inq;
+  const PetscScalar *vecpart;
 
   PetscFunctionBegin;
   ierr = MatGetVariableBlockSizes(pc->pmat,&nblocks,&bsizes);CHKERRQ(ierr);
@@ -99,7 +101,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = MatFactorGetError(A,&err);CHKERRQ(ierr);
   if (err) pc->failedreason = (PCFailedReason)err;
   ierr = PetscObjectGetComm(((PetscObject) (jac->premr)),&comm);CHKERRQ(ierr);
-  ierr = MatDuplicate(pc->pmat,MAT_DO_NOT_COPY_VALUES,jac->premr);CHKERRQ(ierr);
+  ierr = MatDuplicate(pc->pmat,MAT_DO_NOT_COPY_VALUES,&(jac->premr));CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(pc->pmat,&startrow,&endrow);CHKERRQ(ierr);
 
   j = 0;
@@ -128,7 +130,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 	ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
-  ierr = MatCreateVecs(jac->premr,NULL,workvec_s);CHKERRQ(ierr);
+  ierr = MatCreateVecs(jac->premr,NULL,&workvec_s);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_r);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_e);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_z);CHKERRQ(ierr);
@@ -163,7 +165,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       ierr = VecAYPX(workvec_s,inq,workvec_q);CHKERRQ(ierr);
     }
     ierr = VecGetOwnershipRange(workvec_s,&vecstart,&vecend);CHKERRQ(ierr);    
-    col = vecend-vstart;
+    col = vecend-vecstart;
     for (i=vecstart; i<vecend; i++) nncols[i] = i;
     ierr = VecGetArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
     ierr = MatSetValues(jac->premr,1,&row,col,nncols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
@@ -173,19 +175,19 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   }
 
   ierr = PetscFree(workrow);CHKERRQ(ierr);
-  ierr = PetscFree(nnclos);CHKERRQ(ierr);
-  ierr = VecDestroy(workvec_s);CHKERRQ(ierr);
-  ierr = VecDestroy(workvec_r);CHKERRQ(ierr);
-  ierr = VecDestroy(workvec_e);CHKERRQ(ierr);
-  ierr = VecDestroy(workvec_z);CHKERRQ(ierr);
-  ierr = VecDestroy(workvec_q);CHKERRQ(ierr);
+  ierr = PetscFree(nncols);CHKERRQ(ierr);
+  ierr = VecDestroy(&workvec_s);CHKERRQ(ierr);
+  ierr = VecDestroy(&workvec_r);CHKERRQ(ierr);
+  ierr = VecDestroy(&workvec_e);CHKERRQ(ierr);
+  ierr = VecDestroy(&workvec_z);CHKERRQ(ierr);
+  ierr = VecDestroy(&workvec_q);CHKERRQ(ierr);
   pc->ops->apply = PCApply_MinimalResidual;
   PetscFunctionReturn(0);
 }
 /* -------------------------------------------------------------------------- */
 static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
 {
-  PC_VPBJacobi    *jac = (PC_MinimalResidual*)pc->data;
+  PC_MinimalResidual    *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
@@ -193,7 +195,7 @@ static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
       Free the private data structure that was hanging off the PC
   */
   ierr = PetscFree(jac->diag);CHKERRQ(ierr);
-  ierr = MatDestroy(jac->premr);CHKERRQ(ierr);
+  ierr = MatDestroy(&(jac->premr));CHKERRQ(ierr);
   ierr = PetscFree(pc->data);CHKERRQ(ierr);
   
   PetscFunctionReturn(0);
@@ -250,6 +252,7 @@ PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
   jac->diag = NULL;
   jac->nnz = 1;
   jac->premr = NULL;
+  jac->initer = 3;
 
   /*
       Set the pointers for the functions that are provided above.
