@@ -100,7 +100,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = MatInvertVariableBlockDiagonal(A,nblocks,bsizes,jac->diag);CHKERRQ(ierr);
   ierr = MatFactorGetError(A,&err);CHKERRQ(ierr);
   if (err) pc->failedreason = (PCFailedReason)err;
-  ierr = PetscObjectGetComm(((PetscObject) (jac->premr)),&comm);CHKERRQ(ierr);
+  ierr = PetscObjectGetComm(((PetscObject) (pc->pmat)),&comm);CHKERRQ(ierr);
   ierr = MatDuplicate(pc->pmat,MAT_DO_NOT_COPY_VALUES,&(jac->premr));CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(pc->pmat,&startrow,&endrow);CHKERRQ(ierr);
 
@@ -128,7 +128,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   }
 
   ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-	ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+  ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   ierr = MatCreateVecs(jac->premr,NULL,&workvec_s);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_r);CHKERRQ(ierr);
