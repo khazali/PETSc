@@ -7330,15 +7330,15 @@ PetscErrorCode MatGetVariableBlockSizes(Mat mat,PetscInt *nblocks,const PetscInt
 PetscErrorCode MatSetMRLine(Mat mat,PetscInt nMRrows,PetscInt *MRrows)
 {
   PetscErrorCode ierr;
-  PetscInt       i,ncnt = 0, nlocal;
+  PetscInt       i,ncnt = 0, nglobal;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
   if (nMRrows < 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Row numbers must be great than or equal to zero");
-  ierr = MatGetLocalSize(mat,&nlocal,NULL);CHKERRQ(ierr);
+  ierr = MatGetSize(mat,&nglobal,NULL);CHKERRQ(ierr);
   for (i=0; i<nMRrows; i++) 
   {
-    if ((MRrows[i] < 0) || ((MRrows[i] >= nlocal))) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Matrix row %D does not exist", MRrows[i]);
+    if ((MRrows[i] < 0) || ((MRrows[i] >= nglobal))) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Matrix row %D does not exist", MRrows[i]);
   }
   ierr = PetscFree(mat->MRrows);CHKERRQ(ierr);
   mat->nMRrows = nMRrows;

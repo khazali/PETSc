@@ -7,7 +7,7 @@
 #include <petsc/private/pcimpl.h>   /*I "petscpc.h" I*/
 
 /*
-   Private context (data structure) for the VPBJacobi preconditioner.
+   Private context (data structure) for the MinimalResidual preconditioner.
 */
 typedef struct {
   Mat premr;
@@ -92,7 +92,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = MatGetVariableBlockSizes(pc->pmat,&nblocks,&bsizes);CHKERRQ(ierr);
   ierr = MatGetLocalSize(pc->pmat,&nrlocal,&nclocal);CHKERRQ(ierr);
   ierr = MatGetSize(pc->pmat,&nrglobal,&ncglobal);CHKERRQ(ierr);
-  if (nrlocal && !nblocks) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call MatSetVariableBlockSizes() before using PCVPBJACOBI");
+  if (nrlocal && !nblocks) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call MatSetVariableBlockSizes() before using PCMINIMALRESIDUAL");
   if (!jac->diag) {
     for (i=0; i<nblocks; i++) nsize += bsizes[i]*bsizes[i];
     ierr = PetscMalloc1(nsize,&jac->diag);CHKERRQ(ierr);
@@ -141,9 +141,9 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   for (i=0; i<ncglobal; i++) nncols[i] = i;
   for (j=0; j<nMRrows; j++)
   {
-    row = startrow+MRrows[j];       //local rows in MRrows
+    row = MRrows[j];       //global rows in MRrows
     ierr = MatGetValues(jac->premr,1,&row,ncglobal,nncols,workrow);CHKERRQ(ierr);
-    ierr = VecSetValues(workvec_s,ncglobal,nncols,workrow, INSERT_VALUES);CHKERRQ(ierr);
+    ierr = VecSetValues(workvec_s,ncglobal,nncols,workrow,INSERT_VALUES);CHKERRQ(ierr);
     ierr = VecAssemblyBegin(workvec_s);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(workvec_s);CHKERRQ(ierr);
     for (i=0; i<ncglobal; i++)
@@ -162,7 +162,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       ierr = VecDot(workvec_z, workvec_r, &inprod1);CHKERRQ(ierr);
       ierr = VecDot(workvec_r, workvec_r, &inprod2);CHKERRQ(ierr);
       inq = inprod1/inprod2;
-      ierr = VecAYPX(workvec_s,inq,workvec_q);CHKERRQ(ierr);
+      ierr = VecAXPY(workvec_s,inq,workvec_q);CHKERRQ(ierr);
     }
     ierr = VecGetOwnershipRange(workvec_s,&vecstart,&vecend);CHKERRQ(ierr);    
     col = vecend-vecstart;
@@ -201,36 +201,6 @@ static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
   PetscFunctionReturn(0);
 }
 
-/* -------------------------------------------------------------------------- */
-/*MC
-     PCVPBJACOBI - Variable size point block Jacobi preconditioner
-
-
-   Notes:
-    See PCJACOBI for point Jacobi preconditioning, PCPBJACOBI for fixed point block size, and PCBJACOBI for large size blocks
-
-   This works for AIJ matrices
-
-   Uses dense LU factorization with partial pivoting to invert the blocks; if a zero pivot
-   is detected a PETSc error is generated.
-
-   One must call MatSetVariableBlockSizes() to use this preconditioner
-   Developer Notes:
-    This should support the PCSetErrorIfFailure() flag set to PETSC_TRUE to allow
-   the factorization to continue even after a zero pivot is found resulting in a Nan and hence
-   terminating KSP with a KSP_DIVERGED_NANORIF allowing
-   a nonlinear solver/ODE integrator to recover without stopping the program as currently happens.
-
-   Perhaps should provide an option that allows generation of a valid preconditioner
-   even if a block is singular as the PCJACOBI does.
-
-   Level: beginner
-
-  Concepts: variable point block Jacobi
-
-.seealso:  MatSetVariableBlockSizes(), PCCreate(), PCSetType(), PCType (for list of available types), PC, PCJACOBI
-
-M*/
 
 PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
 {
@@ -245,22 +215,12 @@ PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
   ierr     = PetscNewLog(pc,&jac);CHKERRQ(ierr);
   pc->data = (void*)jac;
 
-  /*
-     Initialize the pointers to vectors to ZERO; these will be used to store
-     diagonal entries of the matrix for fast preconditioner application.
-  */
+ 
   jac->diag = NULL;
   jac->nnz = 1;
   jac->premr = NULL;
-  jac->initer = 3;
+  jac->initer = 10;
 
-  /*
-      Set the pointers for the functions that are provided above.
-      Now when the user-level routines (such as PCApply(), PCDestroy(), etc.)
-      are called, they will automatically call these functions.  Note we
-      choose not to provide a couple of these functions since they are
-      not needed.
-  */
   pc->ops->apply               = PCApply_MinimalResidual;
   pc->ops->applytranspose      = 0;
   pc->ops->setup               = PCSetUp_MinimalResidual;
