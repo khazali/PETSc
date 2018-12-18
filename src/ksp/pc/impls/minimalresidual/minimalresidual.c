@@ -17,13 +17,52 @@ typedef struct {
 } PC_MinimalResidual;
 
 
-static PetscErrorCode PCApply_VPBJacobi(PC pc,Vec x,Vec y)
+static PetscErrorCode PCApply_MinimalResidual(PC pc,Vec x,Vec y)
 {
-  PC_VPBJacobi      *jac = (PC_MinimalResidual*)pc->data;
+  PC_MinimalResidual      *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode    ierr;
   
   PetscFunctionBegin;
   ierr = MatMult(jac->premr,x,y);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode  PCMinimalResidualSetSetInnerIterations_MinimalResidual(PC pc,PetscInt Inneriter)
+{
+  PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
+
+  PetscFunctionBegin;
+  j->initer = Inneriter;
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode  PCMinimalResidualGetSetInnerIterations_MinimalResidual(PC pc,PetscInt *Inneriter)
+{
+  PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
+
+  PetscFunctionBegin;
+  *Inneriter = j->initer;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode  PCMinimalResidualSetSetInnerIterations(PC pc,PetscInt Inneriter)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  ierr = PetscTryMethod(pc,"PCMinimalResidualSetSetInnerIterations_C",(PC,PetscInt),(pc,Inneriter));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode  PCMinimalResidualGetSetInnerIterations(PC pc,PetscInt *Inneriter)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  //ierr = PetscUseMethod(pc,"PCJacobiGetUseAbs_C",(PC,PetscBool*),(pc,flg));CHKERRQ(ierr);
+  ierr = PetscTryMethod(pc,"PCMinimalResidualGetSetInnerIterations_C",(PC,PetscInt*),(pc,Inneriter));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -130,7 +169,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     ierr = MatSetValues(jac->premr,1,&row,col,nncols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-	  ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+	ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
 
   ierr = PetscFree(workrow);CHKERRQ(ierr);
@@ -144,7 +183,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscFunctionReturn(0);
 }
 /* -------------------------------------------------------------------------- */
-static PetscErrorCode PCDestroy_VPBJacobi(PC pc)
+static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
 {
   PC_VPBJacobi    *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode ierr;
