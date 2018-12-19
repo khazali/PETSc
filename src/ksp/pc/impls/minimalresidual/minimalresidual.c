@@ -27,7 +27,7 @@ static PetscErrorCode PCApply_MinimalResidual(PC pc,Vec x,Vec y)
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode  PCMinimalResidualSetSetInnerIterations_MinimalResidual(PC pc,PetscInt Inneriter)
+static PetscErrorCode  PCMinimalResidualSetInnerIterations_MinimalResidual(PC pc,PetscInt Inneriter)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
 
@@ -36,7 +36,7 @@ static PetscErrorCode  PCMinimalResidualSetSetInnerIterations_MinimalResidual(PC
   PetscFunctionReturn(0);
 }
 
-static PetscErrorCode  PCMinimalResidualGetSetInnerIterations_MinimalResidual(PC pc,PetscInt *Inneriter)
+static PetscErrorCode  PCMinimalResidualGetInnerIterations_MinimalResidual(PC pc,PetscInt *Inneriter)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
 
@@ -45,24 +45,24 @@ static PetscErrorCode  PCMinimalResidualGetSetInnerIterations_MinimalResidual(PC
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode  PCMinimalResidualSetSetInnerIterations(PC pc,PetscInt Inneriter)
+PetscErrorCode  PCMinimalResidualSetInnerIterations(PC pc,PetscInt Inneriter)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
-  ierr = PetscTryMethod(pc,"PCMinimalResidualSetSetInnerIterations_C",(PC,PetscInt),(pc,Inneriter));CHKERRQ(ierr);
+  ierr = PetscTryMethod(pc,"PCMinimalResidualSetInnerIterations_C",(PC,PetscInt),(pc,Inneriter));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode  PCMinimalResidualGetSetInnerIterations(PC pc,PetscInt *Inneriter)
+PetscErrorCode  PCMinimalResidualGetInnerIterations(PC pc,PetscInt *Inneriter)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
   //ierr = PetscUseMethod(pc,"PCJacobiGetUseAbs_C",(PC,PetscBool*),(pc,flg));CHKERRQ(ierr);
-  ierr = PetscTryMethod(pc,"PCMinimalResidualGetSetInnerIterations_C",(PC,PetscInt*),(pc,Inneriter));CHKERRQ(ierr);
+  ierr = PetscTryMethod(pc,"PCMinimalResidualGetInnerIterations_C",(PC,PetscInt*),(pc,Inneriter));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
