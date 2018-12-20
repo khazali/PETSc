@@ -104,6 +104,8 @@ PETSC_EXTERN PetscErrorCode PCGetApplicationContext(PC,void*);
 /* ------------- options specific to particular preconditioners --------- */
 PETSC_EXTERN PetscErrorCode  PCMinimalResidualSetInnerIterations(PC,PetscInt);
 PETSC_EXTERN PetscErrorCode  PCMinimalResidualGetInnerIterations(PC,PetscInt*);
+PETSC_EXTERN PetscErrorCode  PCMinimalResidualSetNNZ(PC,PetscInt);
+PETSC_EXTERN PetscErrorCode  PCMinimalResidualGetNNZ(PC,PetscInt*);
 
 PETSC_EXTERN PetscErrorCode PCJacobiSetType(PC,PCJacobiType);
 PETSC_EXTERN PetscErrorCode PCJacobiGetType(PC,PCJacobiType*);

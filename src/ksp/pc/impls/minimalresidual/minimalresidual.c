@@ -10,7 +10,7 @@
    Private context (data structure) for the MinimalResidual preconditioner.
 */
 typedef struct {
-  Mat premr;
+  Mat premr, Acopy;
   PetscInt nnz;
   MatScalar *diag;
   PetscInt initer;
@@ -71,15 +71,58 @@ PetscErrorCode  PCMinimalResidualGetInnerIterations(PC pc,PetscInt *Inneriter)
 }
 
 
+//////////////////////
+static PetscErrorCode  PCMinimalResidualSetNNZ_MinimalResidual(PC pc,PetscInt nnz)
+{
+  PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
+
+  PetscFunctionBegin;
+  j->nnz = nnz;
+  PetscFunctionReturn(0);
+}
+
+static PetscErrorCode  PCMinimalResidualGetNNZ_MinimalResidual(PC pc,PetscInt *nnz)
+{
+  PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
+
+  PetscFunctionBegin;
+  *nnz = j->nnz;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode  PCMinimalResidualSetNNZ(PC pc,PetscInt nnz)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  ierr = PetscTryMethod(pc,"PCMinimalResidualSetNNZ_C",(PC,PetscInt),(pc,nnz));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode  PCMinimalResidualGetNNZ(PC pc,PetscInt *nnz)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  ierr = PetscUseMethod(pc,"PCMinimalResidualGetNNZ_C",(PC,PetscInt*),(pc,nnz));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+///////////////////////////////////
+
+
 
 /* -------------------------------------------------------------------------- */
 static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 {
   PC_MinimalResidual    *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode ierr;
-  Mat            A = pc->pmat;
+  //Mat            A = pc->pmat;
+  Mat            Acopy = jac->Acopy;
+  PetscInt       nnz = jac->nnz;
   MatFactorError err;
-  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend;
+  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend,rm;
   PetscInt       nblocks;
   const PetscInt *bsizes;
   MPI_Comm       comm;
@@ -91,10 +134,13 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   Vec            workvec_s,workvec_r,workvec_e,workvec_z,workvec_q;
   PetscScalar    inprod1,inprod2,inq;
   const PetscScalar *vecpart;
+  PetscInt       *dnnz,*onnz;
 
   PetscFunctionBegin;
-  ierr = MatCreateVecs(pc->pmat,&jac->diagforjacobi,0);CHKERRQ(ierr);
-  ierr = MatGetRowMaxAbs(pc->pmat,jac->diagforjacobi,NULL);CHKERRQ(ierr);
+  ierr = MatDuplicate(pc->pmat,MAT_COPY_VALUES,&Acopy);CHKERRQ(ierr);
+  ierr = MatGetOwnershipRange(Acopy,&startrow,&endrow);CHKERRQ(ierr);
+  ierr = MatCreateVecs(Acopy,&jac->diagforjacobi,0);CHKERRQ(ierr);
+  ierr = MatGetRowMaxAbs(Acopy,jac->diagforjacobi,NULL);CHKERRQ(ierr);
   ierr = VecReciprocal(jac->diagforjacobi);CHKERRQ(ierr);
   ierr = VecGetLocalSize(jac->diagforjacobi,&n);CHKERRQ(ierr);
   ierr = VecGetArray(jac->diagforjacobi,&workrow);CHKERRQ(ierr);
@@ -104,9 +150,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     }
   }
   ierr = VecRestoreArray(jac->diagforjacobi,&workrow);CHKERRQ(ierr);
-  ierr = MatDiagonalScale(pc->pmat, jac->diagforjacobi,NULL);CHKERRQ(ierr);
-
-
+  ierr = MatDiagonalScale(Acopy,jac->diagforjacobi,NULL);CHKERRQ(ierr);
 
   ierr = MatGetVariableBlockSizes(pc->pmat,&nblocks,&bsizes);CHKERRQ(ierr);
   ierr = MatGetLocalSize(pc->pmat,&nrlocal,&nclocal);CHKERRQ(ierr);
@@ -116,12 +160,48 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     for (i=0; i<nblocks; i++) nsize += bsizes[i]*bsizes[i];
     ierr = PetscMalloc1(nsize,&jac->diag);CHKERRQ(ierr);
   }
-  ierr = MatInvertVariableBlockDiagonal(A,nblocks,bsizes,jac->diag);CHKERRQ(ierr);
-  ierr = MatFactorGetError(A,&err);CHKERRQ(ierr);
+  ierr = MatInvertVariableBlockDiagonal(Acopy,nblocks,bsizes,jac->diag);CHKERRQ(ierr);
+  ierr = MatFactorGetError(Acopy,&err);CHKERRQ(ierr);
   if (err) pc->failedreason = (PCFailedReason)err;
   ierr = PetscObjectGetComm(((PetscObject) (pc->pmat)),&comm);CHKERRQ(ierr);
-  ierr = MatDuplicate(pc->pmat,MAT_DO_NOT_COPY_VALUES,&(jac->premr));CHKERRQ(ierr);
-  ierr = MatGetOwnershipRange(pc->pmat,&startrow,&endrow);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nrlocal,&dnnz);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nrlocal,&onnz);CHKERRQ(ierr);
+  ierr = MatGetMRLine(pc->pmat,&nMRrows,&MRrows);CHKERRQ(ierr);
+
+  j = 0;
+  k = 0;
+  n = 0;
+  m = 0;
+  bs = bsizes[0];
+  rm = MRrows[0];
+  for (i=startrow; i<endrow; i++)
+  {
+    if (n == bs)
+    {
+      m++;
+      bs = bsizes[m];
+      n = 0;
+    }
+    if ((i==rm) && (j<nMRrows))
+    {
+      j++;
+      rm = MRrows[j];
+      onnz[k] = nnz+bs;
+    }
+    else onnz[k] = 0;
+    dnnz[k] = bs;
+    k++;
+    n++;
+  }
+
+
+
+  ierr = MatCreateAIJ(comm, nrlocal,nclocal,nrglobal,ncglobal,NULL,dnnz,NULL,onnz, &(jac->premr));CHKERRQ(ierr);
+  ierr = MatSetOption(jac->premr,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = MatSetOption(jac->premr,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = MatSetOption(jac->premr,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE);CHKERRQ(ierr);
+  ierr = MatZeroRows(jac->premr,nMRrows,MRrows,0.0,NULL,NULL);CHKERRQ(ierr);
+  
 
   j = 0;
   ptodiag=jac->diag;
@@ -154,7 +234,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = VecDuplicate(workvec_s,&workvec_e);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_z);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_q);CHKERRQ(ierr);
-  ierr = MatGetMRLine(pc->pmat,&nMRrows,&MRrows);CHKERRQ(ierr);
+  
   ierr = PetscMalloc1(ncglobal, &workrow);CHKERRQ(ierr);
   ierr = PetscMalloc1(ncglobal, &nncols);CHKERRQ(ierr);
   for (i=0; i<ncglobal; i++) nncols[i] = i;
@@ -174,10 +254,10 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     ierr = VecAssemblyEnd(workvec_e);CHKERRQ(ierr);
     for (i=0;i<jac->initer;i++)
     {
-      ierr = MatMultTranspose(pc->pmat,workvec_s,workvec_z);CHKERRQ(ierr);
+      ierr = MatMultTranspose(Acopy,workvec_s,workvec_z);CHKERRQ(ierr);
       ierr = VecAYPX(workvec_z,aalpha,workvec_e);CHKERRQ(ierr);
       ierr = MatMultTranspose(jac->premr,workvec_z,workvec_q);CHKERRQ(ierr);
-      ierr = MatMultTranspose(pc->pmat,workvec_q,workvec_r);CHKERRQ(ierr);
+      ierr = MatMultTranspose(Acopy,workvec_q,workvec_r);CHKERRQ(ierr);
       ierr = VecDot(workvec_z, workvec_r, &inprod1);CHKERRQ(ierr);
       ierr = VecDot(workvec_r, workvec_r, &inprod2);CHKERRQ(ierr);
       inq = inprod1/inprod2;
@@ -195,6 +275,8 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 
   ierr = PetscFree(workrow);CHKERRQ(ierr);
   ierr = PetscFree(nncols);CHKERRQ(ierr);
+  ierr = PetscFree(dnnz);CHKERRQ(ierr);
+  ierr = PetscFree(onnz);CHKERRQ(ierr);
   ierr = VecDestroy(&workvec_s);CHKERRQ(ierr);
   ierr = VecDestroy(&workvec_r);CHKERRQ(ierr);
   ierr = VecDestroy(&workvec_e);CHKERRQ(ierr);
@@ -216,6 +298,7 @@ static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
   ierr = PetscFree(jac->diag);CHKERRQ(ierr);
   ierr = VecDestroy(&jac->diagforjacobi);CHKERRQ(ierr);
   ierr = MatDestroy(&(jac->premr));CHKERRQ(ierr);
+  ierr = MatDestroy(&(jac->Acopy));CHKERRQ(ierr);
   ierr = PetscFree(pc->data);CHKERRQ(ierr);
   
   PetscFunctionReturn(0);
@@ -253,6 +336,9 @@ PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
 
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualGetInnerIterations_C",PCMinimalResidualGetInnerIterations_MinimalResidual);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetInnerIterations_C",PCMinimalResidualSetInnerIterations_MinimalResidual);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualGetNNZ_C",PCMinimalResidualGetNNZ_MinimalResidual);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetNNZ_C",PCMinimalResidualSetNNZ_MinimalResidual);CHKERRQ(ierr);
+
 
 
 
