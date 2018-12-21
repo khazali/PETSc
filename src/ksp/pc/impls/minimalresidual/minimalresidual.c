@@ -115,7 +115,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   Mat            Acopy = jac->Acopy;
   PetscInt       nnz = jac->nnz;
   MatFactorError err;
-  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend,rm,l,col1;
+  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend,rm,l,col1,qq;
   PetscInt       nblocks;
   const PetscInt *bsizes;
   MPI_Comm       comm;
@@ -197,7 +197,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   n = 0;
   m = startrow;
   l = 0;
-  rm = MRrows[0];
+  rm = MRrows[0];  
   for (i=startrow; i<endrow; i++)
   {
     if (n == bs)
@@ -213,20 +213,23 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       l++;
       rm = MRrows[l];
       inq = 0;
-      for (k=0; k<m; k++)
-      {        
-        ierr = MatSetValues(jac->premr,1,&i,1,&k,&inq,INSERT_VALUES);CHKERRQ(ierr);
-      }
+      qq = 0;
       for (k=m; k<bs; k++)
       {
         col = k+m;
         ierr = MatSetValues(jac->premr,1,&i,1,&col,&(ptodiag[n+k*bs]),INSERT_VALUES);CHKERRQ(ierr);
       }
+      for (k=0; ((k<m) && (qq<nnz)); k++)
+      {        
+        ierr = MatSetValues(jac->premr,1,&i,1,&k,&inq,INSERT_VALUES);CHKERRQ(ierr);
+        qq++;
+      }      
       col1 = m+bs;
-      for (k=col1; k<ncglobal; k++)
+      for (k=col1; ((k<ncglobal) && (qq<nnz)); k++)
       {        
         col = k+col1;
         ierr = MatSetValues(jac->premr,1,&i,1,&col,&inq,INSERT_VALUES);CHKERRQ(ierr);
+        qq++;
       }
     }
     else
@@ -284,7 +287,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     ierr = MatSetValues(jac->premr,1,&row,col,nncols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
     ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-	  ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
 
   ierr = PetscFree(workrow);CHKERRQ(ierr);
