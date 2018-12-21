@@ -1,13 +1,13 @@
 
 /*
-   Include files needed for the variable size block PBJacobi preconditioner:
+   Include files needed for the selective minimal residual preconditioner:
      pcimpl.h - private include file intended for use by all preconditioners
 */
 
 #include <petsc/private/pcimpl.h>   /*I "petscpc.h" I*/
 
 /*
-   Private context (data structure) for the MinimalResidual preconditioner.
+   Private context (data structure) for the selective minimal residual preconditioner preconditioner.
 */
 typedef struct {
   Mat premr, Acopy;
@@ -70,8 +70,6 @@ PetscErrorCode  PCMinimalResidualGetInnerIterations(PC pc,PetscInt *Inneriter)
   PetscFunctionReturn(0);
 }
 
-
-//////////////////////
 static PetscErrorCode  PCMinimalResidualSetNNZ_MinimalResidual(PC pc,PetscInt nnz)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
@@ -109,20 +107,15 @@ PetscErrorCode  PCMinimalResidualGetNNZ(PC pc,PetscInt *nnz)
   ierr = PetscUseMethod(pc,"PCMinimalResidualGetNNZ_C",(PC,PetscInt*),(pc,nnz));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
-///////////////////////////////////
 
-
-
-/* -------------------------------------------------------------------------- */
 static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 {
   PC_MinimalResidual    *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode ierr;
-  //Mat            A = pc->pmat;
   Mat            Acopy = jac->Acopy;
   PetscInt       nnz = jac->nnz;
   MatFactorError err;
-  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend,rm;
+  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend,rm,l,col1;
   PetscInt       nblocks;
   const PetscInt *bsizes;
   MPI_Comm       comm;
@@ -194,20 +187,17 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     n++;
   }
 
-
-
   ierr = MatCreateAIJ(comm, nrlocal,nclocal,nrglobal,ncglobal,NULL,dnnz,NULL,onnz, &(jac->premr));CHKERRQ(ierr);
   ierr = MatSetOption(jac->premr,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE);CHKERRQ(ierr);
   ierr = MatSetOption(jac->premr,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE);CHKERRQ(ierr);
-  ierr = MatSetOption(jac->premr,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE);CHKERRQ(ierr);
-  ierr = MatZeroRows(jac->premr,nMRrows,MRrows,0.0,NULL,NULL);CHKERRQ(ierr);
   
-
   j = 0;
   ptodiag=jac->diag;
   bs = bsizes[0];
   n = 0;
   m = startrow;
+  l = 0;
+  rm = MRrows[0];
   for (i=startrow; i<endrow; i++)
   {
     if (n == bs)
@@ -218,11 +208,35 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       bs = bsizes[j];
       n = 0;
     }
-    for (k=0; k<bs; k++)
+    if (i==rm)
     {
-      col = k+m;
-      ierr = MatSetValues(jac->premr,1,&i,1,&col,&(ptodiag[n+k*bs]),INSERT_VALUES);CHKERRQ(ierr);
+      l++;
+      rm = MRrows[l];
+      inq = 0;
+      for (k=0; k<m; k++)
+      {        
+        ierr = MatSetValues(jac->premr,1,&i,1,&k,&inq,INSERT_VALUES);CHKERRQ(ierr);
+      }
+      for (k=m; k<bs; k++)
+      {
+        col = k+m;
+        ierr = MatSetValues(jac->premr,1,&i,1,&col,&(ptodiag[n+k*bs]),INSERT_VALUES);CHKERRQ(ierr);
+      }
+      col1 = m+bs;
+      for (k=col1; k<ncglobal; k++)
+      {        
+        col = k+col1;
+        ierr = MatSetValues(jac->premr,1,&i,1,&col,&inq,INSERT_VALUES);CHKERRQ(ierr);
+      }
     }
+    else
+    {
+      for (k=0; k<bs; k++)
+      {
+        col = k+m;
+        ierr = MatSetValues(jac->premr,1,&i,1,&col,&(ptodiag[n+k*bs]),INSERT_VALUES);CHKERRQ(ierr);
+      }
+    }    
     n++;
   }
 
@@ -240,7 +254,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   for (i=0; i<ncglobal; i++) nncols[i] = i;
   for (j=0; j<nMRrows; j++)
   {
-    row = MRrows[j];       //global rows in MRrows
+    row = MRrows[j];
     ierr = MatGetValues(jac->premr,1,&row,ncglobal,nncols,workrow);CHKERRQ(ierr);
     ierr = VecSetValues(workvec_s,ncglobal,nncols,workrow,INSERT_VALUES);CHKERRQ(ierr);
     ierr = VecAssemblyBegin(workvec_s);CHKERRQ(ierr);
@@ -333,14 +347,10 @@ PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
   pc->ops->applysymmetricleft  = 0;
   pc->ops->applysymmetricright = 0;
 
-
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualGetInnerIterations_C",PCMinimalResidualGetInnerIterations_MinimalResidual);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetInnerIterations_C",PCMinimalResidualSetInnerIterations_MinimalResidual);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualGetNNZ_C",PCMinimalResidualGetNNZ_MinimalResidual);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetNNZ_C",PCMinimalResidualSetNNZ_MinimalResidual);CHKERRQ(ierr);
-
-
-
 
   PetscFunctionReturn(0);
 }
