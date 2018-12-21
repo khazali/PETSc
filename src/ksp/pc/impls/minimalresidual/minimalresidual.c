@@ -115,7 +115,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   Mat            Acopy = jac->Acopy;
   PetscInt       nnz = jac->nnz;
   MatFactorError err;
-  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend,rm,l,col1,qq;
+  PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend,rm,l,qq;
   PetscInt       nblocks;
   const PetscInt *bsizes;
   MPI_Comm       comm;
@@ -214,7 +214,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       rm = MRrows[l];
       inq = 0;
       qq = 0;
-      for (k=m; k<bs; k++)
+      for (k=0; k<bs; k++)
       {
         col = k+m;
         ierr = MatSetValues(jac->premr,1,&i,1,&col,&(ptodiag[n+k*bs]),INSERT_VALUES);CHKERRQ(ierr);
@@ -223,13 +223,11 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       {        
         ierr = MatSetValues(jac->premr,1,&i,1,&k,&inq,INSERT_VALUES);CHKERRQ(ierr);
         qq++;
-      }      
-      col1 = m+bs;
-      for (k=col1; ((k<ncglobal) && (qq<nnz)); k++)
+      }
+      for (k=(m + bs); ((k<ncglobal) && (qq<nnz)); k++)
       {        
-        col = k+col1;
-        ierr = MatSetValues(jac->premr,1,&i,1,&col,&inq,INSERT_VALUES);CHKERRQ(ierr);
-        qq++;
+        ierr = MatSetValues(jac->premr,1,&i,1,&k,&inq,INSERT_VALUES);CHKERRQ(ierr);
+        qq++;        
       }
     }
     else
