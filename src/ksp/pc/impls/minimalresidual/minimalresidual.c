@@ -10,7 +10,7 @@
    Private context (data structure) for the selective minimal residual preconditioner preconditioner.
 */
 typedef struct {
-  Mat premr, Acopy;
+  Mat premr;
   PetscInt nnz;
   MatScalar *diag;
   PetscInt initer;
@@ -112,7 +112,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 {
   PC_MinimalResidual    *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode ierr;
-  Mat            Acopy = jac->Acopy;
+  Mat            Acopy;
   PetscInt       nnz = jac->nnz;
   MatFactorError err;
   PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend,rm,l,qq;
@@ -161,7 +161,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = PetscMalloc1(nrlocal,&onnz);CHKERRQ(ierr);
   ierr = MatGetMRLine(pc->pmat,&nMRrows,&MRrows);CHKERRQ(ierr);
 
-  j = 0;
+  j = 1;
   k = 0;
   n = 0;
   m = 0;
@@ -176,9 +176,9 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       n = 0;
     }
     if ((i==rm) && (j<nMRrows))
-    {
-      j++;
+    {      
       rm = MRrows[j];
+      j++;
       onnz[k] = nnz+bs;
     }
     else onnz[k] = 0;
@@ -187,7 +187,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     n++;
   }
 
-  ierr = MatCreateAIJ(comm, nrlocal,nclocal,nrglobal,ncglobal,NULL,dnnz,NULL,onnz, &(jac->premr));CHKERRQ(ierr);
+  ierr = MatCreateAIJ(comm, nrlocal,nclocal,nrglobal,ncglobal,0,dnnz,0,onnz, &(jac->premr));CHKERRQ(ierr);
   ierr = MatSetOption(jac->premr,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE);CHKERRQ(ierr);
   ierr = MatSetOption(jac->premr,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE);CHKERRQ(ierr);
   
@@ -196,7 +196,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   bs = bsizes[0];
   n = 0;
   m = startrow;
-  l = 0;
+  l = 1;
   rm = MRrows[0];  
   for (i=startrow; i<endrow; i++)
   {
@@ -208,16 +208,16 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       bs = bsizes[j];
       n = 0;
     }
-    if (i==rm)
-    {
-      l++;
+    if ((i==rm) && (l<nMRrows))
+    {      
       rm = MRrows[l];
+      l++;
       inq = 0;
       qq = 0;
       for (k=0; k<bs; k++)
       {
         col = k+m;
-        ierr = MatSetValues(jac->premr,1,&i,1,&col,&(ptodiag[n+k*bs]),INSERT_VALUES);CHKERRQ(ierr);
+        ierr = MatSetValues(jac->premr,1,&i,1,&col,ptodiag+n+k*bs,INSERT_VALUES);CHKERRQ(ierr);
       }
       for (k=0; ((k<m) && (qq<nnz)); k++)
       {        
@@ -227,7 +227,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       for (k=(m + bs); ((k<ncglobal) && (qq<nnz)); k++)
       {        
         ierr = MatSetValues(jac->premr,1,&i,1,&k,&inq,INSERT_VALUES);CHKERRQ(ierr);
-        qq++;        
+        qq++;
       }
     }
     else
@@ -235,7 +235,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       for (k=0; k<bs; k++)
       {
         col = k+m;
-        ierr = MatSetValues(jac->premr,1,&i,1,&col,&(ptodiag[n+k*bs]),INSERT_VALUES);CHKERRQ(ierr);
+        ierr = MatSetValues(jac->premr,1,&i,1,&col,ptodiag+n+k*bs,INSERT_VALUES);CHKERRQ(ierr);
       }
     }    
     n++;
@@ -297,6 +297,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = VecDestroy(&workvec_e);CHKERRQ(ierr);
   ierr = VecDestroy(&workvec_z);CHKERRQ(ierr);
   ierr = VecDestroy(&workvec_q);CHKERRQ(ierr);
+  ierr = MatDestroy(&Acopy);CHKERRQ(ierr);
   pc->ops->apply = PCApply_MinimalResidual;
   PetscFunctionReturn(0);
 }
@@ -313,7 +314,6 @@ static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
   ierr = PetscFree(jac->diag);CHKERRQ(ierr);
   ierr = VecDestroy(&jac->diagforjacobi);CHKERRQ(ierr);
   ierr = MatDestroy(&(jac->premr));CHKERRQ(ierr);
-  ierr = MatDestroy(&(jac->Acopy));CHKERRQ(ierr);
   ierr = PetscFree(pc->data);CHKERRQ(ierr);
   
   PetscFunctionReturn(0);
