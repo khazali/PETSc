@@ -73,9 +73,12 @@ PetscErrorCode  PCMinimalResidualGetInnerIterations(PC pc,PetscInt *Inneriter)
 static PetscErrorCode  PCMinimalResidualSetNNZ_MinimalResidual(PC pc,PetscInt nnz)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
+  PetscErrorCode ierr;
+  PetscInt ncglobal;
 
+  ierr = MatGetSize(pc->pmat,NULL,&ncglobal);CHKERRQ(ierr);
   PetscFunctionBegin;
-  j->nnz = nnz;
+  j->nnz = (nnz>ncglobal)?ncglobal:nnz;
   PetscFunctionReturn(0);
 }
 
@@ -167,7 +170,8 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   m = 0;
   bs = bsizes[0];
   rm = MRrows[0];
-  l = nnz+bs;
+  l = endrow-startrow;
+  qq = ((l+nnz)>ncglobal) ? (ncglobal-l):nnz;  
   for (i=startrow; i<endrow; i++)
   {
     if (n == bs)
@@ -184,9 +188,8 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
         rm = MRrows[j];
         j++;
       }      
-      //onnz[k] = (l>ncglobal)?ncglobal:l;
-      onnz[k] = 0;
-      dnnz[k] = (l>ncglobal)?ncglobal:l;
+      onnz[k] = qq;
+      dnnz[k] = l;
     }
     else
     {
