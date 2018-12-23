@@ -1245,7 +1245,6 @@ PetscErrorCode MatDestroy(Mat *A)
 
   ierr = PetscFree((*A)->defaultvectype);CHKERRQ(ierr);
   ierr = PetscFree((*A)->bsizes);CHKERRQ(ierr);
-  ierr = PetscFree((*A)->MRrows);CHKERRQ(ierr);
   ierr = PetscFree((*A)->solvertype);CHKERRQ(ierr);
   ierr = MatDestroy_Redundant(&(*A)->redundant);CHKERRQ(ierr);
   ierr = MatNullSpaceDestroy(&(*A)->nullsp);CHKERRQ(ierr);
@@ -7319,44 +7318,6 @@ PetscErrorCode MatGetVariableBlockSizes(Mat mat,PetscInt *nblocks,const PetscInt
   PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
   *nblocks = mat->nblocks;
   *bsizes  = mat->bsizes;
-  PetscFunctionReturn(0);
-}
-
-/*@C
-   MatSetMRLine - Sets line numbers that are to be modified by preconditioned Minimal Residual algorithm
-
-@*/
- 
-PetscErrorCode MatSetMRLine(Mat mat,PetscInt nMRrows,PetscInt *MRrows)
-{
-  PetscErrorCode ierr;
-  PetscInt       i,ncnt = 0, nglobal;
-
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
-  if (nMRrows < 0) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Row numbers must be great than or equal to zero");
-  ierr = MatGetSize(mat,&nglobal,NULL);CHKERRQ(ierr);
-  for (i=0; i<nMRrows; i++) 
-  {
-    if ((MRrows[i] < 0) || ((MRrows[i] >= nglobal))) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_SIZ,"Matrix row %D does not exist", MRrows[i]);
-  }
-  ierr = PetscFree(mat->MRrows);CHKERRQ(ierr);
-  mat->nMRrows = nMRrows;
-  ierr = PetscMalloc1(nMRrows,&mat->MRrows);CHKERRQ(ierr);
-  ierr = PetscMemcpy(mat->MRrows,MRrows,nMRrows*sizeof(PetscInt));CHKERRQ(ierr);
-  PetscFunctionReturn(0);
-}
-
-/*@C
-   MatGetMRLine - Gets line numbers that are to be modified by preconditioned Minimal Residual algorithm
-
-@*/
-PetscErrorCode MatGetMRLine(Mat mat,PetscInt *nMRrows,const PetscInt **MRrows)
-{
-  PetscFunctionBegin;
-  PetscValidHeaderSpecific(mat,MAT_CLASSID,1);
-  *nMRrows = mat->nMRrows;
-  *MRrows  = mat->MRrows;
   PetscFunctionReturn(0);
 }
 

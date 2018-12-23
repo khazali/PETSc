@@ -15,14 +15,15 @@ typedef struct {
   MatScalar *diag;
   PetscInt initer;
   Vec diagforjacobi;
+  PetscInt nMRrows,*MRrows;
 } PC_MinimalResidual;
 
 
 static PetscErrorCode PCApply_MinimalResidual(PC pc,Vec x,Vec y)
 {
   PC_MinimalResidual      *jac = (PC_MinimalResidual*)pc->data;
-  PetscErrorCode    ierr;
-  Vec w;
+  PetscErrorCode          ierr;
+  Vec                     w;
   
   PetscFunctionBegin;
   ierr = VecDuplicate(x,&w);CHKERRQ(ierr);
@@ -31,6 +32,49 @@ static PetscErrorCode PCApply_MinimalResidual(PC pc,Vec x,Vec y)
   ierr = VecDestroy(&w);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
+
+PetscErrorCode PCMinimalResidualSetLines_MinimalResidual(PC pc,PetscInt nMRrows,PetscInt *MRrows)
+{
+  PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  j->nMRrows = nMRrows;
+  ierr = PetscMalloc1(nMRrows,&j->MRrows);CHKERRQ(ierr);
+  ierr = PetscMemcpy(j->MRrows,MRrows,nMRrows*sizeof(PetscInt));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode PCMinimalResidualGetLines_MinimalResidual(PC pc,PetscInt *nMRrows,const PetscInt **MRrows)
+{
+  PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
+
+  PetscFunctionBegin;
+  *nMRrows = j->nMRrows;
+  *MRrows  = j->MRrows;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode  PCMinimalResidualSetLines(PC pc, PetscInt nMRrows,PetscInt *MRrows)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  ierr = PetscTryMethod(pc,"PCMinimalResidualSetLines_C",(PC,PetscInt,PetscInt*),(pc,nMRrows,MRrows));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode  PCMinimalResidualGetLines(PC pc,PetscInt *nMRrows,const PetscInt **MRrows)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  ierr = PetscUseMethod(pc,"PCMinimalResidualGetLines_C",(PC,PetscInt*,PetscInt**),(pc,nMRrows,MRrows));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 
 static PetscErrorCode  PCMinimalResidualSetInnerIterations_MinimalResidual(PC pc,PetscInt Inneriter)
 {
@@ -124,8 +168,8 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   const PetscInt *bsizes;
   MPI_Comm       comm;
   MatScalar      *ptodiag, aalpha = -1;
-  PetscInt       nMRrows;
-  const PetscInt *MRrows;
+  PetscInt       nMRrows = jac->nMRrows;
+  const PetscInt *MRrows = jac->MRrows;
   PetscScalar    *workrow;
   PetscInt       *nncols;
   Vec            workvec_s,workvec_r,workvec_e,workvec_z,workvec_q;
@@ -163,7 +207,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = PetscObjectGetComm(((PetscObject) (pc->pmat)),&comm);CHKERRQ(ierr);
   ierr = PetscMalloc1(nrlocal,&dnnz);CHKERRQ(ierr);
   ierr = PetscMalloc1(nrlocal,&onnz);CHKERRQ(ierr);
-  ierr = MatGetMRLine(pc->pmat,&nMRrows,&MRrows);CHKERRQ(ierr);
+  //ierr = MatGetMRLine(pc->pmat,&nMRrows,&MRrows);CHKERRQ(ierr);
 
   j = 1;
   k = 0;
@@ -330,6 +374,7 @@ static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
       Free the private data structure that was hanging off the PC
   */
   ierr = PetscFree(jac->diag);CHKERRQ(ierr);
+  ierr = PetscFree(jac->MRrows);CHKERRQ(ierr);
   ierr = VecDestroy(&jac->diagforjacobi);CHKERRQ(ierr);
   ierr = MatDestroy(&(jac->premr));CHKERRQ(ierr);
   ierr = PetscFree(pc->data);CHKERRQ(ierr);
@@ -370,6 +415,8 @@ PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetInnerIterations_C",PCMinimalResidualSetInnerIterations_MinimalResidual);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualGetNNZ_C",PCMinimalResidualGetNNZ_MinimalResidual);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetNNZ_C",PCMinimalResidualSetNNZ_MinimalResidual);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualGetLines_C",PCMinimalResidualGetLines_MinimalResidual);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetLines_C",PCMinimalResidualSetLines_MinimalResidual);CHKERRQ(ierr);
 
   PetscFunctionReturn(0);
 }
