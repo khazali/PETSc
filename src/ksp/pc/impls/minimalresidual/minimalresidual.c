@@ -335,10 +335,19 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       ierr = VecAYPX(workvec_z,aalpha,workvec_e);CHKERRQ(ierr);
       ierr = MatMultTranspose(jac->premr,workvec_z,workvec_q);CHKERRQ(ierr);
       ierr = MatMultTranspose(Acopy,workvec_q,workvec_r);CHKERRQ(ierr);
-      ierr = VecDot(workvec_z, workvec_r, &inprod1);CHKERRQ(ierr);
       ierr = VecDot(workvec_r, workvec_r, &inprod2);CHKERRQ(ierr);
-      inq = inprod1/inprod2;
-      ierr = VecAXPY(workvec_s,inq,workvec_q);CHKERRQ(ierr);
+      if (inprod2)
+      {
+        ierr = VecDot(workvec_z, workvec_r, &inprod1);CHKERRQ(ierr);
+        inq = inprod1/inprod2;
+        ierr = VecAXPY(workvec_s,inq,workvec_q);CHKERRQ(ierr);
+      }
+      else
+      {
+        inq = 1;
+        ierr = VecAXPY(workvec_s,inq,workvec_q);CHKERRQ(ierr);
+        break;
+      }     
     }
     ierr = VecGetOwnershipRange(workvec_s,&vecstart,&vecend);CHKERRQ(ierr);    
     col = vecend-vecstart;
