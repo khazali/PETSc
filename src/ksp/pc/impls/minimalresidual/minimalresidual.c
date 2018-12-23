@@ -73,12 +73,13 @@ PetscErrorCode  PCMinimalResidualGetInnerIterations(PC pc,PetscInt *Inneriter)
 static PetscErrorCode  PCMinimalResidualSetNNZ_MinimalResidual(PC pc,PetscInt nnz)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
-  PetscErrorCode ierr;
-  PetscInt ncglobal;
+  /*PetscErrorCode ierr;
+  PetscInt ncglobal,nrglobal;
 
-  ierr = MatGetSize(pc->pmat,NULL,&ncglobal);CHKERRQ(ierr);
+  ierr = MatGetSize(pc->pmat,&nrglobal,&ncglobal);CHKERRQ(ierr);*/
   PetscFunctionBegin;
-  j->nnz = (nnz>ncglobal)?ncglobal:nnz;
+  //j->nnz = (nnz>ncglobal)?ncglobal:nnz;
+  j->nnz = nnz;
   PetscFunctionReturn(0);
 }
 
@@ -179,7 +180,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       m++;
       bs = bsizes[m];
       n = 0;
-      l = nnz+bs;
+      //l = nnz+bs;
     }
     if (i==rm)
     {
@@ -201,7 +202,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   }
 
   ierr = MatCreateAIJ(comm, nrlocal,nclocal,nrglobal,ncglobal,0,dnnz,0,onnz, &(jac->premr));CHKERRQ(ierr);
-  ierr = MatSetVariableBlockSizes(jac->premr,nblocks,bsizes);CHKERRQ(ierr);
+  ierr = MatSetVariableBlockSizes(jac->premr,nblocks,(PetscInt*)bsizes);CHKERRQ(ierr);
   //ierr = MatSetOption(jac->premr,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE);CHKERRQ(ierr);
   //ierr = MatSetOption(jac->premr,MAT_KEEP_NONZERO_PATTERN,PETSC_TRUE);CHKERRQ(ierr);
   
