@@ -15,7 +15,7 @@ typedef struct {
   MatScalar *diag;
   PetscInt initer;
   Vec diagforjacobi;
-  PetscInt nMRrows,*MRrows;
+  PetscInt nMRrows,*MRrows,firstindex;
 } PC_MinimalResidual;
 
 
@@ -33,45 +33,47 @@ static PetscErrorCode PCApply_MinimalResidual(PC pc,Vec x,Vec y)
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PCMinimalResidualSetLines_MinimalResidual(PC pc,PetscInt nMRrows,PetscInt *MRrows)
+PetscErrorCode PCMinimalResidualSetLines_MinimalResidual(PC pc,PetscInt nMRrows,PetscInt firstindex,PetscInt *MRrows)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
   PetscErrorCode     ierr;
 
   PetscFunctionBegin;
   j->nMRrows = nMRrows;
+  j->firstindex = firstindex;
   ierr = PetscMalloc1(nMRrows,&j->MRrows);CHKERRQ(ierr);
   ierr = PetscMemcpy(j->MRrows,MRrows,nMRrows*sizeof(PetscInt));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PCMinimalResidualGetLines_MinimalResidual(PC pc,PetscInt *nMRrows,const PetscInt **MRrows)
+PetscErrorCode PCMinimalResidualGetLines_MinimalResidual(PC pc,PetscInt *nMRrows,PetscInt *firstindex,const PetscInt **MRrows)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
 
   PetscFunctionBegin;
   *nMRrows = j->nMRrows;
   *MRrows  = j->MRrows;
+  *firstindex = j->firstindex;
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode  PCMinimalResidualSetLines(PC pc, PetscInt nMRrows,PetscInt *MRrows)
+PetscErrorCode  PCMinimalResidualSetLines(PC pc, PetscInt nMRrows,PetscInt firstindex,PetscInt *MRrows)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
-  ierr = PetscTryMethod(pc,"PCMinimalResidualSetLines_C",(PC,PetscInt,PetscInt*),(pc,nMRrows,MRrows));CHKERRQ(ierr);
+  ierr = PetscTryMethod(pc,"PCMinimalResidualSetLines_C",(PC,PetscInt,PetscInt,PetscInt*),(pc,nMRrows,firstindex,MRrows));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode  PCMinimalResidualGetLines(PC pc,PetscInt *nMRrows,const PetscInt **MRrows)
+PetscErrorCode  PCMinimalResidualGetLines(PC pc,PetscInt *nMRrows,PetscInt *firstindex,const PetscInt **MRrows)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
-  ierr = PetscUseMethod(pc,"PCMinimalResidualGetLines_C",(PC,PetscInt*,PetscInt**),(pc,nMRrows,MRrows));CHKERRQ(ierr);
+  ierr = PetscUseMethod(pc,"PCMinimalResidualGetLines_C",(PC,PetscInt*,PetscInt*,PetscInt**),(pc,nMRrows,firstindex,MRrows));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -162,6 +164,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscErrorCode ierr;
   Mat            Acopy;
   PetscInt       nnz = jac->nnz;
+  PetscInt       firstindex = jac->firstindex;
   MatFactorError err;
   PetscInt       i,j,k,n,m,col,nsize = 0,nrlocal,nclocal,nrglobal,ncglobal,startrow,endrow,bs,row,vecstart,vecend,rm,l,qq;
   PetscInt       nblocks;
@@ -209,12 +212,12 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = PetscMalloc1(nrlocal,&onnz);CHKERRQ(ierr);
   //ierr = MatGetMRLine(pc->pmat,&nMRrows,&MRrows);CHKERRQ(ierr);
 
-  j = 1;
+  j = firstindex + 1;
   k = 0;
   n = 0;
   m = 0;
   bs = bsizes[0];
-  rm = MRrows[0];
+  rm = MRrows[firstindex];
   l = endrow-startrow;
   qq = ((l+nnz)>ncglobal) ? (ncglobal-l):nnz;  
   for (i=startrow; i<endrow; i++)
@@ -255,8 +258,8 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   bs = bsizes[0];
   n = 0;
   m = startrow;
-  l = 1;
-  rm = MRrows[0];  
+  l = firstindex+1;
+  rm = MRrows[firstindex];
   for (i=startrow; i<endrow; i++)
   {
     if (n == bs)
@@ -307,6 +310,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   ierr = MatCreateVecs(jac->premr,NULL,&workvec_s);CHKERRQ(ierr);
+  //ierr = VecCreateSeq(PETSC_COMM_SELF,nrglobal,&workvec_s);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_r);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_e);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_z);CHKERRQ(ierr);
@@ -317,16 +321,22 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   for (i=0; i<ncglobal; i++) nncols[i] = i;
   for (j=0; j<nMRrows; j++)
   {
-    row = MRrows[j];
-    ierr = MatGetValues(jac->premr,1,&row,ncglobal,nncols,workrow);CHKERRQ(ierr);
-    ierr = VecSetValues(workvec_s,ncglobal,nncols,workrow,INSERT_VALUES);CHKERRQ(ierr);
+	row = MRrows[j];
+    if ((row>=startrow) && (row<endrow))
+    {      
+      ierr = MatGetValues(jac->premr,1,&row,ncglobal,nncols,workrow);CHKERRQ(ierr);
+      ierr = VecSetValues(workvec_s,ncglobal,nncols,workrow,INSERT_VALUES);CHKERRQ(ierr);
+    }   
     ierr = VecAssemblyBegin(workvec_s);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(workvec_s);CHKERRQ(ierr);
-    for (i=0; i<ncglobal; i++)
+    if ((row>=startrow) && (row<endrow))
     {
-      workrow[i] = (i==j) ? 1:0;
-    }
-    ierr = VecSetValues(workvec_e,ncglobal,nncols,workrow, INSERT_VALUES);CHKERRQ(ierr);
+		for (i = 0; i < ncglobal; i++)
+		{
+			workrow[i] = (i == j) ? 1 : 0;
+		}
+		ierr = VecSetValues(workvec_e, ncglobal, nncols, workrow, INSERT_VALUES); CHKERRQ(ierr);
+    }    
     ierr = VecAssemblyBegin(workvec_e);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(workvec_e);CHKERRQ(ierr);
     for (i=0;i<jac->initer;i++)
@@ -351,7 +361,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     }
     ierr = VecGetOwnershipRange(workvec_s,&vecstart,&vecend);CHKERRQ(ierr);    
     col = vecend-vecstart;
-    for (i=vecstart; i<vecend; i++) nncols[i] = i;
+    for (i=vecstart; i<vecend; i++) nncols[i-vecstart] = i;
     ierr = VecGetArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
     ierr = MatSetValues(jac->premr,1,&row,col,nncols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
