@@ -119,12 +119,8 @@ PetscErrorCode  PCMinimalResidualGetInnerIterations(PC pc,PetscInt *Inneriter)
 static PetscErrorCode  PCMinimalResidualSetNNZ_MinimalResidual(PC pc,PetscInt nnz)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
-  /*PetscErrorCode ierr;
-  PetscInt ncglobal,nrglobal;
-
-  ierr = MatGetSize(pc->pmat,&nrglobal,&ncglobal);CHKERRQ(ierr);*/
+  
   PetscFunctionBegin;
-  //j->nnz = (nnz>ncglobal)?ncglobal:nnz;
   j->nnz = nnz;
   PetscFunctionReturn(0);
 }
@@ -175,6 +171,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   const PetscInt *MRrows = jac->MRrows;
   PetscScalar    *workrow;
   PetscInt       *nncols;
+  const PetscInt *pcols;
   Vec            workvec_s,workvec_r,workvec_e,workvec_z,workvec_q;
   PetscScalar    inprod1,inprod2,inq;
   const PetscScalar *vecpart;
@@ -210,7 +207,6 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = PetscObjectGetComm(((PetscObject) (pc->pmat)),&comm);CHKERRQ(ierr);
   ierr = PetscMalloc1(nrlocal,&dnnz);CHKERRQ(ierr);
   ierr = PetscMalloc1(nrlocal,&onnz);CHKERRQ(ierr);
-  //ierr = MatGetMRLine(pc->pmat,&nMRrows,&MRrows);CHKERRQ(ierr);
 
   j = firstindex + 1;
   k = 0;
@@ -227,7 +223,6 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       m++;
       bs = bsizes[m];
       n = 0;
-      //l = nnz+bs;
     }
     if (i==rm)
     {
@@ -310,33 +305,41 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
   ierr = MatCreateVecs(jac->premr,NULL,&workvec_s);CHKERRQ(ierr);
-  //ierr = VecCreateSeq(PETSC_COMM_SELF,nrglobal,&workvec_s);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_r);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_e);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_z);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_q);CHKERRQ(ierr);
-  
-  ierr = PetscMalloc1(ncglobal, &workrow);CHKERRQ(ierr);
-  ierr = PetscMalloc1(ncglobal, &nncols);CHKERRQ(ierr);
-  for (i=0; i<ncglobal; i++) nncols[i] = i;
+  ierr = VecGetOwnershipRange(workvec_s,&vecstart,&vecend);CHKERRQ(ierr);    
+  col = vecend-vecstart;  
+  ierr = PetscMalloc1(col, &nncols);CHKERRQ(ierr);
+  k = 0;
+  for (i=vecstart; i<vecend; i++){
+    nncols[k] = i;
+    k++;
+  }
+
   for (j=0; j<nMRrows; j++)
   {
-	row = MRrows[j];
+	  row = MRrows[j];
+    ierr = VecZeroEntries(workvec_s);CHKERRQ(ierr);
     if ((row>=startrow) && (row<endrow))
     {      
-      ierr = MatGetValues(jac->premr,1,&row,ncglobal,nncols,workrow);CHKERRQ(ierr);
-      ierr = VecSetValues(workvec_s,ncglobal,nncols,workrow,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = MatGetRow(jac->premr,row,&qq,&pcols,&vecpart);CHKERRQ(ierr);
+      ierr = VecSetValues(workvec_s,qq,pcols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = MatRestoreRow(jac->premr,row,&qq,&pcols,&vecpart);CHKERRQ(ierr);
     }   
     ierr = VecAssemblyBegin(workvec_s);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(workvec_s);CHKERRQ(ierr);
-    if ((row>=startrow) && (row<endrow))
+
+    ierr = VecGetArray(workvec_e,&workrow);CHKERRQ(ierr);
+    k = 0;
+    for (i=vecstart; i<vecend; i++)
     {
-		for (i = 0; i < ncglobal; i++)
-		{
-			workrow[i] = (i == j) ? 1 : 0;
-		}
-		ierr = VecSetValues(workvec_e, ncglobal, nncols, workrow, INSERT_VALUES); CHKERRQ(ierr);
-    }    
+      workrow[k] = (i==row) ? 1 : 0;
+      k++;
+    }
+    ierr = VecRestoreArray(workvec_e,&workrow);CHKERRQ(ierr);
+
     ierr = VecAssemblyBegin(workvec_e);CHKERRQ(ierr);
     ierr = VecAssemblyEnd(workvec_e);CHKERRQ(ierr);
     for (i=0;i<jac->initer;i++)
@@ -358,10 +361,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
         ierr = VecAXPY(workvec_s,inq,workvec_q);CHKERRQ(ierr);
         break;
       }     
-    }
-    ierr = VecGetOwnershipRange(workvec_s,&vecstart,&vecend);CHKERRQ(ierr);    
-    col = vecend-vecstart;
-    for (i=vecstart; i<vecend; i++) nncols[i-vecstart] = i;
+    }    
     ierr = VecGetArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
     ierr = MatSetValues(jac->premr,1,&row,col,nncols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
@@ -369,7 +369,6 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
 
-  ierr = PetscFree(workrow);CHKERRQ(ierr);
   ierr = PetscFree(nncols);CHKERRQ(ierr);
   ierr = PetscFree(dnnz);CHKERRQ(ierr);
   ierr = PetscFree(onnz);CHKERRQ(ierr);

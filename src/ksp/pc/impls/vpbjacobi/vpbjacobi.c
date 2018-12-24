@@ -90,8 +90,8 @@ static PetscErrorCode PCApply_VPBJacobi(PC pc,Vec x,Vec y)
         yy[ncnt+ib] = rowsum;
       }
     }
-    ncnt += bsizes[i];
-    diag += bsizes[i]*bsizes[i];
+    ncnt += bs;
+    diag += bs*bs;
   }
   ierr = VecRestoreArrayRead(x,&xx);CHKERRQ(ierr);
   ierr = VecRestoreArray(y,&yy);CHKERRQ(ierr);
