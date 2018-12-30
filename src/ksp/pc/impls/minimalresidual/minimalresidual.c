@@ -15,6 +15,7 @@ typedef struct {
   MatScalar *diag;
   PetscInt initer;
   PetscInt nMRrows,*MRrows,firstindex;
+  Vec      vdiag;
 } PC_MinimalResidual;
 
 
@@ -22,16 +23,13 @@ static PetscErrorCode PCApply_MinimalResidual(PC pc,Vec x,Vec y)
 {
   PC_MinimalResidual      *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode          ierr;
-  //const PetscScalar *vecpart;
+  //Vec                     w;
   
   PetscFunctionBegin;  
+  //ierr = VecDuplicate(x,&w);CHKERRQ(ierr);
+  ierr = VecPointwiseMult(x,x,jac->vdiag);CHKERRQ(ierr);
   ierr = MatMult(jac->premr,x,y);CHKERRQ(ierr);
-
-  /*ierr = VecGetArrayRead(x,&vecpart);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(x,&vecpart);CHKERRQ(ierr);
-  ierr = VecGetArrayRead(y,&vecpart);CHKERRQ(ierr);
-  ierr = VecRestoreArrayRead(y,&vecpart);CHKERRQ(ierr);*/
-
+ // ierr = VecDestroy(&w); CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -174,29 +172,30 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscScalar    *workrow;
   PetscInt       *nncols;
   const PetscInt *pcols;
-  Vec            workvec_s,workvec_r,workvec_e,workvec_z,workvec_q,workvec_d;
+  Vec            workvec_s,workvec_r,workvec_e,workvec_z,workvec_q;
   PetscScalar    inprod1,inprod2,inq;
   const PetscScalar *vecpart;
   PetscInt       *dnnz,*onnz;
+  
 
   PetscFunctionBegin;
   ierr = MatDuplicate(pc->pmat,MAT_COPY_VALUES,&Acopy);CHKERRQ(ierr);
   ierr = MatGetOwnershipRange(Acopy,&startrow,&endrow);CHKERRQ(ierr);
-  ierr = MatCreateVecs(Acopy,&workvec_d,0);CHKERRQ(ierr);
-  ierr = VecDuplicate(workvec_d,&workvec_r); CHKERRQ(ierr);
-  ierr = MatGetRowMaxAbs(Acopy,workvec_d,NULL);CHKERRQ(ierr);
-  ierr = VecCopy(workvec_d,workvec_r);
-  ierr = VecReciprocal(workvec_r);CHKERRQ(ierr);
-  ierr = VecGetLocalSize(workvec_r,&n);CHKERRQ(ierr);
-  ierr = VecGetArray(workvec_r,&workrow);CHKERRQ(ierr);
+  ierr = MatCreateVecs(Acopy,&(jac->vdiag),0);CHKERRQ(ierr);
+  //ierr = VecDuplicate(workvec_d,&workvec_r); CHKERRQ(ierr);
+  ierr = MatGetRowMaxAbs(Acopy,jac->vdiag,NULL);CHKERRQ(ierr);
+  //ierr = VecCopy(workvec_d,workvec_r);
+  ierr = VecReciprocal(jac->vdiag);CHKERRQ(ierr);
+  ierr = VecGetLocalSize(jac->vdiag,&n);CHKERRQ(ierr);
+  ierr = VecGetArray(jac->vdiag,&workrow);CHKERRQ(ierr);
   for (i=0; i<n; i++) {
     if (workrow[i] == 0.0) {
       workrow[i]     = 1.0;
     }
   }
-  ierr = VecRestoreArray(workvec_r,&workrow);CHKERRQ(ierr);
-  ierr = MatDiagonalScale(Acopy,workvec_r,NULL);CHKERRQ(ierr);
-  ierr = VecDestroy(&workvec_r); CHKERRQ(ierr);
+  ierr = VecRestoreArray(jac->vdiag,&workrow);CHKERRQ(ierr);
+  ierr = MatDiagonalScale(Acopy,jac->vdiag,NULL);CHKERRQ(ierr);
+  //ierr = VecDestroy(&workvec_r); CHKERRQ(ierr);
 
   ierr = MatGetVariableBlockSizes(pc->pmat,&nblocks,&bsizes);CHKERRQ(ierr);
   ierr = MatGetLocalSize(pc->pmat,&nrlocal,&nclocal);CHKERRQ(ierr);
@@ -373,7 +372,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
     ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   }
-  ierr = MatDiagonalScale(jac->premr,NULL,workvec_d); CHKERRQ(ierr);
+  //ierr = MatDiagonalScale(jac->premr,NULL,workvec_d); CHKERRQ(ierr);
 
   ierr = PetscFree(nncols);CHKERRQ(ierr);
   ierr = PetscFree(dnnz);CHKERRQ(ierr);
@@ -383,7 +382,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = VecDestroy(&workvec_e);CHKERRQ(ierr);
   ierr = VecDestroy(&workvec_z);CHKERRQ(ierr);
   ierr = VecDestroy(&workvec_q);CHKERRQ(ierr);
-  ierr = VecDestroy(&workvec_d); CHKERRQ(ierr);
+  //ierr = VecDestroy(&workvec_d); CHKERRQ(ierr);
   ierr = MatDestroy(&Acopy);CHKERRQ(ierr);
   pc->ops->apply = PCApply_MinimalResidual;
   PetscFunctionReturn(0);
@@ -400,6 +399,7 @@ static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
   */
   ierr = PetscFree(jac->diag);CHKERRQ(ierr);
   ierr = PetscFree(jac->MRrows);CHKERRQ(ierr);
+  ierr = VecDestroy(&(jac->vdiag));CHKERRQ(ierr);
   ierr = MatDestroy(&(jac->premr));CHKERRQ(ierr);
   ierr = PetscFree(pc->data);CHKERRQ(ierr);
   
