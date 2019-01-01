@@ -15,6 +15,9 @@ typedef struct {
   PetscInt initer;
   PetscInt nMRrows,*MRrows,firstindex;
   Vec      vdiag;
+  PetscInt nbuckets, *buckets;
+  PetscBool DoNumDrop;
+
 } PC_MinimalResidual;
 
 
@@ -53,7 +56,7 @@ PetscErrorCode PCMinimalResidualGetLines_MinimalResidual(PC pc,PetscInt *nMRrows
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode  PCMinimalResidualSetLines(PC pc, PetscInt nMRrows,PetscInt firstindex,PetscInt *MRrows)
+PetscErrorCode  PCMinimalResidualSetLines(PC pc,PetscInt nMRrows,PetscInt firstindex,PetscInt *MRrows)
 {
   PetscErrorCode ierr;
 
@@ -70,6 +73,49 @@ PetscErrorCode  PCMinimalResidualGetLines(PC pc,PetscInt *nMRrows,PetscInt *firs
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
   ierr = PetscUseMethod(pc,"PCMinimalResidualGetLines_C",(PC,PetscInt*,PetscInt*,PetscInt**),(pc,nMRrows,firstindex,MRrows));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode PCMinimalResidualSetBuckets_MinimalResidual(PC pc,PetscInt nbuckets,PetscInt *buckets)
+{
+  PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
+  PetscErrorCode     ierr;
+
+  PetscFunctionBegin;
+  j->nbuckets = nbuckets;
+  j->DoNumDrop = PETSC_TRUE;
+  ierr = PetscMalloc1(nbuckets,&j->buckets);CHKERRQ(ierr);
+  ierr = PetscMemcpy(j->buckets,buckets,nbuckets*sizeof(PetscInt));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode PCMinimalResidualGetBuckets_MinimalResidual(PC pc,PetscInt *nbuckets,const PetscInt **buckets)
+{
+  PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
+
+  PetscFunctionBegin;
+  *nbuckets = j->nbuckets;
+  *buckets  = j->buckets;
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode  PCMinimalResidualSetBuckets(PC pc,PetscInt nbuckets,PetscInt *buckets)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  ierr = PetscTryMethod(pc,"PCMinimalResidualSetBuckets_C",(PC,PetscInt,PetscInt*),(pc,nbuckets,buckets));CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
+PetscErrorCode  PCMinimalResidualGetBuckets(PC pc,PetscInt *nbuckets,const PetscInt **buckets)
+{
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  PetscValidHeaderSpecific(pc,PC_CLASSID,1);
+  ierr = PetscUseMethod(pc,"PCMinimalResidualGetBuckets_C",(PC,PetscInt*,PetscInt**),(pc,nbuckets,buckets));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -118,6 +164,7 @@ static PetscErrorCode  PCMinimalResidualSetNNZ_MinimalResidual(PC pc,PetscInt nn
   
   PetscFunctionBegin;
   j->nnz = nnz;
+  j->DoNumDrop = PETSC_TRUE;
   PetscFunctionReturn(0);
 }
 
@@ -176,6 +223,11 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 
   VecScatter     ctx;
   Vec            mrvec;
+  PetscBool      DoNumDrop = jac->DoNumDrop;
+  PetscMPIInt    mpirank, mpisize;
+  PetscInt       startbucket, endbucket, mybuckets;
+  PetscInt       nbuckets = jac->nbuckets;
+  PetscInt       *buckets = jac->buckets;
   
 
   PetscFunctionBegin;
@@ -206,6 +258,29 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = PetscObjectGetComm(((PetscObject) (pc->pmat)),&comm);CHKERRQ(ierr);
   ierr = PetscMalloc1(nrlocal,&dnnz);CHKERRQ(ierr);
   ierr = PetscMalloc1(nrlocal,&onnz);CHKERRQ(ierr);
+
+  if (DoNumDrop)
+  {
+    MPI_Comm_rank(comm, &mpirank);
+    MPI_Comm_size(comm, &mpisize);
+    mybuckets = nbuckets/mpisize;
+    if (nbuckets%mpisize)
+    {
+      mybuckets++;
+      startbucket = mpirank*mybuckets;
+      if (mpirank==(mpisize-1)) mybuckets = nbuckets-startbucket;      
+    }
+    else
+    {
+      startbucket = mpirank*mybuckets;      
+    }
+    endbucket = startbucket+mybuckets;
+  }
+  else
+  {
+    nnz = ncglobal;
+  }
+
 
   j = firstindex + 1;
   k = 0;
@@ -361,14 +436,29 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
         break;
       }     
     }
-    ierr = VecScatterCreateToAll(workvec_s,&ctx,&mrvec);
+
+    if (DoNumDrop)
+    {
+      ierr = VecScatterCreateToAll(workvec_s,&ctx,&mrvec);CHKERRQ(ierr);
+      ierr = VecScatterBegin(ctx,workvec_s,mrvec,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+      ierr = VecScatterEnd(ctx,workvec_s,mrvec,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
+      ierr = VecGetArrayRead(mrvec,&vecpart);CHKERRQ(ierr);
 
 
-    ierr = VecGetArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
-    ierr = MatSetValues(jac->premr,1,&row,col,nncols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
-    ierr = VecRestoreArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
-    ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
-    ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+
+
+
+
+      ierr = VecScatterDestroy(&ctx);CHKERRQ(ierr);
+    }
+    else
+    {
+      ierr = VecGetArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
+      ierr = MatSetValues(jac->premr,1,&row,col,nncols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
+      ierr = VecRestoreArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
+      ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+    }    
   }
 
   ierr = PetscFree(nncols);CHKERRQ(ierr);
@@ -396,6 +486,7 @@ static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
       Free the private data structure that was hanging off the PC
   */
   ierr = PetscFree(jac->MRrows);CHKERRQ(ierr);
+  ierr = PetscFree(jac->buckets);CHKERRQ(ierr);
   ierr = VecDestroy(&(jac->vdiag));CHKERRQ(ierr);
   ierr = MatDestroy(&(jac->premr));CHKERRQ(ierr);
   ierr = PetscFree(pc->data);CHKERRQ(ierr);
@@ -418,9 +509,10 @@ PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
   pc->data = (void*)jac;
 
  
-  jac->nnz = 1;
+  jac->nnz = 0;
   jac->premr = NULL;
   jac->initer = 10;
+  jac->DoNumDrop = PETSC_FALSE;
 
   pc->ops->apply               = PCApply_MinimalResidual;
   pc->ops->applytranspose      = 0;
@@ -437,6 +529,9 @@ PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetNNZ_C",PCMinimalResidualSetNNZ_MinimalResidual);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualGetLines_C",PCMinimalResidualGetLines_MinimalResidual);CHKERRQ(ierr);
   ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetLines_C",PCMinimalResidualSetLines_MinimalResidual);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualGetBuckets_C",PCMinimalResidualGetBuckets_MinimalResidual);CHKERRQ(ierr);
+  ierr = PetscObjectComposeFunction((PetscObject)pc,"PCMinimalResidualSetBuckets_C",PCMinimalResidualSetBuckets_MinimalResidual);CHKERRQ(ierr);
+
 
   PetscFunctionReturn(0);
 }

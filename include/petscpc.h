@@ -108,6 +108,8 @@ PETSC_EXTERN PetscErrorCode  PCMinimalResidualSetNNZ(PC,PetscInt);
 PETSC_EXTERN PetscErrorCode  PCMinimalResidualGetNNZ(PC,PetscInt*);
 PETSC_EXTERN PetscErrorCode  PCMinimalResidualSetLines(PC,PetscInt,PetscInt,PetscInt*);
 PETSC_EXTERN PetscErrorCode  PCMinimalResidualGetLines(PC,PetscInt*,PetscInt*,const PetscInt**);
+PETSC_EXTERN PetscErrorCode  PCMinimalResidualSetBuckets(PC,PetscInt,PetscInt*);
+PETSC_EXTERN PetscErrorCode  PCMinimalResidualGetBuckets(PC,PetscInt*,const PetscInt**);
 
 
 PETSC_EXTERN PetscErrorCode PCJacobiSetType(PC,PCJacobiType);
