@@ -11,8 +11,7 @@
 */
 typedef struct {
   Mat premr;
-  PetscInt nnz;
-  MatScalar *diag;
+  PetscInt nnz;  
   PetscInt initer;
   PetscInt nMRrows,*MRrows,firstindex;
   Vec      vdiag;
@@ -173,6 +172,10 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscScalar    inprod1,inprod2,inq;
   const PetscScalar *vecpart;
   PetscInt       *dnnz,*onnz;
+  MatScalar      *diag = NULL;
+
+  VecScatter     ctx;
+  Vec            mrvec;
   
 
   PetscFunctionBegin;
@@ -195,11 +198,9 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = MatGetLocalSize(pc->pmat,&nrlocal,&nclocal);CHKERRQ(ierr);
   ierr = MatGetSize(pc->pmat,&nrglobal,&ncglobal);CHKERRQ(ierr);
   if (nrlocal && !nblocks) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_WRONGSTATE,"Must call MatSetVariableBlockSizes() before using PCMINIMALRESIDUAL");
-  if (!jac->diag) {
-    for (i=0; i<nblocks; i++) nsize += bsizes[i]*bsizes[i];
-    ierr = PetscMalloc1(nsize,&jac->diag);CHKERRQ(ierr);
-  }
-  ierr = MatInvertVariableBlockDiagonal(Acopy,nblocks,bsizes,jac->diag);CHKERRQ(ierr);
+  for (i=0; i<nblocks; i++) nsize += bsizes[i]*bsizes[i];
+  ierr = PetscMalloc1(nsize,&diag);CHKERRQ(ierr);
+  ierr = MatInvertVariableBlockDiagonal(Acopy,nblocks,bsizes,diag);CHKERRQ(ierr);
   ierr = MatFactorGetError(Acopy,&err);CHKERRQ(ierr);
   if (err) pc->failedreason = (PCFailedReason)err;
   ierr = PetscObjectGetComm(((PetscObject) (pc->pmat)),&comm);CHKERRQ(ierr);
@@ -246,7 +247,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   //ierr = MatSetOption(jac->premr,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE);CHKERRQ(ierr);
   
   j = 0;
-  ptodiag=jac->diag;
+  ptodiag=diag;
   bs = bsizes[0];
   n = 0;
   m = startrow;
@@ -301,6 +302,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
   ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
 
+  ierr = VecCreateSeq(PETSC_COMM_SELF,ncglobal,&mrvec);
   ierr = MatCreateVecs(jac->premr,NULL,&workvec_s);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_r);CHKERRQ(ierr);
   ierr = VecDuplicate(workvec_s,&workvec_e);CHKERRQ(ierr);
@@ -358,7 +360,10 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
         ierr = VecAXPY(workvec_s,inq,workvec_q);CHKERRQ(ierr);
         break;
       }     
-    }    
+    }
+    ierr = VecScatterCreateToAll(workvec_s,&ctx,&mrvec);
+
+
     ierr = VecGetArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
     ierr = MatSetValues(jac->premr,1,&row,col,nncols,vecpart,INSERT_VALUES);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(workvec_s,&vecpart);CHKERRQ(ierr);
@@ -374,7 +379,9 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   ierr = VecDestroy(&workvec_e);CHKERRQ(ierr);
   ierr = VecDestroy(&workvec_z);CHKERRQ(ierr);
   ierr = VecDestroy(&workvec_q);CHKERRQ(ierr);
+  ierr = VecDestroy(&mrvec);CHKERRQ(ierr);
   ierr = MatDestroy(&Acopy);CHKERRQ(ierr);
+  ierr = PetscFree(diag);CHKERRQ(ierr);
   pc->ops->apply = PCApply_MinimalResidual;
   PetscFunctionReturn(0);
 }
@@ -388,7 +395,6 @@ static PetscErrorCode PCDestroy_MinimalResidual(PC pc)
   /*
       Free the private data structure that was hanging off the PC
   */
-  ierr = PetscFree(jac->diag);CHKERRQ(ierr);
   ierr = PetscFree(jac->MRrows);CHKERRQ(ierr);
   ierr = VecDestroy(&(jac->vdiag));CHKERRQ(ierr);
   ierr = MatDestroy(&(jac->premr));CHKERRQ(ierr);
@@ -412,7 +418,6 @@ PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
   pc->data = (void*)jac;
 
  
-  jac->diag = NULL;
   jac->nnz = 1;
   jac->premr = NULL;
   jac->initer = 10;
