@@ -17,8 +17,13 @@ typedef struct {
   Vec      vdiag;
   PetscInt nbuckets, *buckets;
   PetscBool DoNumDrop;
-
 } PC_MinimalResidual;
+
+
+typedef struct BucketElement{
+  PetscScalar val;
+  struct BucketElement* next;
+} BucketEntry;
 
 
 static PetscErrorCode PCApply_MinimalResidual(PC pc,Vec x,Vec y)
