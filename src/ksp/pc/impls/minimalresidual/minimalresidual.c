@@ -233,7 +233,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscInt       startbucket, endbucket, mybuckets;
   PetscInt       nbuckets = jac->nbuckets;
   PetscInt       *buckets = jac->buckets;
-  BucketEntry    **head, *headcopy, *nextcopy, **nexts;
+  BucketEntry    **head, *headcopy, *nextcopy, ***nexts;
   PetscScalar    mrstart,mrend,MaxScalar,vecentry;
   PetscBool      *IsHead;
   
@@ -295,7 +295,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     ierr = PetscMalloc1(mybuckets, &IsHead);CHKERRQ(ierr);
     for (i=0; i<mybuckets; i++)
     {
-      head[i] = NULL;
+      *nexts[i] = NULL;
       IsHead[i] = PETSC_TRUE;
     }
   }
@@ -472,44 +472,44 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
         vecentry = vecpart[j];
         if ((vecentry<mrstart) && (vecentry>buckets[startbucket]))
         {
-          ierr = PetscMalloc1(1, &nexts[0]);CHKERRQ(ierr);
-          nexts[0]->val = vecentry;
-          nexts[0]->next = NULL;
+          ierr = PetscMalloc1(1, nexts[0]);CHKERRQ(ierr);
+          (*nexts[0])->val = vecentry;
+          (*nexts[0])->next = NULL;
           if (IsHead[0]) 
           {
-            head[0] = nexts[0];
+            head[0] = *(nexts[0]);
             IsHead[0] = PETSC_FALSE;
           }
-          nexts[0] = nexts[0]->next;
+          nexts[0] = &((*nexts[0])->next);
         }
         n = 1;
         for (k=startbucket; k<(endbucket-1); k++)
         {
           if ((vecentry<buckets[k]) && (vecentry>buckets[k+1]))
           {
-            ierr = PetscMalloc1(1, &nexts[n]);CHKERRQ(ierr);
-            nexts[n]->val = vecentry;
-            nexts[n]->next = NULL;
-            if (IsHead[n])
+            ierr = PetscMalloc1(1, nexts[n]);CHKERRQ(ierr);
+            (*nexts[n])->val = vecentry;
+            (*nexts[n])->next = NULL;
+            if (IsHead[n]) 
             {
-              head[n] = nexts[n];
+              head[n] = *(nexts[n]);
               IsHead[n] = PETSC_FALSE;
             }
-            nexts[n] = nexts[n]->next;
+            nexts[n] = &((*nexts[n])->next);
           }
           n++;
         }
         if ((vecentry<buckets[k]) && (vecentry>mrend))
         {
-          ierr = PetscMalloc1(1, &nexts[n]);CHKERRQ(ierr);
-          nexts[n]->val = vecentry;
-          nexts[n]->next = NULL;
-          if (IsHead[n])
+          ierr = PetscMalloc1(1, nexts[n]);CHKERRQ(ierr);
+          (*nexts[n])->val = vecentry;
+          (*nexts[n])->next = NULL;
+          if (IsHead[n]) 
           {
-            head[n] = nexts[n];
+            head[n] = *(nexts[n]);
             IsHead[n] = PETSC_FALSE;
           }
-          nexts[n] = nexts[n]->next;
+          nexts[n] = &((*nexts[n])->next);
         }
       }
 
