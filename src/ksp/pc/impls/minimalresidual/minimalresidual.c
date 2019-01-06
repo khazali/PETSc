@@ -655,5 +655,3 @@ PETSC_EXTERN PetscErrorCode PCCreate_MinimalResidual(PC pc)
 
   PetscFunctionReturn(0);
 }
-
-
