@@ -21,7 +21,7 @@ typedef struct {
 
 
 typedef struct BucketElement{
-  PetscScalar val;
+  PetscInt valindex;
   struct BucketElement* next;
 } BucketEntry;
 
@@ -223,11 +223,12 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   Vec            workvec_s,workvec_r,workvec_e,workvec_z,workvec_q;
   PetscScalar    inprod1,inprod2,inq;
   const PetscScalar *vecpart;
+  PetscScalar *vecarray;
   PetscInt       *dnnz,*onnz;
   MatScalar      *diag = NULL;
 
   VecScatter     ctx;
-  Vec            mrvec;
+  Vec            mrvec,bmrvec;
   PetscBool      DoNumDrop = jac->DoNumDrop;
   PetscMPIInt    mpirank, mpisize;
   PetscInt       startbucket, endbucket, mybuckets;
@@ -236,6 +237,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   BucketEntry    **head, *headcopy, *nextcopy, ***nexts;
   PetscScalar    mrstart,mrend,MaxScalar,vecentry;
   PetscBool      *IsHead;
+  PetscInt       v1,v2,*colindexes;
   
 
   PetscFunctionBegin;
@@ -269,6 +271,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 
   if (DoNumDrop)
   {
+    nbuckets++;
     MPI_Comm_rank(comm, &mpirank);
     MPI_Comm_size(comm, &mpisize);
     mybuckets = nbuckets/mpisize;
@@ -467,13 +470,14 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       ierr = VecScatterEnd(ctx,workvec_s,mrvec,INSERT_VALUES,SCATTER_FORWARD);CHKERRQ(ierr);
       ierr = VecGetArrayRead(mrvec,&vecpart);CHKERRQ(ierr);
       
+      qq = 0;
       for (j=0;j<ncglobal;j++)
       {
         vecentry = vecpart[j];
-        if ((vecentry<mrstart) && (vecentry>buckets[startbucket]))
+        if ((vecentry<=mrstart) && (vecentry>buckets[startbucket]))
         {
           ierr = PetscMalloc1(1, nexts[0]);CHKERRQ(ierr);
-          (*nexts[0])->val = vecentry;
+          (*nexts[0])->valindex = j;
           (*nexts[0])->next = NULL;
           if (IsHead[0]) 
           {
@@ -481,14 +485,15 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
             IsHead[0] = PETSC_FALSE;
           }
           nexts[0] = &((*nexts[0])->next);
+          qq++;
         }
         n = 1;
         for (k=startbucket; k<(endbucket-1); k++)
         {
-          if ((vecentry<buckets[k]) && (vecentry>buckets[k+1]))
+          if ((vecentry<=buckets[k]) && (vecentry>buckets[k+1]))
           {
             ierr = PetscMalloc1(1, nexts[n]);CHKERRQ(ierr);
-            (*nexts[n])->val = vecentry;
+            (*nexts[n])->valindex = j;
             (*nexts[n])->next = NULL;
             if (IsHead[n]) 
             {
@@ -496,13 +501,15 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
               IsHead[n] = PETSC_FALSE;
             }
             nexts[n] = &((*nexts[n])->next);
+            qq++;
           }
           n++;
+          
         }
-        if ((vecentry<buckets[k]) && (vecentry>mrend))
+        if ((mpirank==(mpisize-1)) && (vecentry<=buckets[k]) && (vecentry>mrend))
         {
           ierr = PetscMalloc1(1, nexts[n]);CHKERRQ(ierr);
-          (*nexts[n])->val = vecentry;
+          (*nexts[n])->valindex = j;
           (*nexts[n])->next = NULL;
           if (IsHead[n]) 
           {
@@ -510,12 +517,45 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
             IsHead[n] = PETSC_FALSE;
           }
           nexts[n] = &((*nexts[n])->next);
+          qq++;
+        }
+      }
+      ierr = PetscMalloc1(qq, &colindexes);CHKERRQ(ierr);
+      ierr = VecCreate(comm, &bmrvec);CHKERRQ(ierr);
+      ierr = VecSetSizes(bmrvec,qq,ncglobal);CHKERRQ(ierr);
+      ierr = VecAssemblyBegin(bmrvec);CHKERRQ(ierr);
+      ierr = VecAssemblyEnd(bmrvec);CHKERRQ(ierr);
+      ierr = VecGetArray(bmrvec, &vecarray);CHKERRQ(ierr);
+      ierr = VecGetOwnershipRange(bmrvec, &v1, &v2);CHKERRQ(ierr);
+      n = 0;
+      for (j=0; j<mybuckets; j++)
+      {
+        headcopy = head[j];
+        while (headcopy)
+        {
+          vecarray[n] = vecpart[headcopy->valindex];
+          colindexes[n] = headcopy->valindex;
+          n++;
+          headcopy = headcopy->next;
         }
       }
 
-
+      if (v2<nnz)
+      {
+        ierr = MatSetValues(jac->premr,1,&row,qq,colindexes,vecarray,INSERT_VALUES);CHKERRQ(ierr);
+      }
+      else if (v1<nnz)
+      {
+        m = nnz-v1;
+        ierr = MatSetValues(jac->premr,1,&row,m,colindexes,vecarray,INSERT_VALUES);CHKERRQ(ierr);
+      }
+      ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
+      ierr = VecRestoreArray(bmrvec, &vecarray);CHKERRQ(ierr);
+      ierr = VecDestroy(&bmrvec);CHKERRQ(ierr);
       ierr = VecRestoreArrayRead(mrvec,&vecpart);CHKERRQ(ierr);
       ierr = VecScatterDestroy(&ctx);CHKERRQ(ierr);
+      ierr = PetscFree(colindexes);CHKERRQ(ierr);
     }
     else
     {
@@ -538,8 +578,6 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       headcopy=nextcopy;      
     }
   }
-
-
   ierr = PetscFree(nncols);CHKERRQ(ierr);
   ierr = PetscFree(IsHead);CHKERRQ(ierr);
   ierr = PetscFree(head);CHKERRQ(ierr);
