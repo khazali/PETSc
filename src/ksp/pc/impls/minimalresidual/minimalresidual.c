@@ -15,8 +15,9 @@ typedef struct {
   PetscInt initer;
   PetscInt nMRrows,*MRrows,firstindex;
   Vec      vdiag;
-  PetscInt nbuckets, *buckets;
+  PetscInt nbuckets;
   PetscBool DoNumDrop;
+  PetscScalar *buckets
 } PC_MinimalResidual;
 
 
@@ -81,7 +82,7 @@ PetscErrorCode  PCMinimalResidualGetLines(PC pc,PetscInt *nMRrows,PetscInt *firs
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PCMinimalResidualSetBuckets_MinimalResidual(PC pc,PetscInt nbuckets,PetscInt *buckets)
+PetscErrorCode PCMinimalResidualSetBuckets_MinimalResidual(PC pc,PetscInt nbuckets,PetscScalar *buckets)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
   PetscErrorCode     ierr;
@@ -90,11 +91,11 @@ PetscErrorCode PCMinimalResidualSetBuckets_MinimalResidual(PC pc,PetscInt nbucke
   j->nbuckets = nbuckets;
   j->DoNumDrop = PETSC_TRUE;
   ierr = PetscMalloc1(nbuckets,&j->buckets);CHKERRQ(ierr);
-  ierr = PetscMemcpy(j->buckets,buckets,nbuckets*sizeof(PetscInt));CHKERRQ(ierr);
+  ierr = PetscMemcpy(j->buckets,buckets,nbuckets*sizeof(PetscScalar));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode PCMinimalResidualGetBuckets_MinimalResidual(PC pc,PetscInt *nbuckets,const PetscInt **buckets)
+PetscErrorCode PCMinimalResidualGetBuckets_MinimalResidual(PC pc,PetscInt *nbuckets,const PetscScalar **buckets)
 {
   PC_MinimalResidual *j = (PC_MinimalResidual*)pc->data;
 
@@ -104,23 +105,23 @@ PetscErrorCode PCMinimalResidualGetBuckets_MinimalResidual(PC pc,PetscInt *nbuck
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode  PCMinimalResidualSetBuckets(PC pc,PetscInt nbuckets,PetscInt *buckets)
+PetscErrorCode  PCMinimalResidualSetBuckets(PC pc,PetscInt nbuckets,PetscScalar *buckets)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
-  ierr = PetscTryMethod(pc,"PCMinimalResidualSetBuckets_C",(PC,PetscInt,PetscInt*),(pc,nbuckets,buckets));CHKERRQ(ierr);
+  ierr = PetscTryMethod(pc,"PCMinimalResidualSetBuckets_C",(PC,PetscInt,PetscScalar*),(pc,nbuckets,buckets));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
-PetscErrorCode  PCMinimalResidualGetBuckets(PC pc,PetscInt *nbuckets,const PetscInt **buckets)
+PetscErrorCode  PCMinimalResidualGetBuckets(PC pc,PetscInt *nbuckets,const PetscScalar **buckets)
 {
   PetscErrorCode ierr;
 
   PetscFunctionBegin;
   PetscValidHeaderSpecific(pc,PC_CLASSID,1);
-  ierr = PetscUseMethod(pc,"PCMinimalResidualGetBuckets_C",(PC,PetscInt*,PetscInt**),(pc,nbuckets,buckets));CHKERRQ(ierr);
+  ierr = PetscUseMethod(pc,"PCMinimalResidualGetBuckets_C",(PC,PetscInt*,PetscScalar**),(pc,nbuckets,buckets));CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -233,7 +234,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscMPIInt    mpirank, mpisize;
   PetscInt       startbucket, endbucket, mybuckets;
   PetscInt       nbuckets = jac->nbuckets;
-  PetscInt       *buckets = jac->buckets;
+  PetscScalar    *buckets = jac->buckets;
   BucketEntry    **head, *headcopy, *nextcopy, ***nexts;
   PetscScalar    mrstart,mrend,MaxScalar,vecentry;
   PetscBool      *IsHead;
@@ -287,8 +288,8 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     }
     endbucket = startbucket+mybuckets;
 
-    if (sizeof(PetscScalar) == 8) MaxScalar = 0x1.fffffffffffffp+1023;
-    else MaxScalar = 0x1.fffffep+127f;
+    if (sizeof(PetscScalar) == 8) MaxScalar = 1.7976931348623158e+308;
+    else MaxScalar = 3.402823466e+38F;
 
     mrstart = (startbucket) ?  buckets[startbucket-1]:MaxScalar;
     mrend = (endbucket==nbuckets) ? 0:buckets[startbucket];
@@ -298,7 +299,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     ierr = PetscMalloc1(mybuckets, &IsHead);CHKERRQ(ierr);
     for (i=0; i<mybuckets; i++)
     {
-      *nexts[i] = NULL;
+      nexts[i] = NULL;
       IsHead[i] = PETSC_TRUE;
     }
   }
@@ -420,7 +421,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 
   for (j=0; j<nMRrows; j++)
   {
-	  row = MRrows[j];
+	row = MRrows[j];
     ierr = VecZeroEntries(workvec_s);CHKERRQ(ierr);
     if ((row>=startrow) && (row<endrow))
     {      
