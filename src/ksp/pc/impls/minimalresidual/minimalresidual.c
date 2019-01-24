@@ -351,7 +351,8 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 
   ierr = MatCreateAIJ(comm, nrlocal,nclocal,nrglobal,ncglobal,0,dnnz,0,onnz, &(jac->premr));CHKERRQ(ierr);
   ierr = MatSetVariableBlockSizes(jac->premr,nblocks,(PetscInt*)bsizes);CHKERRQ(ierr);
-  //ierr = MatSetOption(jac->premr,MAT_NEW_NONZERO_LOCATIONS,PETSC_FALSE);CHKERRQ(ierr);
+  //ierr = MatSetOption(jac->premr, MAT_NEW_NONZERO_LOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
+  ierr = MatSetOption(jac->premr, MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
   
   j = 0;
   ptodiag=diag;
@@ -360,6 +361,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   m = startrow;
   l = firstindex+1;
   rm = MRrows[firstindex];
+  inq = 0;
   for (i=startrow; i<endrow; i++)
   {
     if (n == bs)
@@ -376,16 +378,18 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       {
         rm = MRrows[l];
         l++;
-      }      
-      inq = 0;
+      }     
+      
       qq = 0;
+	  nsize = 0;
       //for (k=0; k<bs; k++)
 	  for (k = startrow; k < endrow; k++)
       {
 		if ((k >= m) && (k < (m + bs)))
 		{
 		  //col = k + m;
-		  ierr = MatSetValues(jac->premr, 1, &i, 1, &k, ptodiag + n + (k-m) * bs, INSERT_VALUES); CHKERRQ(ierr);
+		  ierr = MatSetValues(jac->premr, 1, &i, 1, &k, ptodiag + n + nsize * bs, INSERT_VALUES); CHKERRQ(ierr);
+		  nsize++;
 		}
 		else
 		{
@@ -565,20 +569,23 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
 		  m = nnz - v1;
 		  //ierr = MatSetValues(jac->premr, 1, &row, m, colindexes, vecarray, INSERT_VALUES); CHKERRQ(ierr);
 	  }
+	  else m = 0;
 
-      n = 0;
-      for (i=0; i<mybuckets; i++)
-      {
-        headcopy = head[i];
-        while (headcopy)
+	  if (m)
+	  {
+        n = 0;
+        for (i=0; i<mybuckets; i++)
         {
-          vecarray[n] = vecpart[headcopy->valindex];
-          colindexes[n] = headcopy->valindex;
-          n++;
-		  if (n == m) goto EXITLOOP;
-          headcopy = headcopy->next;
+          headcopy = head[i];
+          while (headcopy)
+          {
+            vecarray[n] = vecpart[headcopy->valindex];
+            colindexes[n] = headcopy->valindex;
+            n++;
+		    if (n == m) goto EXITLOOP;
+            headcopy = headcopy->next;
+          }
         }
-      }
 
       /*if (v2<nnz)
       {
@@ -589,8 +596,9 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
         m = nnz-v1;
         ierr = MatSetValues(jac->premr,1,&row,m,colindexes,vecarray,INSERT_VALUES);CHKERRQ(ierr);
       }*/
-	  EXITLOOP:
-	  ierr = MatSetValues(jac->premr, 1, &row, m, colindexes, vecarray, INSERT_VALUES); CHKERRQ(ierr);
+	    EXITLOOP:	  
+		ierr = MatSetValues(jac->premr, 1, &row, m, colindexes, vecarray, INSERT_VALUES);CHKERRQ(ierr);
+	  }
       ierr = MatAssemblyBegin(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
       ierr = MatAssemblyEnd(jac->premr, MAT_FINAL_ASSEMBLY);CHKERRQ(ierr);
       ierr = VecRestoreArray(bmrvec, &vecarray);CHKERRQ(ierr);
