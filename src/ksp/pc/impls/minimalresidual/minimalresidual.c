@@ -33,10 +33,13 @@ static PetscErrorCode PCApply_MinimalResidual(PC pc,Vec x,Vec y)
 {
   PC_MinimalResidual      *jac = (PC_MinimalResidual*)pc->data;
   PetscErrorCode          ierr;
+  Vec					  xx;
   
-  PetscFunctionBegin;  
-  ierr = VecPointwiseMult(x,x,jac->vdiag);CHKERRQ(ierr);
-  ierr = MatMult(jac->premr,x,y);CHKERRQ(ierr);
+  PetscFunctionBegin;
+  ierr = VecDuplicate(x, &xx);CHKERRQ(ierr);
+  ierr = VecPointwiseMult(xx,x,jac->vdiag);CHKERRQ(ierr);
+  ierr = MatMult(jac->premr,xx,y);CHKERRQ(ierr);
+  ierr = VecDestroy(&xx);CHKERRQ(ierr);
   PetscFunctionReturn(0);
 }
 
@@ -237,7 +240,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscInt       startbucket, endbucket, mybuckets;
   PetscInt       nbuckets = jac->nbuckets;
   PetscScalar    *buckets = jac->buckets;
-  BucketEntry    **head, *headcopy, *nextcopy, ***nexts, *nextpointer;
+  BucketEntry    **head, *headcopy, *nextcopy, ***nexts;
   PetscScalar    mrstart,mrend,MaxScalar,vecentry;
   PetscBool      *IsHead;
   PetscInt       v1,v2,*colindexes;
@@ -301,7 +304,7 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
     ierr = PetscMalloc1(mybuckets, &IsHead);CHKERRQ(ierr);
     for (i=0; i<mybuckets; i++)
     {
-      //nexts[i] = NULL;
+      head[i] = NULL;
       IsHead[i] = PETSC_TRUE;
     }
   }
@@ -487,19 +490,19 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
         vecentry = PetscAbsReal(vecpart[i]);
         if ((vecentry<=mrstart) && (vecentry>buckets[startbucket]))
         {
-          ierr = PetscMalloc1(1, &nextpointer);CHKERRQ(ierr);
-		  nextpointer->valindex = i;
-		  nextpointer->next = NULL;
+          ierr = PetscMalloc1(1, &nextcopy);CHKERRQ(ierr);
+		  nextcopy->valindex = i;
+		  nextcopy->next = NULL;
           if (IsHead[0]) 
           {
-            head[0] = nextpointer;
+            head[0] = nextcopy;
             IsHead[0] = PETSC_FALSE;
           }
 		  else
 		  {
-			*(nexts[0]) = nextpointer;
+			*(nexts[0]) = nextcopy;
 		  }
-		  nexts[0] = &(nextpointer->next);
+		  nexts[0] = &(nextcopy->next);
           qq++;
         }
         n = 1;
@@ -507,39 +510,38 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
         {
           if ((vecentry<=buckets[k]) && (vecentry>buckets[k+1]))
           {
-			ierr = PetscMalloc1(1, &nextpointer); CHKERRQ(ierr);
-			nextpointer->valindex = i;
-			nextpointer->next = NULL;
+			ierr = PetscMalloc1(1, &nextcopy);CHKERRQ(ierr);
+			nextcopy->valindex = i;
+			nextcopy->next = NULL;
 			if (IsHead[n])
 			{
-			 head[n] = nextpointer;
+			 head[n] = nextcopy;
 			 IsHead[n] = PETSC_FALSE;
 			}
 			else
 			{
-			 *(nexts[n]) = nextpointer;
+			 *(nexts[n]) = nextcopy;
 			}
-			nexts[n] = &(nextpointer->next);
+			nexts[n] = &(nextcopy->next);
 			qq++;
           }
-          n++;
-          
+          n++;          
         }
         if ((mpirank==(mpisize-1)) && (vecentry<=buckets[k]) && (vecentry>mrend))
         {
-		  ierr = PetscMalloc1(1, &nextpointer); CHKERRQ(ierr);
-		  nextpointer->valindex = i;
-		  nextpointer->next = NULL;
+		  ierr = PetscMalloc1(1, &nextcopy);CHKERRQ(ierr);
+		  nextcopy->valindex = i;
+		  nextcopy->next = NULL;
 		  if (IsHead[n])
 		  {
-		  	head[n] = nextpointer;
+		  	head[n] = nextcopy;
 			IsHead[n] = PETSC_FALSE;
 		  }
 		  else
 		  {
-			*(nexts[n]) = nextpointer;
+			*(nexts[n]) = nextcopy;
 		  }
-		  nexts[n] = &(nextpointer->next);
+		  nexts[n] = &(nextcopy->next);
 		  qq++;
         }
       }
@@ -598,16 +600,16 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
       ierr = PetscFree(colindexes);CHKERRQ(ierr);
 	  for (i = 0; i < mybuckets; i++)
 	  {
-		  //PetscPrintf(comm, "%D\n", i);
-		  headcopy = head[i];
-		  while (headcopy)
-		  {
-			  nextcopy = headcopy->next;
-			  ierr = PetscFree(headcopy); CHKERRQ(ierr);
-			  headcopy = nextcopy;
-		  }
-		  //nexts[i] = NULL;
-		  IsHead[i] = PETSC_TRUE;
+		//PetscPrintf(comm, "%D\n", i);
+		headcopy = head[i];
+		while (headcopy)
+		{
+		  nextcopy = headcopy->next;
+		  ierr = PetscFree(headcopy);CHKERRQ(ierr);
+		  headcopy = nextcopy;
+		}
+		head[i] = NULL;
+		IsHead[i] = PETSC_TRUE;
 	  }
     }
     else
