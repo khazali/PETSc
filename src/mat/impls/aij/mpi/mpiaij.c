@@ -1948,6 +1948,65 @@ PetscErrorCode MatRestoreRow_MPIAIJ(Mat mat,PetscInt row,PetscInt *nz,PetscInt *
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode MatChangeRow_MPIAIJ(Mat matin,PetscInt row,PetscInt nz,PetscInt *idx,PetscScalar *v)
+{
+  Mat_MPIAIJ     *mat = (Mat_MPIAIJ*)matin->data;
+  PetscScalar    *vworkA,*vworkB,*v_p;
+  PetscErrorCode ierr;
+  PetscInt       i,*cworkA,*cworkB,cstart = matin->cmap->rstart, cend=matin->cmap->rend;
+  PetscInt       nztot,nzA,nzB,lrow,rstart = matin->rmap->rstart,rend = matin->rmap->rend, realnzA, realnzB;
+  PetscInt       *cmap,*idx_p, idx_copy;
+
+  PetscFunctionBegin;
+  if (row < rstart || row >= rend) SETERRQ(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Only local rows");
+  lrow = row - rstart;
+
+  
+  ierr  = (*mat->A->ops->getrow)(mat->A,lrow,&nzA,NULL,NULL);CHKERRQ(ierr);
+  ierr  = (*mat->B->ops->getrow)(mat->B,lrow,&nzB,NULL,NULL);CHKERRQ(ierr);
+  nztot = nzA + nzB;
+  ierr  = (*mat->A->ops->restorerow)(mat->A,lrow,&nzA,NULL,NULL);CHKERRQ(ierr);
+  ierr  = (*mat->B->ops->restorerow)(mat->B,lrow,&nzB,NULL,NULL);CHKERRQ(ierr);
+
+  ierr = PetscMalloc1(nztot,&vworkA);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nztot,&vworkB);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nztot,&cworkA);CHKERRQ(ierr);
+  ierr = PetscMalloc1(nztot,&cworkB);CHKERRQ(ierr);
+
+  cmap = mat->garray;
+
+  if (nz>nztot) nz = nztot;
+  realnzA = 0;
+  realnzB = 0;
+  for (i=0; i<nz; i++)
+  {
+    idx_copy=idx[i];
+    if ((idx_copy>=cstart) && (idx_copy<cend))
+    {
+      vworkA[realnzA]=v[i];
+      cworkA[realnzA]=idx_copy-cstart;
+      realnzA++;
+    }
+    else if (realnzB<nzB)
+    {
+      vworkB[realnzB]=v[i];
+      cworkB[realnzB]=realnzB;
+      cmap[realnzB]=idx_copy;     
+      realnzB++;
+    }    
+  }
+
+  ierr  = (*mat->A->ops->changerow)(mat->A,lrow,realnzA,cworkA,vworkA);CHKERRQ(ierr);
+  ierr  = (*mat->A->ops->changerow)(mat->A,lrow,realnzB,cworkB,vworkB);CHKERRQ(ierr);
+  
+  
+  ierr = PetscFree(vworkA);CHKERRQ(ierr);
+  ierr = PetscFree(vworkB);CHKERRQ(ierr);
+  ierr = PetscFree(cworkA);CHKERRQ(ierr);
+  ierr = PetscFree(cworkB);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 PetscErrorCode MatNorm_MPIAIJ(Mat mat,NormType type,PetscReal *norm)
 {
   Mat_MPIAIJ     *aij  = (Mat_MPIAIJ*)mat->data;

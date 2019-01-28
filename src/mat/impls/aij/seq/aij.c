@@ -2015,7 +2015,7 @@ PetscErrorCode MatChangeRow_SeqAIJ(Mat A,PetscInt row,PetscInt nz,PetscInt *idx,
   PetscFunctionBegin;
   if (row < 0 || row >= A->rmap->n) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Row %D out of range",row);
   mnz = a->i[row+1] - a->i[row];
-  if (nz>=mnz) nz = mnz;
+  if (nz>mnz) nz = mnz;
   ierr = PetscCalloc1(A->cmap->n,&colcheck);CHKERRQ(ierr);
   //for (i=0; i<A->cmap->n; i++) colcheck[i] = PETSC_TRUE;
   
