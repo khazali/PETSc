@@ -2003,6 +2003,43 @@ PetscErrorCode MatGetRow_SeqAIJ(Mat A,PetscInt row,PetscInt *nz,PetscInt **idx,P
   PetscFunctionReturn(0);
 }
 
+PetscErrorCode MatChangeRow_SeqAIJ(Mat A,PetscInt row,PetscInt nz,PetscInt *idx,PetscScalar *v)
+{
+  Mat_SeqAIJ *a = (Mat_SeqAIJ*)A->data;
+  PetscInt   *itmp;
+  PetscInt   i,j,mnz;
+  PetscScalar *v_p;
+  PetscBool  *colcheck;
+  PetscErrorCode ierr;
+
+  PetscFunctionBegin;
+  if (row < 0 || row >= A->rmap->n) SETERRQ1(PETSC_COMM_SELF,PETSC_ERR_ARG_OUTOFRANGE,"Row %D out of range",row);
+  mnz = a->i[row+1] - a->i[row];
+  if (nz>=mnz) nz = mnz;
+  ierr = PetscCalloc1(A->cmap->n,&colcheck);CHKERRQ(ierr);
+  //for (i=0; i<A->cmap->n; i++) colcheck[i] = PETSC_TRUE;
+  
+  v_p = a->a + a->i[row];
+  itmp = a->j + a->i[row];
+  for (i=0; i<nz; i++)
+  {
+    v_p[i] = v[i];
+    itmp[i] = idx[i];
+    colcheck[idx[i]] = PETSC_TRUE;
+  }
+
+  j = 0;
+  for (;i<mnz; i++)
+  {
+    while (colcheck[j]) j++;    //j should not become greater than A->cmap->n
+    v_p[i] = 0;
+    itmp[i] = j;
+  }
+    
+  ierr = PetscFree(colcheck);CHKERRQ(ierr);
+  PetscFunctionReturn(0);
+}
+
 /* remove this function? */
 PetscErrorCode MatRestoreRow_SeqAIJ(Mat A,PetscInt row,PetscInt *nz,PetscInt **idx,PetscScalar **v)
 {

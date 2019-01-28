@@ -244,7 +244,6 @@ static PetscErrorCode PCSetUp_MinimalResidual(PC pc)
   PetscScalar    mrstart,mrend,MaxScalar,vecentry;
   PetscBool      *IsHead;
   PetscInt       v1,v2,*colindexes;
-  
 
   PetscFunctionBegin;
   ierr = MatDuplicate(pc->pmat,MAT_COPY_VALUES,&Acopy);CHKERRQ(ierr);
